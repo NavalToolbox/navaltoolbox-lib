@@ -20,8 +20,7 @@
 //! Calculates KN and GZ curves.
 
 use super::{StabilityCurve, StabilityPoint};
-use crate::hydrostatics::HydrostaticsCalculator;
-use crate::mesh::{clip_at_waterline, get_bounds, transform_mesh, transform_point};
+use crate::mesh::{clip_at_waterline, transform_mesh, transform_point};
 use crate::vessel::Vessel;
 use nalgebra::Point3;
 use parry3d_f64::shape::Shape;
@@ -154,6 +153,7 @@ impl<'a> StabilityCalculator<'a> {
     }
 
     /// Find equilibrium state at a specific heel angle.
+    #[allow(clippy::too_many_arguments)]
     fn find_equilibrium_at_heel(
         &self,
         target_volume: f64,
@@ -165,8 +165,8 @@ impl<'a> StabilityCalculator<'a> {
         z_min: f64,
         z_max: f64,
     ) -> (f64, f64, f64) {
-        let lcg = cog[0];
-        let vcg = cog[2];
+        let _lcg = cog[0];
+        let _vcg = cog[2];
         let lcb_tolerance = 0.5;
         let max_iter = 15;
 

@@ -39,7 +39,6 @@ pub enum SilhouetteLoadError {
 }
 
 // Legacy alias for DxfError
-pub type DxfError = SilhouetteLoadError;
 
 /// Load a silhouette from a DXF file.
 pub fn load_dxf_silhouette(path: &Path) -> Result<(Vec<[f64; 3]>, String), SilhouetteLoadError> {

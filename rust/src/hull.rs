@@ -275,10 +275,7 @@ impl Hull {
             .collect();
 
         stl_io::write_stl(&mut writer, triangles.iter()).map_err(|e| {
-            HullError::IoError(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("STL write error: {}", e),
-            ))
+            HullError::IoError(std::io::Error::other(format!("STL write error: {}", e)))
         })?;
 
         Ok(())

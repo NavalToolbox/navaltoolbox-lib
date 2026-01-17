@@ -70,7 +70,7 @@ impl<'a> HydrostaticsCalculator<'a> {
         for hull in self.vessel.hulls() {
             // Transform hull
             let transformed = transform_mesh(hull.mesh(), heel, trim, pivot);
-            let trans_bounds = get_bounds(&transformed);
+            let _trans_bounds = get_bounds(&transformed);
 
             // Clip at waterline
             if let Some(clipped) = clip_at_waterline(&transformed, draft) {

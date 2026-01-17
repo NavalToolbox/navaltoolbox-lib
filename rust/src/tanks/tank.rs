@@ -22,7 +22,6 @@
 use nalgebra::Point3;
 use parry3d_f64::shape::{Shape, TriMesh};
 
-use crate::hull::Hull;
 use crate::mesh::clip_at_waterline;
 
 /// Represents a tank with fluid management capabilities.
@@ -71,6 +70,7 @@ impl Tank {
     }
 
     /// Creates a box-shaped tank from min/max coordinates.
+    #[allow(clippy::too_many_arguments)]
     pub fn from_box(
         name: &str,
         x_min: f64,

@@ -18,7 +18,7 @@
 //! Mesh transformation utilities.
 
 use nalgebra::{Point3, Rotation3, Vector3};
-use parry3d_f64::bounding_volume::Aabb;
+
 use parry3d_f64::shape::TriMesh;
 
 /// Returns the axis-aligned bounding box of the mesh.
@@ -89,53 +89,6 @@ pub fn transform_point(
     let relative = point - pivot;
     let rotated = rotation * relative;
     pivot + rotated
-}
-
-/// Applies a translation to a mesh.
-pub fn translate_mesh(mesh: &TriMesh, translation: Vector3<f64>) -> TriMesh {
-    let new_vertices: Vec<Point3<f64>> = mesh.vertices().iter().map(|v| v + translation).collect();
-
-    let indices: Vec<[u32; 3]> = mesh
-        .indices()
-        .iter()
-        .map(|idx| [idx[0], idx[1], idx[2]])
-        .collect();
-
-    TriMesh::new(new_vertices, indices).expect("Failed to create translated mesh")
-}
-
-/// Scales a mesh uniformly.
-pub fn scale_mesh(mesh: &TriMesh, factor: f64) -> TriMesh {
-    let new_vertices: Vec<Point3<f64>> = mesh
-        .vertices()
-        .iter()
-        .map(|v| Point3::new(v.x * factor, v.y * factor, v.z * factor))
-        .collect();
-
-    let indices: Vec<[u32; 3]> = mesh
-        .indices()
-        .iter()
-        .map(|idx| [idx[0], idx[1], idx[2]])
-        .collect();
-
-    TriMesh::new(new_vertices, indices).expect("Failed to create scaled mesh")
-}
-
-/// Scales a mesh non-uniformly.
-pub fn scale_mesh_xyz(mesh: &TriMesh, sx: f64, sy: f64, sz: f64) -> TriMesh {
-    let new_vertices: Vec<Point3<f64>> = mesh
-        .vertices()
-        .iter()
-        .map(|v| Point3::new(v.x * sx, v.y * sy, v.z * sz))
-        .collect();
-
-    let indices: Vec<[u32; 3]> = mesh
-        .indices()
-        .iter()
-        .map(|idx| [idx[0], idx[1], idx[2]])
-        .collect();
-
-    TriMesh::new(new_vertices, indices).expect("Failed to create scaled mesh")
 }
 
 #[cfg(test)]

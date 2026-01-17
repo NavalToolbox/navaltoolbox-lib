@@ -24,8 +24,12 @@
 
 use nalgebra::{Point2, Point3};
 use ordered_float::OrderedFloat;
-use parry3d_f64::shape::{Shape, TriMesh};
+use parry3d_f64::shape::TriMesh;
 use std::collections::{HashMap, HashSet};
+
+/// Type alias for vertex map with OrderedFloat coordinates
+type VertexKey = (OrderedFloat<f64>, OrderedFloat<f64>, OrderedFloat<f64>);
+type VertexMap = HashMap<VertexKey, u32>;
 
 /// Helper to convert f64 Point3 to OrderedFloat point for hashing
 fn to_ordered(p: &Point3<f64>) -> Point3<OrderedFloat<f64>> {
@@ -56,8 +60,7 @@ pub fn clip_at_waterline(mesh: &TriMesh, draft: f64) -> Option<TriMesh> {
     let mut new_indices = Vec::new();
     let mut cut_segments: Vec<(Point3<f64>, Point3<f64>)> = Vec::new();
 
-    let mut vertex_map: HashMap<(OrderedFloat<f64>, OrderedFloat<f64>, OrderedFloat<f64>), u32> =
-        HashMap::new();
+    let mut vertex_map: VertexMap = HashMap::new();
 
     let mut get_or_add_vertex = |p: Point3<f64>| -> u32 {
         let key = (OrderedFloat(p.x), OrderedFloat(p.y), OrderedFloat(p.z));
