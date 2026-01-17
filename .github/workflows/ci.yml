@@ -110,8 +110,11 @@ jobs:
       - name: Install maturin and pytest
         run: pip install maturin pytest
       
-      - name: Build and install
-        run: cd python && maturin develop --release
+      - name: Build wheel
+        run: cd python && maturin build --release --interpreter python${{ matrix.python-version }}
+      
+      - name: Install wheel
+        run: pip install rust/target/wheels/*.whl
       
       - name: Run tests
         run: cd python && pytest tests/ -v
