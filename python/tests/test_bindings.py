@@ -220,8 +220,7 @@ class TestDTMB5415:
         passed = 0
         total = len(heels)
 
-        print("
-DTMB5415 GZ Validation:")
+        print("\nDTMB5415 GZ Validation:")
         print("Heel      Calc GZ    Ref GZ     Error")
         print("-" * 45)
 
@@ -236,8 +235,7 @@ DTMB5415 GZ Validation:")
             print(f"{heel:5.1f}°    {gz:7.3f}m   {ref_gz:7.3f}m   {error:.3f}m {status}")
 
         pass_rate = passed / total
-        print(f"
-Passed: {passed}/{total} ({pass_rate * 100:.0f}%)")
+        print(f"\nPassed: {passed}/{total} ({pass_rate * 100:.0f}%)")
 
         assert pass_rate >= 0.7, f"At least 70% should pass, got {pass_rate * 100:.0f}%"
 
