@@ -1,0 +1,52 @@
+[package]
+name = "navaltoolbox"
+version = "0.0.0"
+edition = "2021"
+description = "High-performance naval architecture library for hydrostatics, stability, and tank calculations"
+authors = ["Antoine ANCEAU"]
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/antoine-anceau/navaltoolbox"
+
+[lib]
+name = "navaltoolbox"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# Geometry and collision detection (f64 precision)
+parry3d-f64 = "0.18"
+# Linear algebra
+nalgebra = "0.33"
+# STL file loading
+stl_io = "0.8"
+# VTK file loading (optional, for later)
+# vtkio = "0.6"
+# Fast polygon triangulation for waterline caps
+earcutr = "0.4"
+# Ordered floats for HashMap keys
+ordered-float = "4.6"
+# Error handling
+thiserror = "2.0"
+# DXF file loading for silhouettes
+dxf = "0.5"
+# VTK file loading for silhouettes
+vtkio = "0.6"
+# Logging
+log = "0.4"
+
+# Python bindings (optional)
+[dependencies.pyo3]
+version = "0.23"
+features = ["extension-module"]
+optional = true
+
+[features]
+default = []
+python = ["dep:pyo3"]
+
+[dev-dependencies]
+# For testing
+approx = "0.5"
+
+[profile.release]
+opt-level = 3
+lto = true

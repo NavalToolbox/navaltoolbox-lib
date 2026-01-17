@@ -1,0 +1,16 @@
+/* Custom CSS for NavalToolbox documentation */
+
+/* Slightly larger code blocks */
+.highlight pre {
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+/* API reference styling */
+.sig-name {
+    font-weight: 600;
+}
+
+.sig-param {
+    font-style: italic;
+}
