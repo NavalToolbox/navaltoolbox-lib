@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*.*.*'
+      - 'v*.*.*-*'
   workflow_dispatch:
     inputs:
       environment:
@@ -14,6 +15,10 @@ on:
           - testpypi
           - pypi
           - cratesio
+      version:
+        description: 'Version to publish (without v prefix, e.g. 1.2.3)'
+        required: false
+        type: string
 
 permissions:
   id-token: write
@@ -38,8 +43,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
+      - name: Extract version from tag or input
+        id: version
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          elif [[ -n "${{ github.event.inputs.version }}" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="0.0.0-dev"
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "Detected version: $VERSION"
+      
+      - name: Update Cargo.toml version
+        shell: bash
+        run: |
+          sed -i.bak 's/^version = ".*"/version = "${{ steps.version.outputs.VERSION }}"/' rust/Cargo.toml
+          rm -f rust/Cargo.toml.bak
+          echo "Updated Cargo.toml:"
+          grep '^version' rust/Cargo.toml
+      
       - name: Install Rust toolchain
-        uses: dtolnay/rust-action@stable
+        uses: dtolnay/rust-toolchain@stable
       
       - name: Set up Python ${{ matrix.python }}
         uses: actions/setup-python@v5
@@ -68,8 +95,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
+      - name: Extract version from tag or input
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          elif [[ -n "${{ github.event.inputs.version }}" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="0.0.0-dev"
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "Detected version: $VERSION"
+      
+      - name: Update Cargo.toml version
+        run: |
+          sed -i 's/^version = ".*"/version = "${{ steps.version.outputs.VERSION }}"/' rust/Cargo.toml
+          echo "Updated Cargo.toml:"
+          grep '^version' rust/Cargo.toml
+      
       - name: Install Rust toolchain
-        uses: dtolnay/rust-action@stable
+        uses: dtolnay/rust-toolchain@stable
       
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -167,10 +213,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
+      - name: Extract version from tag or input
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          elif [[ -n "${{ github.event.inputs.version }}" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="0.0.0-dev"
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "Detected version: $VERSION"
+      
+      - name: Update Cargo.toml version
+        run: |
+          sed -i 's/^version = ".*"/version = "${{ steps.version.outputs.VERSION }}"/' rust/Cargo.toml
+          echo "Updated Cargo.toml:"
+          grep '^version' rust/Cargo.toml
+      
       - name: Install Rust toolchain
-        uses: dtolnay/rust-action@stable
+        uses: dtolnay/rust-toolchain@stable
       
       - name: Publish to crates.io
-        run: cd rust && cargo publish
+        run: cd rust && cargo publish --allow-dirty
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
