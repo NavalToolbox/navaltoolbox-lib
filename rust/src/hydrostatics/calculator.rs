@@ -19,9 +19,9 @@
 //!
 //! Calculates hydrostatic properties for vessel geometries.
 
-use crate::vessel::Vessel;
-use crate::mesh::{clip_at_waterline, transform_mesh, get_bounds};
 use super::HydrostaticState;
+use crate::mesh::{clip_at_waterline, get_bounds, transform_mesh};
+use crate::vessel::Vessel;
 use nalgebra::Point3;
 use parry3d_f64::shape::Shape;
 
@@ -186,12 +186,18 @@ mod tests {
             Point3::new(0.0, hb, depth),
         ];
         let indices = vec![
-            [0, 2, 1], [0, 3, 2],
-            [4, 5, 6], [4, 6, 7],
-            [0, 1, 5], [0, 5, 4],
-            [2, 3, 7], [2, 7, 6],
-            [0, 4, 7], [0, 7, 3],
-            [1, 2, 6], [1, 6, 5],
+            [0, 2, 1],
+            [0, 3, 2],
+            [4, 5, 6],
+            [4, 6, 7],
+            [0, 1, 5],
+            [0, 5, 4],
+            [2, 3, 7],
+            [2, 7, 6],
+            [0, 4, 7],
+            [0, 7, 3],
+            [1, 2, 6],
+            [1, 6, 5],
         ];
         let mesh = TriMesh::new(vertices, indices).unwrap();
         Hull::from_mesh(mesh)
@@ -206,6 +212,10 @@ mod tests {
 
         // At draft 5m, volume should be 10 * 10 * 5 = 500 m³
         let state = calc.calculate_at_draft(5.0, 0.0, 0.0, 0.0).unwrap();
-        assert!((state.volume - 500.0).abs() < 1.0, "Volume was {}", state.volume);
+        assert!(
+            (state.volume - 500.0).abs() < 1.0,
+            "Volume was {}",
+            state.volume
+        );
     }
 }

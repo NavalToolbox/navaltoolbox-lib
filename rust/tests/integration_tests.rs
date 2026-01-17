@@ -3,10 +3,10 @@
 //! These tests convert the Python tests from pynavaltoolbox to Rust,
 //! with the same precision requirements.
 
-use navaltoolbox::{Hull, Vessel, HydrostaticsCalculator, StabilityCalculator, Tank};
-use navaltoolbox::hydrostatics::HydrostaticState;
-use navaltoolbox::stability::{StabilityPoint, StabilityCurve};
 use nalgebra::Point3;
+use navaltoolbox::hydrostatics::HydrostaticState;
+use navaltoolbox::stability::{StabilityCurve, StabilityPoint};
+use navaltoolbox::{Hull, HydrostaticsCalculator, StabilityCalculator, Tank, Vessel};
 use parry3d_f64::shape::TriMesh;
 use std::f64::consts::PI;
 
@@ -16,9 +16,12 @@ use std::f64::consts::PI;
 
 /// Creates a box-shaped hull mesh.
 fn create_box_mesh(
-    x_min: f64, x_max: f64,
-    y_min: f64, y_max: f64,
-    z_min: f64, z_max: f64,
+    x_min: f64,
+    x_max: f64,
+    y_min: f64,
+    y_max: f64,
+    z_min: f64,
+    z_max: f64,
 ) -> TriMesh {
     let vertices = vec![
         Point3::new(x_min, y_min, z_min),
@@ -33,28 +36,30 @@ fn create_box_mesh(
 
     let indices = vec![
         // Bottom
-        [0, 2, 1], [0, 3, 2],
+        [0, 2, 1],
+        [0, 3, 2],
         // Top
-        [4, 5, 6], [4, 6, 7],
+        [4, 5, 6],
+        [4, 6, 7],
         // Front (y_min)
-        [0, 1, 5], [0, 5, 4],
+        [0, 1, 5],
+        [0, 5, 4],
         // Back (y_max)
-        [2, 3, 7], [2, 7, 6],
+        [2, 3, 7],
+        [2, 7, 6],
         // Left (x_min)
-        [0, 4, 7], [0, 7, 3],
+        [0, 4, 7],
+        [0, 7, 3],
         // Right (x_max)
-        [1, 2, 6], [1, 6, 5],
+        [1, 2, 6],
+        [1, 6, 5],
     ];
 
     TriMesh::new(vertices, indices).expect("Failed to create box mesh")
 }
 
 /// Creates a box-shaped Hull.
-fn create_box_hull(
-    x_min: f64, x_max: f64,
-    y_min: f64, y_max: f64,
-    z_min: f64, z_max: f64,
-) -> Hull {
+fn create_box_hull(x_min: f64, x_max: f64, y_min: f64, y_max: f64, z_min: f64, z_max: f64) -> Hull {
     let mesh = create_box_mesh(x_min, x_max, y_min, y_max, z_min, z_max);
     Hull::from_mesh(mesh)
 }
@@ -127,7 +132,10 @@ mod box_barge_tests {
             assert!(
                 error < 0.05,
                 "GZ error at {}° is {:.4}m (> 0.05m tolerance). Expected {:.4}, got {:.4}",
-                point.heel, error, gz_exact, point.value
+                point.heel,
+                error,
+                gz_exact,
+                point.value
             );
         }
     }
@@ -146,13 +154,18 @@ mod box_barge_tests {
         assert!(
             error < 1.0,
             "Volume error: expected {}, got {}",
-            expected_volume, state.volume
+            expected_volume,
+            state.volume
         );
 
         // Center of buoyancy should be at (0, 0, 2.5)
         assert!(state.lcb.abs() < 0.1, "LCB should be ~0, got {}", state.lcb);
         assert!(state.tcb.abs() < 0.1, "TCB should be ~0, got {}", state.tcb);
-        assert!((state.vcb - 2.5).abs() < 0.1, "VCB should be ~2.5, got {}", state.vcb);
+        assert!(
+            (state.vcb - 2.5).abs() < 0.1,
+            "VCB should be ~2.5, got {}",
+            state.vcb
+        );
     }
 }
 
@@ -185,7 +198,9 @@ mod hydrostatics_tests {
         assert!(
             error < 0.2,
             "Volume error: expected {}, got {} (error: {})",
-            expected_volume, state.volume, error
+            expected_volume,
+            state.volume,
+            error
         );
 
         assert!(state.displacement > 0.0);
@@ -204,14 +219,16 @@ mod hydrostatics_tests {
         assert!(
             (state_fresh.volume - state_salt.volume).abs() < 0.1,
             "Volumes should be equal: fresh={}, salt={}",
-            state_fresh.volume, state_salt.volume
+            state_fresh.volume,
+            state_salt.volume
         );
 
         // Different displacement mass
         assert!(
             state_fresh.displacement < state_salt.displacement,
             "Fresh water displacement ({}) should be less than salt ({})",
-            state_fresh.displacement, state_salt.displacement
+            state_fresh.displacement,
+            state_salt.displacement
         );
     }
 
@@ -229,7 +246,8 @@ mod hydrostatics_tests {
         assert!(
             error < 1.0,
             "Displacement mismatch: expected {}, got {}",
-            expected_displacement, state.displacement
+            expected_displacement,
+            state.displacement
         );
     }
 }
@@ -252,7 +270,8 @@ mod tank_tests {
         assert!(
             error < 1.0,
             "Tank volume error: expected {}, got {}",
-            expected_volume, tank.total_volume()
+            expected_volume,
+            tank.total_volume()
         );
     }
 
@@ -293,9 +312,17 @@ mod tank_tests {
         // x should be at center (5.0)
         // y should be at center (0.0)
         // z should be at half of fill height (0.5)
-        assert!((cog[0] - 5.0).abs() < 0.1, "CoG x should be ~5.0, got {}", cog[0]);
+        assert!(
+            (cog[0] - 5.0).abs() < 0.1,
+            "CoG x should be ~5.0, got {}",
+            cog[0]
+        );
         assert!(cog[1].abs() < 0.1, "CoG y should be ~0.0, got {}", cog[1]);
-        assert!(cog[2] < 1.0, "CoG z should be < 1.0 (half fill), got {}", cog[2]);
+        assert!(
+            cog[2] < 1.0,
+            "CoG z should be < 1.0 (half fill), got {}",
+            cog[2]
+        );
     }
 
     #[test]
@@ -314,8 +341,16 @@ mod tank_tests {
         // For box tank:
         // I_t = L * B³ / 12 = 10 * 5³ / 12 = 10 * 125 / 12 ≈ 104.17
         // I_l = B * L³ / 12 = 5 * 10³ / 12 = 5 * 1000 / 12 ≈ 416.67
-        assert!((fsm_t - 104.17).abs() < 5.0, "FSM_t should be ~104.17, got {}", fsm_t);
-        assert!((fsm_l - 416.67).abs() < 20.0, "FSM_l should be ~416.67, got {}", fsm_l);
+        assert!(
+            (fsm_t - 104.17).abs() < 5.0,
+            "FSM_t should be ~104.17, got {}",
+            fsm_t
+        );
+        assert!(
+            (fsm_l - 416.67).abs() < 20.0,
+            "FSM_l should be ~416.67, got {}",
+            fsm_l
+        );
     }
 
     #[test]
@@ -324,8 +359,16 @@ mod tank_tests {
 
         tank.set_fill_percent(100.0);
 
-        assert_eq!(tank.free_surface_moment_t(), 0.0, "FSM_t should be 0 when full");
-        assert_eq!(tank.free_surface_moment_l(), 0.0, "FSM_l should be 0 when full");
+        assert_eq!(
+            tank.free_surface_moment_t(),
+            0.0,
+            "FSM_t should be 0 when full"
+        );
+        assert_eq!(
+            tank.free_surface_moment_l(),
+            0.0,
+            "FSM_l should be 0 when full"
+        );
     }
 }
 
@@ -343,10 +386,26 @@ mod vessel_tests {
 
         let bounds = vessel.get_bounds();
 
-        assert!((bounds.0 - 0.0).abs() < 1e-6, "xmin should be 0, got {}", bounds.0);
-        assert!((bounds.1 - 100.0).abs() < 1e-6, "xmax should be 100, got {}", bounds.1);
-        assert!((bounds.2 + 5.0).abs() < 1e-6, "ymin should be -5, got {}", bounds.2);
-        assert!((bounds.3 - 5.0).abs() < 1e-6, "ymax should be 5, got {}", bounds.3);
+        assert!(
+            (bounds.0 - 0.0).abs() < 1e-6,
+            "xmin should be 0, got {}",
+            bounds.0
+        );
+        assert!(
+            (bounds.1 - 100.0).abs() < 1e-6,
+            "xmax should be 100, got {}",
+            bounds.1
+        );
+        assert!(
+            (bounds.2 + 5.0).abs() < 1e-6,
+            "ymin should be -5, got {}",
+            bounds.2
+        );
+        assert!(
+            (bounds.3 - 5.0).abs() < 1e-6,
+            "ymax should be 5, got {}",
+            bounds.3
+        );
     }
 
     #[test]
@@ -355,13 +414,25 @@ mod vessel_tests {
         let vessel = Vessel::new(hull);
 
         // AP should be at xmin (10.0)
-        assert!((vessel.ap() - 10.0).abs() < 1e-6, "AP should be 10, got {}", vessel.ap());
+        assert!(
+            (vessel.ap() - 10.0).abs() < 1e-6,
+            "AP should be 10, got {}",
+            vessel.ap()
+        );
 
         // FP should be at xmax (110.0)
-        assert!((vessel.fp() - 110.0).abs() < 1e-6, "FP should be 110, got {}", vessel.fp());
+        assert!(
+            (vessel.fp() - 110.0).abs() < 1e-6,
+            "FP should be 110, got {}",
+            vessel.fp()
+        );
 
         // LBP should be 100m
-        assert!((vessel.lbp() - 100.0).abs() < 1e-6, "LBP should be 100, got {}", vessel.lbp());
+        assert!(
+            (vessel.lbp() - 100.0).abs() < 1e-6,
+            "LBP should be 100, got {}",
+            vessel.lbp()
+        );
     }
 }
 
@@ -399,9 +470,8 @@ mod dtmb5415_tests {
     const VCG: f64 = 7.555; // m
 
     fn load_dtmb5415() -> Option<Hull> {
-        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("tests/data/dtmb5415.stl");
-        
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data/dtmb5415.stl");
+
         if path.exists() {
             Hull::from_stl(&path).ok()
         } else {
@@ -413,20 +483,36 @@ mod dtmb5415_tests {
     fn test_dtmb5415_hull_loads() {
         let hull = load_dtmb5415();
         assert!(hull.is_some(), "DTMB5415 STL file should exist and load");
-        
+
         let hull = hull.unwrap();
-        assert!(hull.num_triangles() > 1000, "Hull should have many triangles");
+        assert!(
+            hull.num_triangles() > 1000,
+            "Hull should have many triangles"
+        );
 
         // Check approximate bounds (from SIMMAN 2008)
         // LOA ~153m, BOA ~20.5m, Depth ~12m
         let bounds = hull.get_bounds();
         let loa = bounds.1 - bounds.0;
         let boa = bounds.3 - bounds.2;
-        
-        println!("DTMB5415: LOA={:.2}m, BOA={:.2}m, triangles={}", loa, boa, hull.num_triangles());
 
-        assert!(loa > 150.0 && loa < 160.0, "LOA should be ~153m, got {}", loa);
-        assert!(boa > 18.0 && boa < 22.0, "BOA should be ~20.5m, got {}", boa);
+        println!(
+            "DTMB5415: LOA={:.2}m, BOA={:.2}m, triangles={}",
+            loa,
+            boa,
+            hull.num_triangles()
+        );
+
+        assert!(
+            loa > 150.0 && loa < 160.0,
+            "LOA should be ~153m, got {}",
+            loa
+        );
+        assert!(
+            boa > 18.0 && boa < 22.0,
+            "BOA should be ~20.5m, got {}",
+            boa
+        );
     }
 
     #[test]
@@ -444,11 +530,17 @@ mod dtmb5415_tests {
 
         // At draft 6.15m, volume should be ~8424 m³ (SIMMAN 2008)
         let state = calc.calculate_at_draft(6.15, 0.0, 0.0, VCG);
-        
-        assert!(state.is_some(), "Should compute hydrostatics at draft 6.15m");
+
+        assert!(
+            state.is_some(),
+            "Should compute hydrostatics at draft 6.15m"
+        );
         let state = state.unwrap();
 
-        println!("DTMB5415 at T=6.15m: Volume={:.1}m³, Disp={:.0}kg", state.volume, state.displacement);
+        println!(
+            "DTMB5415 at T=6.15m: Volume={:.1}m³, Disp={:.0}kg",
+            state.volume, state.displacement
+        );
 
         // Reference: ~8424 m³ (allow 5% tolerance)
         assert!(
@@ -481,12 +573,16 @@ mod dtmb5415_tests {
         println!("----------------------------");
 
         for (i, point) in curve.points.iter().enumerate() {
-            let ref_gz = REFERENCE_DATA.iter()
+            let ref_gz = REFERENCE_DATA
+                .iter()
                 .find(|(h, _, _, _)| (*h - point.heel).abs() < 1.0)
                 .map(|(_, gz, _, _)| *gz)
                 .unwrap_or(0.0);
 
-            println!("{:5.1}°    {:7.3}m   {:7.3}m", point.heel, point.value, ref_gz);
+            println!(
+                "{:5.1}°    {:7.3}m   {:7.3}m",
+                point.heel, point.value, ref_gz
+            );
         }
 
         // Check GZ at 0° is near 0
@@ -505,11 +601,8 @@ mod dtmb5415_tests {
         // Check curve has a maximum (GZ eventually decreases)
         let max_gz = curve.points.iter().map(|p| p.value).fold(0.0, f64::max);
         let last_gz = curve.points.last().map(|p| p.value).unwrap_or(0.0);
-        
-        assert!(
-            max_gz > last_gz,
-            "GZ should have a maximum before 60°"
-        );
+
+        assert!(max_gz > last_gz, "GZ should have a maximum before 60°");
     }
 
     #[test]
@@ -531,12 +624,17 @@ mod dtmb5415_tests {
         let curve = calc.calculate_gz_curve(DISPLACEMENT, cog, &heels);
 
         // Find max GZ
-        let (max_heel, max_gz) = curve.points.iter()
+        let (max_heel, max_gz) = curve
+            .points
+            .iter()
             .map(|p| (p.heel, p.value))
             .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
             .unwrap();
 
-        println!("DTMB5415 Max GZ: {:.3}m at {:.1}° (Ref: ~1.08m at ~38°)", max_gz, max_heel);
+        println!(
+            "DTMB5415 Max GZ: {:.3}m at {:.1}° (Ref: ~1.08m at ~38°)",
+            max_gz, max_heel
+        );
 
         // Reference: max GZ ≈ 1.08m at ~38°
         // Allow max to be between 35° and 45°
@@ -580,19 +678,23 @@ mod dtmb5415_tests {
         let mut total = 0;
 
         for point in &curve.points {
-            if let Some((_, ref_gz, _, _)) = REFERENCE_DATA.iter()
+            if let Some((_, ref_gz, _, _)) = REFERENCE_DATA
+                .iter()
                 .find(|(h, _, _, _)| (*h - point.heel).abs() < 0.1)
             {
                 total += 1;
                 let error = (point.value - ref_gz).abs();
-                
+
                 if error < tolerance {
                     passed += 1;
                 }
 
                 println!(
                     "Heel {:5.1}° | GZ: {:.3}m (ref: {:.3}m) | Error: {:.3}m {}",
-                    point.heel, point.value, ref_gz, error,
+                    point.heel,
+                    point.value,
+                    ref_gz,
+                    error,
                     if error < tolerance { "✓" } else { "✗" }
                 );
             }
@@ -601,12 +703,12 @@ mod dtmb5415_tests {
         // At least 80% of points should be within tolerance
         let pass_rate = passed as f64 / total as f64;
         println!("\nPassed: {}/{} ({:.0}%)", passed, total, pass_rate * 100.0);
-        
+
         assert!(
             pass_rate >= 0.7,
             "At least 70% of GZ values should be within {}m tolerance, got {:.0}%",
-            tolerance, pass_rate * 100.0
+            tolerance,
+            pass_rate * 100.0
         );
     }
 }
-

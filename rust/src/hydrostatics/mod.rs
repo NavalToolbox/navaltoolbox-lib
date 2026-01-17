@@ -19,8 +19,8 @@
 //!
 //! Provides hydrostatic calculations for vessels.
 
-mod dataclasses;
 mod calculator;
+mod dataclasses;
 
-pub use dataclasses::HydrostaticState;
 pub use calculator::HydrostaticsCalculator;
+pub use dataclasses::HydrostaticState;

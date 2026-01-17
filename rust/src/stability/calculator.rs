@@ -19,10 +19,10 @@
 //!
 //! Calculates KN and GZ curves.
 
-use crate::vessel::Vessel;
+use super::{StabilityCurve, StabilityPoint};
 use crate::hydrostatics::HydrostaticsCalculator;
-use crate::mesh::{clip_at_waterline, transform_mesh, transform_point, get_bounds};
-use super::{StabilityPoint, StabilityCurve};
+use crate::mesh::{clip_at_waterline, get_bounds, transform_mesh, transform_point};
+use crate::vessel::Vessel;
 use nalgebra::Point3;
 use parry3d_f64::shape::Shape;
 
@@ -255,12 +255,18 @@ mod tests {
             Point3::new(0.0, hb, depth),
         ];
         let indices = vec![
-            [0, 2, 1], [0, 3, 2],
-            [4, 5, 6], [4, 6, 7],
-            [0, 1, 5], [0, 5, 4],
-            [2, 3, 7], [2, 7, 6],
-            [0, 4, 7], [0, 7, 3],
-            [1, 2, 6], [1, 6, 5],
+            [0, 2, 1],
+            [0, 3, 2],
+            [4, 5, 6],
+            [4, 6, 7],
+            [0, 1, 5],
+            [0, 5, 4],
+            [2, 3, 7],
+            [2, 7, 6],
+            [0, 4, 7],
+            [0, 7, 3],
+            [1, 2, 6],
+            [1, 6, 5],
         ];
         let mesh = TriMesh::new(vertices, indices).unwrap();
         Hull::from_mesh(mesh)
@@ -278,6 +284,10 @@ mod tests {
         let curve = calc.calculate_gz_curve(displacement, cog, &[0.0]);
 
         // At zero heel for symmetric hull, GZ should be ~0
-        assert!(curve.points[0].value.abs() < 0.01, "GZ at 0 heel = {}", curve.points[0].value);
+        assert!(
+            curve.points[0].value.abs() < 0.01,
+            "GZ at 0 heel = {}",
+            curve.points[0].value
+        );
     }
 }

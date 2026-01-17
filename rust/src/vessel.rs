@@ -19,10 +19,10 @@
 //!
 //! Provides the Vessel container for hull geometries, tanks, and vessel-level properties.
 
-use crate::hull::Hull;
-use crate::tanks::Tank;
-use crate::silhouette::Silhouette;
 use crate::downflooding::DownfloodingOpening;
+use crate::hull::Hull;
+use crate::silhouette::Silhouette;
+use crate::tanks::Tank;
 
 /// Represents a vessel containing hull geometries, tanks, and vessel-level properties.
 ///
@@ -151,11 +151,20 @@ impl Vessel {
         let all_bounds: Vec<_> = self.hulls.iter().map(|h| h.get_bounds()).collect();
 
         let xmin = all_bounds.iter().map(|b| b.0).fold(f64::INFINITY, f64::min);
-        let xmax = all_bounds.iter().map(|b| b.1).fold(f64::NEG_INFINITY, f64::max);
+        let xmax = all_bounds
+            .iter()
+            .map(|b| b.1)
+            .fold(f64::NEG_INFINITY, f64::max);
         let ymin = all_bounds.iter().map(|b| b.2).fold(f64::INFINITY, f64::min);
-        let ymax = all_bounds.iter().map(|b| b.3).fold(f64::NEG_INFINITY, f64::max);
+        let ymax = all_bounds
+            .iter()
+            .map(|b| b.3)
+            .fold(f64::NEG_INFINITY, f64::max);
         let zmin = all_bounds.iter().map(|b| b.4).fold(f64::INFINITY, f64::min);
-        let zmax = all_bounds.iter().map(|b| b.5).fold(f64::NEG_INFINITY, f64::max);
+        let zmax = all_bounds
+            .iter()
+            .map(|b| b.5)
+            .fold(f64::NEG_INFINITY, f64::max);
 
         (xmin, xmax, ymin, ymax, zmin, zmax)
     }
@@ -232,8 +241,16 @@ impl Vessel {
     ///
     /// Returns (transverse_correction, longitudinal_correction) in m⁴.
     pub fn get_total_free_surface_correction(&self) -> (f64, f64) {
-        let fsc_t: f64 = self.tanks.iter().map(|t| t.free_surface_correction_t()).sum();
-        let fsc_l: f64 = self.tanks.iter().map(|t| t.free_surface_correction_l()).sum();
+        let fsc_t: f64 = self
+            .tanks
+            .iter()
+            .map(|t| t.free_surface_correction_t())
+            .sum();
+        let fsc_l: f64 = self
+            .tanks
+            .iter()
+            .map(|t| t.free_surface_correction_l())
+            .sum();
         (fsc_t, fsc_l)
     }
 
@@ -287,7 +304,10 @@ impl Vessel {
 
     /// Calculates the total emerged area from all silhouettes.
     pub fn get_total_emerged_area(&self, waterline_z: f64) -> f64 {
-        self.silhouettes.iter().map(|s| s.get_emerged_area(waterline_z)).sum()
+        self.silhouettes
+            .iter()
+            .map(|s| s.get_emerged_area(waterline_z))
+            .sum()
     }
 
     /// Calculates the combined centroid of all emerged areas.
@@ -296,7 +316,7 @@ impl Vessel {
         if total_area < 1e-9 {
             return [0.0, 0.0];
         }
-        
+
         let mut cx = 0.0;
         let mut cz = 0.0;
         for s in &self.silhouettes {
@@ -307,7 +327,7 @@ impl Vessel {
                 cz += centroid[1] * area;
             }
         }
-        
+
         [cx / total_area, cz / total_area]
     }
 
@@ -378,12 +398,18 @@ mod tests {
             Point3::new(0.0, 5.0, 10.0),
         ];
         let indices = vec![
-            [0, 2, 1], [0, 3, 2],
-            [4, 5, 6], [4, 6, 7],
-            [0, 1, 5], [0, 5, 4],
-            [2, 3, 7], [2, 7, 6],
-            [0, 4, 7], [0, 7, 3],
-            [1, 2, 6], [1, 6, 5],
+            [0, 2, 1],
+            [0, 3, 2],
+            [4, 5, 6],
+            [4, 6, 7],
+            [0, 1, 5],
+            [0, 5, 4],
+            [2, 3, 7],
+            [2, 7, 6],
+            [0, 4, 7],
+            [0, 7, 3],
+            [1, 2, 6],
+            [1, 6, 5],
         ];
         let mesh = TriMesh::new(vertices, indices).unwrap();
         Hull::from_mesh(mesh)
@@ -393,7 +419,7 @@ mod tests {
     fn test_vessel_bounds() {
         let hull = create_test_hull();
         let vessel = Vessel::new(hull);
-        
+
         let bounds = vessel.get_bounds();
         assert!((bounds.0 - 0.0).abs() < 1e-6);
         assert!((bounds.1 - 100.0).abs() < 1e-6);
@@ -403,7 +429,7 @@ mod tests {
     fn test_vessel_perpendiculars() {
         let hull = create_test_hull();
         let vessel = Vessel::new(hull);
-        
+
         assert!((vessel.ap() - 0.0).abs() < 1e-6);
         assert!((vessel.fp() - 100.0).abs() < 1e-6);
         assert!((vessel.lbp() - 100.0).abs() < 1e-6);

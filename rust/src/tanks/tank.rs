@@ -51,9 +51,12 @@ impl Tank {
         let total_volume = mass_props.mass().abs();
         let aabb = mesh.local_aabb();
         let bounds = (
-            aabb.mins.x, aabb.maxs.x,
-            aabb.mins.y, aabb.maxs.y,
-            aabb.mins.z, aabb.maxs.z,
+            aabb.mins.x,
+            aabb.maxs.x,
+            aabb.mins.y,
+            aabb.maxs.y,
+            aabb.mins.z,
+            aabb.maxs.z,
         );
 
         Self {
@@ -70,9 +73,12 @@ impl Tank {
     /// Creates a box-shaped tank from min/max coordinates.
     pub fn from_box(
         name: &str,
-        x_min: f64, x_max: f64,
-        y_min: f64, y_max: f64,
-        z_min: f64, z_max: f64,
+        x_min: f64,
+        x_max: f64,
+        y_min: f64,
+        y_max: f64,
+        z_min: f64,
+        z_max: f64,
         fluid_density: f64,
     ) -> Self {
         let vertices = vec![
@@ -87,12 +93,18 @@ impl Tank {
         ];
 
         let indices = vec![
-            [0, 2, 1], [0, 3, 2],
-            [4, 5, 6], [4, 6, 7],
-            [0, 1, 5], [0, 5, 4],
-            [2, 3, 7], [2, 7, 6],
-            [0, 4, 7], [0, 7, 3],
-            [1, 2, 6], [1, 6, 5],
+            [0, 2, 1],
+            [0, 3, 2],
+            [4, 5, 6],
+            [4, 6, 7],
+            [0, 1, 5],
+            [0, 5, 4],
+            [2, 3, 7],
+            [2, 7, 6],
+            [0, 4, 7],
+            [0, 7, 3],
+            [1, 2, 6],
+            [1, 6, 5],
         ];
 
         let mesh = TriMesh::new(vertices, indices).expect("Failed to create tank mesh");
@@ -170,7 +182,7 @@ impl Tank {
         // Simplified: use box approximation
         let length = self.bounds.1 - self.bounds.0;
         let breadth = self.bounds.3 - self.bounds.2;
-        
+
         // I_t = L * B³ / 12
         length * breadth.powi(3) / 12.0
     }
@@ -183,7 +195,7 @@ impl Tank {
 
         let length = self.bounds.1 - self.bounds.0;
         let breadth = self.bounds.3 - self.bounds.2;
-        
+
         // I_l = B * L³ / 12
         breadth * length.powi(3) / 12.0
     }
@@ -254,17 +266,21 @@ mod tests {
     #[test]
     fn test_box_tank_volume() {
         let tank = Tank::from_box("Test", 0.0, 10.0, 0.0, 5.0, 0.0, 2.0, 1000.0);
-        
+
         // Volume should be 10 * 5 * 2 = 100 m³
-        assert!((tank.total_volume() - 100.0).abs() < 0.1, "Volume was {}", tank.total_volume());
+        assert!(
+            (tank.total_volume() - 100.0).abs() < 0.1,
+            "Volume was {}",
+            tank.total_volume()
+        );
     }
 
     #[test]
     fn test_tank_fill() {
         let mut tank = Tank::from_box("Test", 0.0, 10.0, 0.0, 5.0, 0.0, 2.0, 1000.0);
-        
+
         tank.set_fill_percent(50.0);
-        
+
         assert!((tank.fill_level() - 0.5).abs() < 1e-6);
         assert!((tank.fill_volume() - 50.0).abs() < 0.1);
         assert!((tank.fluid_mass() - 50000.0).abs() < 100.0);

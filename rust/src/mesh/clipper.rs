@@ -23,8 +23,8 @@
 //! 3. Triangulates loops with earcutr for watertight caps
 
 use nalgebra::{Point2, Point3};
-use parry3d_f64::shape::{Shape, TriMesh};
 use ordered_float::OrderedFloat;
+use parry3d_f64::shape::{Shape, TriMesh};
 use std::collections::{HashMap, HashSet};
 
 /// Helper to convert f64 Point3 to OrderedFloat point for hashing
@@ -34,18 +34,15 @@ fn to_ordered(p: &Point3<f64>) -> Point3<OrderedFloat<f64>> {
 
 /// Canonical Z-plane intersection for bit-exact shared edge handling.
 fn intersect_segment_z_canonical(p1: &Point3<f64>, p2: &Point3<f64>, z_plane: f64) -> Point3<f64> {
-    let (a, b) = if p1.x < p2.x || (p1.x == p2.x && (p1.y < p2.y || (p1.y == p2.y && p1.z < p2.z))) {
+    let (a, b) = if p1.x < p2.x || (p1.x == p2.x && (p1.y < p2.y || (p1.y == p2.y && p1.z < p2.z)))
+    {
         (p1, p2)
     } else {
         (p2, p1)
     };
 
     let t = (z_plane - a.z) / (b.z - a.z);
-    Point3::new(
-        a.x + t * (b.x - a.x),
-        a.y + t * (b.y - a.y),
-        z_plane,
-    )
+    Point3::new(a.x + t * (b.x - a.x), a.y + t * (b.y - a.y), z_plane)
 }
 
 /// Clips a mesh at the given Z (draft) plane, returning a closed (watertight) mesh.
@@ -257,12 +254,18 @@ mod tests {
         ];
 
         let indices = vec![
-            [0, 2, 1], [0, 3, 2],
-            [4, 5, 6], [4, 6, 7],
-            [0, 1, 5], [0, 5, 4],
-            [2, 3, 7], [2, 7, 6],
-            [0, 4, 7], [0, 7, 3],
-            [1, 2, 6], [1, 6, 5],
+            [0, 2, 1],
+            [0, 3, 2],
+            [4, 5, 6],
+            [4, 6, 7],
+            [0, 1, 5],
+            [0, 5, 4],
+            [2, 3, 7],
+            [2, 7, 6],
+            [0, 4, 7],
+            [0, 7, 3],
+            [1, 2, 6],
+            [1, 6, 5],
         ];
 
         TriMesh::new(vertices, indices).expect("Failed to create test cube")

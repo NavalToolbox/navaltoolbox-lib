@@ -19,9 +19,8 @@
 //!
 //! Provides KN and GZ curve calculations.
 
-mod dataclasses;
 mod calculator;
+mod dataclasses;
 
-pub use dataclasses::{StabilityPoint, StabilityCurve, StabilityCurveWithWind};
 pub use calculator::StabilityCalculator;
-
+pub use dataclasses::{StabilityCurve, StabilityCurveWithWind, StabilityPoint};

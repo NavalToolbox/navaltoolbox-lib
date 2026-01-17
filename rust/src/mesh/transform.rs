@@ -18,8 +18,8 @@
 //! Mesh transformation utilities.
 
 use nalgebra::{Point3, Rotation3, Vector3};
-use parry3d_f64::shape::TriMesh;
 use parry3d_f64::bounding_volume::Aabb;
+use parry3d_f64::shape::TriMesh;
 
 /// Returns the axis-aligned bounding box of the mesh.
 /// Returns (min_x, max_x, min_y, max_y, min_z, max_z)
@@ -73,7 +73,12 @@ pub fn transform_mesh(mesh: &TriMesh, heel: f64, trim: f64, pivot: Point3<f64>) 
 }
 
 /// Transforms a point by rotation around a pivot.
-pub fn transform_point(point: Point3<f64>, heel: f64, trim: f64, pivot: Point3<f64>) -> Point3<f64> {
+pub fn transform_point(
+    point: Point3<f64>,
+    heel: f64,
+    trim: f64,
+    pivot: Point3<f64>,
+) -> Point3<f64> {
     let heel_rad = heel.to_radians();
     let trim_rad = trim.to_radians();
 
@@ -88,11 +93,7 @@ pub fn transform_point(point: Point3<f64>, heel: f64, trim: f64, pivot: Point3<f
 
 /// Applies a translation to a mesh.
 pub fn translate_mesh(mesh: &TriMesh, translation: Vector3<f64>) -> TriMesh {
-    let new_vertices: Vec<Point3<f64>> = mesh
-        .vertices()
-        .iter()
-        .map(|v| v + translation)
-        .collect();
+    let new_vertices: Vec<Point3<f64>> = mesh.vertices().iter().map(|v| v + translation).collect();
 
     let indices: Vec<[u32; 3]> = mesh
         .indices()

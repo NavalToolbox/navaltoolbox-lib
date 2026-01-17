@@ -80,7 +80,9 @@ impl StabilityCurve {
 
     /// Finds the maximum value on the curve.
     pub fn max_value(&self) -> Option<&StabilityPoint> {
-        self.points.iter().max_by(|a, b| a.value.partial_cmp(&b.value).unwrap())
+        self.points
+            .iter()
+            .max_by(|a, b| a.value.partial_cmp(&b.value).unwrap())
     }
 
     /// Interpolates a value at a given heel angle.
@@ -92,8 +94,11 @@ impl StabilityCurve {
         // Find bracketing points
         for i in 0..self.points.len() - 1 {
             if self.points[i].heel <= heel && heel <= self.points[i + 1].heel {
-                let t = (heel - self.points[i].heel) / (self.points[i + 1].heel - self.points[i].heel);
-                return Some(self.points[i].value + t * (self.points[i + 1].value - self.points[i].value));
+                let t =
+                    (heel - self.points[i].heel) / (self.points[i + 1].heel - self.points[i].heel);
+                return Some(
+                    self.points[i].value + t * (self.points[i + 1].value - self.points[i].value),
+                );
             }
         }
 
@@ -102,7 +107,7 @@ impl StabilityCurve {
 }
 
 /// A stability curve with wind heeling moment data.
-/// 
+///
 /// Per IMO 2008 IS Code (MSC.267), wind heeling levers are constant at all angles.
 #[derive(Debug, Clone)]
 pub struct StabilityCurveWithWind {
@@ -162,22 +167,32 @@ impl StabilityCurveWithWind {
 
     /// Returns the GZ values corrected for wind (GZ - lw1).
     pub fn gz_corrected(&self) -> Vec<f64> {
-        self.points.iter().map(|p| p.value - self.wind_lever_lw1).collect()
+        self.points
+            .iter()
+            .map(|p| p.value - self.wind_lever_lw1)
+            .collect()
     }
 
     /// Returns the minimum heel angle.
     pub fn min_heel(&self) -> Option<f64> {
-        self.points.iter().map(|p| p.heel).min_by(|a, b| a.partial_cmp(b).unwrap())
+        self.points
+            .iter()
+            .map(|p| p.heel)
+            .min_by(|a, b| a.partial_cmp(b).unwrap())
     }
 
     /// Returns the maximum heel angle.
     pub fn max_heel(&self) -> Option<f64> {
-        self.points.iter().map(|p| p.heel).max_by(|a, b| a.partial_cmp(b).unwrap())
+        self.points
+            .iter()
+            .map(|p| p.heel)
+            .max_by(|a, b| a.partial_cmp(b).unwrap())
     }
 
     /// Finds the maximum GZ value on the curve.
     pub fn max_gz(&self) -> Option<&StabilityPoint> {
-        self.points.iter().max_by(|a, b| a.value.partial_cmp(&b.value).unwrap())
+        self.points
+            .iter()
+            .max_by(|a, b| a.value.partial_cmp(&b.value).unwrap())
     }
 }
-

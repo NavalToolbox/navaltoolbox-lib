@@ -20,9 +20,8 @@
 //! Provides DXF and VTK loading and emerged area calculations for wind pressure analysis
 //! per IMO 2008 IS Code (MSC.267).
 
-mod silhouette;
 mod loader;
+mod silhouette;
 
-pub use silhouette::Silhouette;
 pub use loader::{load_dxf_silhouette, load_vtk_silhouette, SilhouetteLoadError};
-
+pub use silhouette::Silhouette;

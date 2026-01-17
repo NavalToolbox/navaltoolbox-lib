@@ -19,10 +19,10 @@
 //!
 //! Provides mesh loading, transformation, and clipping functionality.
 
+mod clipper;
 mod loader;
 mod transform;
-mod clipper;
 
-pub use loader::{load_stl, load_vtk};
-pub use transform::{transform_mesh, transform_point, get_bounds};
 pub use clipper::clip_at_waterline;
+pub use loader::{load_stl, load_vtk};
+pub use transform::{get_bounds, transform_mesh, transform_point};

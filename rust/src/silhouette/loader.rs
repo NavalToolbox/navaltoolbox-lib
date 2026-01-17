@@ -17,12 +17,12 @@
 
 //! File loaders for silhouette profiles (DXF and VTK).
 
-use std::path::Path;
-use dxf::Drawing;
 use dxf::entities::EntityType;
-use vtkio::Vtk;
-use vtkio::model::{DataSet, Piece};
+use dxf::Drawing;
+use std::path::Path;
 use thiserror::Error;
+use vtkio::model::{DataSet, Piece};
+use vtkio::Vtk;
 
 #[derive(Error, Debug)]
 pub enum SilhouetteLoadError {
@@ -44,23 +44,23 @@ pub type DxfError = SilhouetteLoadError;
 /// Load a silhouette from a DXF file.
 pub fn load_dxf_silhouette(path: &Path) -> Result<(Vec<[f64; 3]>, String), SilhouetteLoadError> {
     let drawing = Drawing::load_file(path)?;
-    
-    let name = path.file_stem()
+
+    let name = path
+        .file_stem()
         .map(|s| s.to_string_lossy().to_string())
         .unwrap_or_else(|| "silhouette".to_string());
-    
+
     for entity in drawing.entities() {
         match &entity.specific {
             EntityType::LwPolyline(lwpoly) => {
-                let mut points: Vec<[f64; 3]> = lwpoly.vertices.iter()
-                    .map(|v| [v.x, 0.0, v.y])
-                    .collect();
-                
+                let mut points: Vec<[f64; 3]> =
+                    lwpoly.vertices.iter().map(|v| [v.x, 0.0, v.y]).collect();
+
                 let is_closed = (lwpoly.flags & 1) != 0;
                 if is_closed && !points.is_empty() && points.first() != points.last() {
                     points.push(points[0]);
                 }
-                
+
                 if !points.is_empty() {
                     return Ok((points, name));
                 }
@@ -68,7 +68,7 @@ pub fn load_dxf_silhouette(path: &Path) -> Result<(Vec<[f64; 3]>, String), Silho
             EntityType::Polyline(poly) => {
                 let mut points: Vec<[f64; 3]> = Vec::new();
                 let mut has_nonzero_y = false;
-                
+
                 for vertex in poly.vertices() {
                     let y = vertex.location.y;
                     if y.abs() > 1e-6 {
@@ -76,16 +76,16 @@ pub fn load_dxf_silhouette(path: &Path) -> Result<(Vec<[f64; 3]>, String), Silho
                     }
                     points.push([vertex.location.x, 0.0, vertex.location.z]);
                 }
-                
+
                 if has_nonzero_y {
                     log::warn!("DXF polyline has non-zero Y. Setting Y=0 for X-Z plane.");
                 }
-                
+
                 let is_closed = (poly.flags & 1) != 0;
                 if is_closed && !points.is_empty() && points.first() != points.last() {
                     points.push(points[0]);
                 }
-                
+
                 if !points.is_empty() {
                     return Ok((points, name));
                 }
@@ -93,18 +93,19 @@ pub fn load_dxf_silhouette(path: &Path) -> Result<(Vec<[f64; 3]>, String), Silho
             _ => continue,
         }
     }
-    
+
     Err(SilhouetteLoadError::NoPolyline)
 }
 
 /// Load a silhouette from a VTK file (.vtk or .vtp).
 pub fn load_vtk_silhouette(path: &Path) -> Result<(Vec<[f64; 3]>, String), SilhouetteLoadError> {
     let vtk = Vtk::import(path)?;
-    
-    let name = path.file_stem()
+
+    let name = path
+        .file_stem()
         .map(|s| s.to_string_lossy().to_string())
         .unwrap_or_else(|| "silhouette".to_string());
-    
+
     // Extract points based on data type
     match &vtk.data {
         DataSet::PolyData { pieces, .. } => {
@@ -129,30 +130,32 @@ pub fn load_vtk_silhouette(path: &Path) -> Result<(Vec<[f64; 3]>, String), Silho
     }
 }
 
-fn extract_points_from_iobuffer(buffer: &vtkio::IOBuffer, name: &str) -> Result<(Vec<[f64; 3]>, String), SilhouetteLoadError> {
+fn extract_points_from_iobuffer(
+    buffer: &vtkio::IOBuffer,
+    name: &str,
+) -> Result<(Vec<[f64; 3]>, String), SilhouetteLoadError> {
     let points_f64 = match buffer {
-        vtkio::IOBuffer::F64(data) => {
-            data.chunks(3)
-                .filter(|c| c.len() == 3)
-                .map(|c| [c[0], c[1], c[2]])
-                .collect()
-        }
-        vtkio::IOBuffer::F32(data) => {
-            data.chunks(3)
-                .filter(|c| c.len() == 3)
-                .map(|c| [c[0] as f64, c[1] as f64, c[2] as f64])
-                .collect()
-        }
+        vtkio::IOBuffer::F64(data) => data
+            .chunks(3)
+            .filter(|c| c.len() == 3)
+            .map(|c| [c[0], c[1], c[2]])
+            .collect(),
+        vtkio::IOBuffer::F32(data) => data
+            .chunks(3)
+            .filter(|c| c.len() == 3)
+            .map(|c| [c[0] as f64, c[1] as f64, c[2] as f64])
+            .collect(),
         _ => Vec::new(),
     };
-    
+
     if points_f64.is_empty() {
         return Err(SilhouetteLoadError::NoPolyline);
     }
-    
+
     // Convert to X-Z plane (force Y=0)
     let mut has_nonzero_y = false;
-    let mut result: Vec<[f64; 3]> = points_f64.iter()
+    let mut result: Vec<[f64; 3]> = points_f64
+        .iter()
         .map(|p| {
             if p[1].abs() > 1e-6 {
                 has_nonzero_y = true;
@@ -160,16 +163,16 @@ fn extract_points_from_iobuffer(buffer: &vtkio::IOBuffer, name: &str) -> Result<
             [p[0], 0.0, p[2]]
         })
         .collect();
-    
+
     if has_nonzero_y {
         log::warn!("VTK polyline has non-zero Y. Setting Y=0 for X-Z plane.");
     }
-    
+
     // Close if not already closed
     if !result.is_empty() && result.first() != result.last() {
         result.push(result[0]);
     }
-    
+
     Ok((result, name.to_string()))
 }
 

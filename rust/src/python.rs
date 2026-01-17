@@ -20,14 +20,16 @@
 //! This module provides PyO3 bindings for the Rust library, exposing
 //! Hull, Vessel, HydrostaticsCalculator, StabilityCalculator, and Tank.
 
-use pyo3::prelude::*;
 use pyo3::exceptions::{PyIOError, PyValueError};
+use pyo3::prelude::*;
 
 use crate::hull::Hull as RustHull;
-use crate::vessel::Vessel as RustVessel;
-use crate::hydrostatics::{HydrostaticsCalculator as RustHydroCalc, HydrostaticState as RustHydroState};
+use crate::hydrostatics::{
+    HydrostaticState as RustHydroState, HydrostaticsCalculator as RustHydroCalc,
+};
 use crate::stability::{StabilityCalculator as RustStabCalc, StabilityCurve as RustStabCurve};
 use crate::tanks::Tank as RustTank;
+use crate::vessel::Vessel as RustVessel;
 
 use std::path::Path;
 
@@ -90,7 +92,8 @@ impl PyHull {
     /// Exports the hull to an STL file.
     fn export_stl(&self, file_path: &str) -> PyResult<()> {
         let path = Path::new(file_path);
-        self.inner.export_stl(path)
+        self.inner
+            .export_stl(path)
             .map_err(|e| PyIOError::new_err(format!("Failed to export STL: {}", e)))
     }
 
@@ -100,7 +103,12 @@ impl PyHull {
             "Hull(triangles={}, vertices={}, bounds=({:.2}, {:.2}, {:.2}, {:.2}, {:.2}, {:.2}))",
             self.inner.num_triangles(),
             self.inner.num_vertices(),
-            bounds.0, bounds.1, bounds.2, bounds.3, bounds.4, bounds.5
+            bounds.0,
+            bounds.1,
+            bounds.2,
+            bounds.3,
+            bounds.4,
+            bounds.5
         )
     }
 }
@@ -253,9 +261,7 @@ impl PySilhouette {
     /// Create a silhouette from a list of points [(x, z), ...].
     #[staticmethod]
     fn from_points(points: Vec<(f64, f64)>, name: &str) -> Self {
-        let pts: Vec<[f64; 3]> = points.iter()
-            .map(|(x, z)| [*x, 0.0, *z])
-            .collect();
+        let pts: Vec<[f64; 3]> = points.iter().map(|(x, z)| [*x, 0.0, *z]).collect();
         Self {
             inner: RustSilhouette::new(pts, name.to_string()),
         }
@@ -279,7 +285,9 @@ impl PySilhouette {
 
     /// Returns the points as a list of tuples [(x, y, z), ...].
     fn get_points(&self) -> Vec<(f64, f64, f64)> {
-        self.inner.points().iter()
+        self.inner
+            .points()
+            .iter()
             .map(|p| (p[0], p[1], p[2]))
             .collect()
     }
@@ -324,9 +332,7 @@ impl PySilhouette {
 // ============================================================================
 
 use crate::downflooding::{
-    DownfloodingOpening as RustDownfloodingOpening,
-    OpeningType as RustOpeningType,
-    OpeningGeometry,
+    DownfloodingOpening as RustDownfloodingOpening, OpeningGeometry, OpeningType as RustOpeningType,
 };
 
 /// Type of opening that can cause downflooding.
@@ -339,23 +345,47 @@ pub struct PyOpeningType {
 #[pymethods]
 impl PyOpeningType {
     #[staticmethod]
-    fn vent() -> Self { Self { inner: RustOpeningType::Vent } }
-    
+    fn vent() -> Self {
+        Self {
+            inner: RustOpeningType::Vent,
+        }
+    }
+
     #[staticmethod]
-    fn air_pipe() -> Self { Self { inner: RustOpeningType::AirPipe } }
-    
+    fn air_pipe() -> Self {
+        Self {
+            inner: RustOpeningType::AirPipe,
+        }
+    }
+
     #[staticmethod]
-    fn hatch() -> Self { Self { inner: RustOpeningType::Hatch } }
-    
+    fn hatch() -> Self {
+        Self {
+            inner: RustOpeningType::Hatch,
+        }
+    }
+
     #[staticmethod]
-    fn door() -> Self { Self { inner: RustOpeningType::Door } }
-    
+    fn door() -> Self {
+        Self {
+            inner: RustOpeningType::Door,
+        }
+    }
+
     #[staticmethod]
-    fn window() -> Self { Self { inner: RustOpeningType::Window } }
-    
+    fn window() -> Self {
+        Self {
+            inner: RustOpeningType::Window,
+        }
+    }
+
     #[staticmethod]
-    fn other(name: &str) -> Self { Self { inner: RustOpeningType::Other(name.to_string()) } }
-    
+    fn other(name: &str) -> Self {
+        Self {
+            inner: RustOpeningType::Other(name.to_string()),
+        }
+    }
+
     fn __repr__(&self) -> String {
         format!("{:?}", self.inner)
     }
@@ -383,10 +413,12 @@ impl PyDownfloodingOpening {
 
     /// Create a downflooding opening from a contour (polyline).
     #[staticmethod]
-    fn from_contour(name: &str, points: Vec<(f64, f64, f64)>, opening_type: &PyOpeningType) -> Self {
-        let pts: Vec<[f64; 3]> = points.iter()
-            .map(|(x, y, z)| [*x, *y, *z])
-            .collect();
+    fn from_contour(
+        name: &str,
+        points: Vec<(f64, f64, f64)>,
+        opening_type: &PyOpeningType,
+    ) -> Self {
+        let pts: Vec<[f64; 3]> = points.iter().map(|(x, y, z)| [*x, *y, *z]).collect();
         Self {
             inner: RustDownfloodingOpening::from_contour(
                 name.to_string(),
@@ -420,14 +452,17 @@ impl PyDownfloodingOpening {
 
     /// Get all points as [(x, y, z), ...].
     fn get_points(&self) -> Vec<(f64, f64, f64)> {
-        self.inner.get_points().iter()
+        self.inner
+            .get_points()
+            .iter()
             .map(|p| (p[0], p[1], p[2]))
             .collect()
     }
 
     /// Check if submerged at given heel/trim/draft.
     fn is_submerged(&self, heel: f64, trim: f64, pivot: (f64, f64, f64), waterline_z: f64) -> bool {
-        self.inner.is_submerged(heel, trim, [pivot.0, pivot.1, pivot.2], waterline_z)
+        self.inner
+            .is_submerged(heel, trim, [pivot.0, pivot.1, pivot.2], waterline_z)
     }
 
     fn __repr__(&self) -> String {
@@ -591,7 +626,9 @@ impl PyStabilityCurve {
 
     /// Returns the points as a list of tuples (heel, draft, trim, gz).
     fn points(&self) -> Vec<(f64, f64, f64, f64)> {
-        self.inner.points.iter()
+        self.inner
+            .points
+            .iter()
             .map(|p| (p.heel, p.draft, p.trim, p.value))
             .collect()
     }
@@ -642,11 +679,7 @@ impl PyStabilityCalculator {
         heels: Vec<f64>,
     ) -> PyStabilityCurve {
         let calc = RustStabCalc::new(&self.vessel, self.water_density);
-        let curve = calc.calculate_gz_curve(
-            displacement_mass,
-            [cog.0, cog.1, cog.2],
-            &heels,
-        );
+        let curve = calc.calculate_gz_curve(displacement_mass, [cog.0, cog.1, cog.2], &heels);
         PyStabilityCurve { inner: curve }
     }
 }
@@ -667,13 +700,25 @@ impl PyTank {
     #[staticmethod]
     fn from_box(
         name: &str,
-        x_min: f64, x_max: f64,
-        y_min: f64, y_max: f64,
-        z_min: f64, z_max: f64,
+        x_min: f64,
+        x_max: f64,
+        y_min: f64,
+        y_max: f64,
+        z_min: f64,
+        z_max: f64,
         fluid_density: f64,
     ) -> Self {
         Self {
-            inner: RustTank::from_box(name, x_min, x_max, y_min, y_max, z_min, z_max, fluid_density),
+            inner: RustTank::from_box(
+                name,
+                x_min,
+                x_max,
+                y_min,
+                y_max,
+                z_min,
+                z_max,
+                fluid_density,
+            ),
         }
     }
 

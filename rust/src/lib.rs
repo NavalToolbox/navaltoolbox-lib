@@ -37,23 +37,23 @@
 //! println!("Volume: {} m³", state.volume);
 //! ```
 
+pub mod downflooding;
 pub mod hull;
-pub mod vessel;
-pub mod mesh;
 pub mod hydrostatics;
+pub mod mesh;
+pub mod silhouette;
 pub mod stability;
 pub mod tanks;
-pub mod silhouette;
-pub mod downflooding;
+pub mod vessel;
 
 // Re-export main types
+pub use downflooding::{DownfloodingOpening, OpeningGeometry, OpeningType};
 pub use hull::Hull;
-pub use vessel::Vessel;
-pub use hydrostatics::{HydrostaticsCalculator, HydrostaticState};
-pub use stability::{StabilityCalculator, StabilityPoint, StabilityCurve};
-pub use tanks::{Tank, TankState};
+pub use hydrostatics::{HydrostaticState, HydrostaticsCalculator};
 pub use silhouette::Silhouette;
-pub use downflooding::{DownfloodingOpening, OpeningType, OpeningGeometry};
+pub use stability::{StabilityCalculator, StabilityCurve, StabilityPoint};
+pub use tanks::{Tank, TankState};
+pub use vessel::Vessel;
 
 // ============================================================================
 // Python Bindings

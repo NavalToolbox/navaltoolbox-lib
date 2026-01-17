@@ -36,7 +36,10 @@ pub fn load_stl(path: &Path) -> Result<TriMesh, Error> {
         .map_err(|e| Error::new(ErrorKind::InvalidData, format!("STL parse error: {}", e)))?;
 
     if stl.vertices.is_empty() {
-        return Err(Error::new(ErrorKind::InvalidData, "No geometry data in STL file"));
+        return Err(Error::new(
+            ErrorKind::InvalidData,
+            "No geometry data in STL file",
+        ));
     }
 
     let vertices: Vec<Point3<f64>> = stl
@@ -48,11 +51,21 @@ pub fn load_stl(path: &Path) -> Result<TriMesh, Error> {
     let indices: Vec<[u32; 3]> = stl
         .faces
         .iter()
-        .map(|f| [f.vertices[0] as u32, f.vertices[1] as u32, f.vertices[2] as u32])
+        .map(|f| {
+            [
+                f.vertices[0] as u32,
+                f.vertices[1] as u32,
+                f.vertices[2] as u32,
+            ]
+        })
         .collect();
 
-    TriMesh::new(vertices, indices)
-        .map_err(|e| Error::new(ErrorKind::InvalidData, format!("Mesh creation error: {:?}", e)))
+    TriMesh::new(vertices, indices).map_err(|e| {
+        Error::new(
+            ErrorKind::InvalidData,
+            format!("Mesh creation error: {:?}", e),
+        )
+    })
 }
 
 /// Placeholder for VTK loading (to be implemented later).
@@ -70,9 +83,8 @@ mod tests {
 
     #[test]
     fn test_load_stl_box() {
-        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("tests/data/box_10x10.stl");
-        
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data/box_10x10.stl");
+
         if path.exists() {
             let mesh = load_stl(&path).expect("Failed to load STL");
             assert!(mesh.vertices().len() > 0);

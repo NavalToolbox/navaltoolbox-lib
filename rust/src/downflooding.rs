@@ -128,22 +128,23 @@ impl DownfloodingOpening {
     /// * `waterline_z` - Waterline Z coordinate after rotation
     pub fn is_submerged(&self, heel: f64, trim: f64, pivot: [f64; 3], waterline_z: f64) -> bool {
         let points = self.get_points();
-        
+
         for point in &points {
             let rotated = rotate_point(*point, heel, trim, pivot);
             if rotated[2] < waterline_z {
                 return true;
             }
         }
-        
+
         false
     }
 
     /// Get the lowest Z coordinate of any point after rotation.
     pub fn get_lowest_z(&self, heel: f64, trim: f64, pivot: [f64; 3]) -> f64 {
         let points = self.get_points();
-        
-        points.iter()
+
+        points
+            .iter()
             .map(|p| rotate_point(*p, heel, trim, pivot)[2])
             .fold(f64::MAX, f64::min)
     }
@@ -155,30 +156,26 @@ impl DownfloodingOpening {
 fn rotate_point(point: [f64; 3], heel: f64, trim: f64, pivot: [f64; 3]) -> [f64; 3] {
     let heel_rad = heel * PI / 180.0;
     let trim_rad = trim * PI / 180.0;
-    
+
     // Translate to pivot
     let dx = point[0] - pivot[0];
     let dy = point[1] - pivot[1];
     let dz = point[2] - pivot[2];
-    
+
     // Rotation around X axis (heel)
     let cos_h = heel_rad.cos();
     let sin_h = heel_rad.sin();
     let y1 = dy * cos_h - dz * sin_h;
     let z1 = dy * sin_h + dz * cos_h;
-    
+
     // Rotation around Y axis (trim)
     let cos_t = trim_rad.cos();
     let sin_t = trim_rad.sin();
     let x2 = dx * cos_t + z1 * sin_t;
     let z2 = -dx * sin_t + z1 * cos_t;
-    
+
     // Translate back
-    [
-        x2 + pivot[0],
-        y1 + pivot[1],
-        z2 + pivot[2],
-    ]
+    [x2 + pivot[0], y1 + pivot[1], z2 + pivot[2]]
 }
 
 /// Check which openings are submerged at given conditions.
@@ -207,7 +204,7 @@ mod tests {
             [50.0, 5.0, 10.0],
             OpeningType::Vent,
         );
-        
+
         assert_eq!(opening.name(), "Test Vent");
         assert!(opening.is_active());
         assert_eq!(opening.get_points().len(), 1);
@@ -226,7 +223,7 @@ mod tests {
             points,
             OpeningType::Hatch,
         );
-        
+
         assert_eq!(opening.get_points().len(), 4);
     }
 
@@ -238,20 +235,23 @@ mod tests {
             [50.0, 5.0, 10.0],
             OpeningType::Vent,
         );
-        
+
         let pivot = [50.0, 0.0, 5.0];
-        
+
         // At 0° heel, opening z after rotation is 10 (above waterline 5)
         assert!(!opening.is_submerged(0.0, 0.0, pivot, 5.0));
-        
+
         // Get the rotated Z at 45° to debug
         let z_at_45 = opening.get_lowest_z(45.0, 0.0, pivot);
-        
+
         // At 45° heel, starboard side goes down
         // The rotated z should be lower than before
         // Check if it goes below a higher waterline (z=8)
-        assert!(opening.is_submerged(45.0, 0.0, pivot, z_at_45 + 1.0), 
-            "At 45° heel, z={:.2}, should be submerged at waterline {:.2}", 
-            z_at_45, z_at_45 + 1.0);
+        assert!(
+            opening.is_submerged(45.0, 0.0, pivot, z_at_45 + 1.0),
+            "At 45° heel, z={:.2}, should be submerged at waterline {:.2}",
+            z_at_45,
+            z_at_45 + 1.0
+        );
     }
 }
