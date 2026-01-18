@@ -5,7 +5,6 @@ build-backend = "maturin"
 [project]
 name = "navaltoolbox"
 description = "High-performance naval architecture library for hydrostatics, stability, and tank calculations"
-readme = "../README.md"
 license = {text = "AGPL-3.0-or-later"}
 requires-python = ">=3.9"
 authors = [
