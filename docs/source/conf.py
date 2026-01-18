@@ -41,7 +41,7 @@ html_theme_options = {
     "icon_links": [
         {
             "name": "GitHub",
-            "url": "https://github.com/antoine-anceau/navaltoolbox",
+            "url": "https://github.com/NavalToolbox/navaltoolbox-lib",
             "icon": "fa-brands fa-github",
         },
         {

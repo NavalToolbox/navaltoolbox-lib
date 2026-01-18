@@ -5,7 +5,12 @@ edition = "2021"
 description = "High-performance naval architecture library for hydrostatics, stability, and tank calculations"
 authors = ["Antoine ANCEAU"]
 license = "AGPL-3.0-or-later"
-repository = "https://github.com/antoine-anceau/navaltoolbox"
+repository = "https://github.com/NavalToolbox/navaltoolbox-lib"
+homepage = "https://github.com/NavalToolbox/navaltoolbox-lib"
+documentation = "https://docs.rs/navaltoolbox"
+keywords = ["naval", "hydrostatics", "stability", "marine", "engineering"]
+categories = ["science", "simulation"]
+readme = "../README.md"
 
 [lib]
 name = "navaltoolbox"

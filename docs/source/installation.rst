@@ -17,7 +17,7 @@ For development, clone the repository and install with maturin:
 
 .. code-block:: bash
 
-    git clone https://github.com/antoine-anceau/navaltoolbox.git
+    git clone https://github.com/NavalToolbox/navaltoolbox-lib.git
     cd navaltoolbox/navaltoobox-lib/python
 
     # Install maturin if needed

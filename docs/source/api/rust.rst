@@ -75,4 +75,4 @@ Full Documentation
 See the complete Rust API documentation at:
 
 - **docs.rs**: https://docs.rs/navaltoolbox
-- **Source**: https://github.com/antoine-anceau/navaltoolbox
+- **Source**: https://github.com/NavalToolbox/navaltoolbox-lib

@@ -27,7 +27,7 @@ classifiers = [
 dynamic = ["version"]
 
 [project.urls]
-Repository = "https://github.com/antoine-anceau/navaltoolbox"
+Repository = "https://github.com/NavalToolbox/navaltoolbox-lib"
 
 [tool.maturin]
 features = ["python"]
