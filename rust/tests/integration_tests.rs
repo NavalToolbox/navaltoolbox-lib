@@ -4,11 +4,8 @@
 //! with the same precision requirements.
 
 use nalgebra::Point3;
-use navaltoolbox::hydrostatics::HydrostaticState;
-use navaltoolbox::stability::{StabilityCurve, StabilityPoint};
 use navaltoolbox::{Hull, HydrostaticsCalculator, StabilityCalculator, Tank, Vessel};
 use parry3d_f64::shape::TriMesh;
-use std::f64::consts::PI;
 
 // ============================================================================
 // Helper Functions
@@ -97,7 +94,7 @@ mod box_barge_tests {
         let calc = StabilityCalculator::new(&vessel, 1025.0);
 
         // Constants
-        let draft = 5.0;
+        let _draft = 5.0;
         let vcg = 2.0;
         let kb = 2.5;
         let bm = 100.0 / 60.0; // B² / (12T) = 100 / 60
@@ -572,7 +569,7 @@ mod dtmb5415_tests {
         println!("Heel      Calc GZ    Ref GZ");
         println!("----------------------------");
 
-        for (i, point) in curve.points.iter().enumerate() {
+        for (_i, point) in curve.points.iter().enumerate() {
             let ref_gz = REFERENCE_DATA
                 .iter()
                 .find(|(h, _, _, _)| (*h - point.heel).abs() < 1.0)
