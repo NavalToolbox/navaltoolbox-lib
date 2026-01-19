@@ -64,6 +64,28 @@ pub struct HydrostaticState {
     pub lwl: f64,
     /// Beam at waterline in meters
     pub bwl: f64,
+
+    /// Wetted surface area in m²
+    pub wetted_surface_area: f64,
+    /// Midship section area in m²
+    pub midship_area: f64,
+    /// Midship section coefficient
+    pub cm: f64,
+    /// Block coefficient
+    pub cb: f64,
+    /// Prismatic coefficient
+    pub cp: f64,
+    
+    /// Transverse free surface correction (meters)
+    pub free_surface_correction_t: f64,
+    /// Longitudinal free surface correction (meters)
+    pub free_surface_correction_l: f64,
+    
+    /// 6x6 Hydrostatic stiffness matrix (flattened row-major)
+    pub stiffness_matrix: [f64; 36],
+    
+    /// Length overall submerged in meters
+    pub los: f64,
 }
 
 impl HydrostaticState {
@@ -118,6 +140,15 @@ impl Default for HydrostaticState {
             gml_dry: None,
             lwl: 0.0,
             bwl: 0.0,
+            wetted_surface_area: 0.0,
+            midship_area: 0.0,
+            cm: 0.0,
+            cb: 0.0,
+            cp: 0.0,
+            free_surface_correction_t: 0.0,
+            free_surface_correction_l: 0.0,
+            stiffness_matrix: [0.0; 36],
+            los: 0.0,
         }
     }
 }

@@ -63,8 +63,13 @@ Calculate hydrostatic properties at a given draft:
 
     print(f"Volume: {state.volume:.1f} m³")
     print(f"Displacement: {state.displacement:.0f} kg")
+    print(f"Lwl: {state.lwl:.2f}m")
+    print(f"Bwl: {state.bwl:.2f}m")
+    print(f"Wetted Surface: {state.wetted_surface_area:.1f}m²")
+    print(f"Cb: {state.cb:.3f}")
     print(f"LCB: {state.lcb:.2f}m")
     print(f"VCB: {state.vcb:.2f}m")
+    print(f"GMT (corrected): {state.gmt:.3f}m")
 
 Calculating GZ Curve
 --------------------

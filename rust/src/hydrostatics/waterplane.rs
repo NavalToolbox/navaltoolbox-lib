@@ -41,6 +41,15 @@ pub struct WaterplaneProperties {
     /// Second moment of area about longitudinal axis (for pitching)
     /// I_l = ∫∫ x² dA
     pub i_longitudinal: f64,
+    
+    /// Minimum X coordinate of the waterplane (aft-most point)
+    pub min_x: f64,
+    /// Maximum X coordinate of the waterplane (fore-most point)
+    pub max_x: f64,
+    /// Minimum Y coordinate of the waterplane
+    pub min_y: f64,
+    /// Maximum Y coordinate of the waterplane
+    pub max_y: f64,
 }
 
 /// Calculate waterplane properties from a mesh at a given draft
@@ -62,7 +71,19 @@ pub fn calculate_waterplane_properties(
     let mut i_xx = 0.0;      // ∫∫ y² dA (about x-axis, for transverse)
     let mut i_yy = 0.0;      // ∫∫ x² dA (about y-axis, for longitudinal)
     
+    let mut min_x = f64::MAX;
+    let mut max_x = f64::MIN;
+    let mut min_y = f64::MAX;
+    let mut max_y = f64::MIN;
+
     for contour in &contours {
+        for p in contour {
+            min_x = min_x.min(p.x);
+            max_x = max_x.max(p.x);
+            min_y = min_y.min(p.y);
+            max_y = max_y.max(p.y);
+        }
+
         // Triangulate this contour using fan triangulation from first point
         let triangles = triangulate_polygon(contour);
         
@@ -114,6 +135,10 @@ pub fn calculate_waterplane_properties(
         centroid: [lcf, tcf],
         i_transverse: i_transverse.max(0.0),
         i_longitudinal: i_longitudinal.max(0.0),
+        min_x,
+        max_x,
+        min_y,
+        max_y,
     })
 }
 

@@ -15,7 +15,7 @@ NavalToolbox is built as a **Rust library** (`navaltoolbox`) with optional Pytho
 
 - **Hull geometry**: Load STL/VTK files, transform, scale, export
 - **Multi-hull support**: Catamarans, trimarans, arbitrary configurations
-- **Hydrostatics**: Volume, COB vector, Waterplane properties ($A_{wp}$, LCF, $BM_t$, $BM_l$), Free Surface Correction ($GM_{dry}/GM_{wet}$)
+- **Hydrostatics**: Volume, COB vector, Waterplane ($A_{wp}$, LCF, $BM_{t/l}$), Wetted Surface, Midship Area, LOS, Coefficients ($C_b, C_m, C_p$), Stiffness Matrix, Free Surface ($GM_{dry/wet}$)
 - **Stability**: GZ curve calculation with trim optimization and downflooding detection
 - **Tanks**: Fill level management, free surface effects
 - **Silhouettes**: Wind heeling calculations (DXF/VTK support)

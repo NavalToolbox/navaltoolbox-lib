@@ -445,6 +445,78 @@ HydrostaticState
 
       Longitudinal metacentric height (Wet/Corrected) (m).
 
+   .. py:attribute:: gml_dry
+      :type: float or None
+
+      Longitudinal metacentric height (Dry/Uncorrected) (m).
+
+   .. py:attribute:: lwl
+      :type: float
+
+      Length at Waterline (m).
+
+   .. py:attribute:: bwl
+      :type: float
+
+      Beam at Waterline (m).
+
+   .. py:attribute:: los
+      :type: float
+
+      Length Overall Submerged (m).
+
+   .. py:attribute:: wetted_surface_area
+      :type: float
+
+      Wetted Surface Area (m²).
+
+   .. py:attribute:: midship_area
+      :type: float
+
+      Midship Section Area (m²).
+
+   .. py:attribute:: cb
+      :type: float
+
+      Block Coefficient ($C_b$).
+
+      .. math::
+
+          C_b = \frac{\nabla}{L_{wl} \cdot B_{wl} \cdot T}
+
+   .. py:attribute:: cm
+      :type: float
+
+      Midship Section Coefficient ($C_m$).
+
+      .. math::
+
+          C_m = \frac{A_m}{B_{wl} \cdot T}
+
+   .. py:attribute:: cp
+      :type: float
+
+      Prismatic Coefficient ($C_p$).
+
+      .. math::
+
+          C_p = \frac{\nabla}{A_m \cdot L_{wl}}
+
+   .. py:attribute:: free_surface_correction_t
+      :type: float
+
+      Transverse Free Surface Correction (m) ($FSC_t$).
+
+   .. py:attribute:: free_surface_correction_l
+      :type: float
+
+      Longitudinal Free Surface Correction (m) ($FSC_l$).
+
+   .. py:attribute:: stiffness_matrix
+      :type: list[float]
+
+      6x6 Hydrostatic Stiffness Matrix (flattened row-major).
+
 StabilityCalculator
 -------------------
 

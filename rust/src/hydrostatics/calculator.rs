@@ -65,12 +65,31 @@ impl<'a> HydrostaticsCalculator<'a> {
 
         let mut total_volume = 0.0;
         let mut total_moment = [0.0, 0.0, 0.0];
+        
+        let mut total_wetted_surface = 0.0;
+        let mut total_midship_area = 0.0;
+        
+        // We will combine waterplane properties from all hulls
+        let mut combined_wp_area = 0.0;
+        let mut combined_wp_moment_x = 0.0;
+        let mut combined_wp_moment_y = 0.0;
+        let mut combined_i_trans = 0.0;
+        let mut combined_i_long = 0.0;
+
+        let mut min_x = f64::MAX;
+        let mut max_x = f64::MIN;
+        let mut min_y = f64::MAX;
+        let mut max_y = f64::MIN;
+        
+        // Track submerged length (LOS)
+        let mut min_x_submerged = f64::MAX;
+        let mut max_x_submerged = f64::MIN;
 
         // Process each hull
         for hull in self.vessel.hulls() {
             // Transform hull
             let transformed = transform_mesh(hull.mesh(), heel, trim, pivot);
-            let _trans_bounds = get_bounds(&transformed);
+            let bounds = get_bounds(&transformed);
 
             // Clip at waterline
             if let Some(clipped) = clip_at_waterline(&transformed, draft) {
@@ -82,107 +101,137 @@ impl<'a> HydrostaticsCalculator<'a> {
                 total_moment[0] += vol * cob.x;
                 total_moment[1] += vol * cob.y;
                 total_moment[2] += vol * cob.z;
+                
+                // Update LOS bounds from clipped mesh vertices
+                for v in clipped.vertices() {
+                    if v.x < min_x_submerged { min_x_submerged = v.x; }
+                    if v.x > max_x_submerged { max_x_submerged = v.x; }
+                }
+                
+                // Wetted Surface Area: Area(ClippedMesh) - Area(WaterplaneCap)
+                let mesh_area = calculate_mesh_area(&clipped);
+                
+                // Waterplane Properties
+                if let Some(wp) = crate::hydrostatics::waterplane::calculate_waterplane_properties(
+                    &transformed, 
+                    draft
+                ) {
+                    total_wetted_surface += (mesh_area - wp.area).max(0.0);
+                    
+                    combined_wp_area += wp.area;
+                    combined_wp_moment_x += wp.area * wp.centroid[0];
+                    combined_wp_moment_y += wp.area * wp.centroid[1];
+                    
+                    // Parallel axis theorem accumulation (relative to origin first)
+                    let i_xx_origin = wp.i_transverse + wp.area * wp.centroid[1].powi(2);
+                    let i_yy_origin = wp.i_longitudinal + wp.area * wp.centroid[0].powi(2);
+                    
+                    combined_i_trans += i_xx_origin;
+                    combined_i_long += i_yy_origin;
+                    
+                    min_x = min_x.min(wp.min_x);
+                    max_x = max_x.max(wp.max_x);
+                    min_y = min_y.min(wp.min_y);
+                    max_y = max_y.max(wp.max_y);
+                    
+                } else {
+                    total_wetted_surface += mesh_area;
+                }
+                
+                // Midship Area: Slice at X = (bounds.0 + bounds.1) / 2.0
+                let mid_x = (bounds.0 + bounds.1) / 2.0;
+                let ma = calculate_section_area(&clipped, mid_x);
+                total_midship_area += ma;
             }
         }
 
-        if total_volume <= 0.0 {
+        if total_volume <= 1e-9 {
             return None;
         }
 
         let lcb = total_moment[0] / total_volume;
         let tcb = total_moment[1] / total_volume;
         let vcb = total_moment[2] / total_volume;
-        
         let cob = [lcb, tcb, vcb];
-
-        let displacement = total_volume * self.water_density;
-
-        // Calculate waterplane properties for metacentric calculations
-        // We need to calculate on the transformed mesh to account for heel/trim
-        let (waterplane_area, lcf, bmt, bml) = if total_volume > 0.0 {
-            // For each hull, calculate its waterplane contribution
-            let mut total_wp_area = 0.0;
-            let mut total_i_t = 0.0;
-            let mut total_i_l = 0.0;
-            let mut wp_moment_x = 0.0;
-            
-            for hull in self.vessel.hulls() {
-                // Transform hull for heel/trim
-                let transformed = transform_mesh(hull.mesh(), heel, trim, pivot);
-                
-                // Calculate waterplane properties at this draft
-                if let Some(wp) = super::waterplane::calculate_waterplane_properties(&transformed, draft) {
-                    total_wp_area += wp.area;
-                    wp_moment_x += wp.area * wp.centroid[0];
-                    total_i_t += wp.i_transverse + wp.area * wp.centroid[1].powi(2); // Parallel axis
-                    total_i_l += wp.i_longitudinal + wp.area * wp.centroid[0].powi(2); // Parallel axis
-                }
-            }
-            
-            if total_wp_area > 0.0 {
-                let lcf_calc = wp_moment_x / total_wp_area;
-                
-                // Transfer to centroidal axes
-                let wp_tcf = tcb; // Assume waterplane TCF aligns with COB TCB
-                let wp_lcf = lcf_calc;
-                
-                let i_t_centroidal = total_i_t - total_wp_area * wp_tcf.powi(2);
-                let i_l_centroidal = total_i_l - total_wp_area * wp_lcf.powi(2);
-                
-                // Metacentric radii
-                let bm_t = i_t_centroidal / total_volume;
-                let bm_l = i_l_centroidal / total_volume;
-                
-                (total_wp_area, wp_lcf, bm_t.max(0.0), bm_l.max(0.0))
-            } else {
-                // Fallback if waterplane calculation fails
-                (0.0, lcb, 0.0, 0.0)
-            }
-        } else {
-            (0.0, lcb, 0.0, 0.0)
-        };
         
-        // Set COG with LCB, TCB from equilibrium and provided VCG
-        // GMT/GML are only defined if VCG is provided
-        let (cog, gmt, gml, gmt_dry, gml_dry) = if let Some(v) = vcg {
-            let full_cog = [lcb, tcb, v];
-            let km_t = vcb + bmt;
-            let km_l = vcb + bml;
+        let displacement = total_volume * self.water_density;
+        
+        // Final Waterplane Properties (Combined)
+        let (wp_area, lcf, bmt, bml, lwl, bwl) = if combined_wp_area > 1e-9 {
+            let cx = combined_wp_moment_x / combined_wp_area;
+            let cy = combined_wp_moment_y / combined_wp_area;
             
-            // Calculate dry GM (without free surface correction)
-            let gmt_dry_val = km_t - v;
-            let gml_dry_val = km_l - v;
+            // Convert inertias back to centroidal
+            let i_trans = combined_i_trans - combined_wp_area * cy.powi(2);
+            let i_long = combined_i_long - combined_wp_area * cx.powi(2);
             
-            // Calculate free surface correction from vessel tanks
-            let (fsm_t, fsm_l) = self.vessel.get_total_free_surface_moment();
+            let bmt_val = i_trans / total_volume;
+            let bml_val = i_long / total_volume;
             
-            // FSC = FSM / displacement (in meters)
-            let fsc_t = if displacement > 1e-6 {
-                fsm_t / displacement
-            } else {
-                0.0
-            };
+            (combined_wp_area, cx, bmt_val, bml_val, max_x - min_x, max_y - min_y)
+        } else {
+             (0.0, lcb, 0.0, 0.0, 0.0, 0.0)
+        };
+
+        // Coefficients
+        let cb = if lwl * bwl * draft > 1e-6 { total_volume / (lwl * bwl * draft) } else { 0.0 };
+        let cp = if total_midship_area * lwl > 1e-6 { total_volume / (total_midship_area * lwl) } else { 0.0 };
+        let cm = if bwl * draft > 1e-6 { total_midship_area / (bwl * draft) } else { 0.0 };
+
+        // Free Surface Correction
+        let mut fsm_mass_moment_t = 0.0;
+        let mut fsm_mass_moment_l = 0.0;
+        for tank in self.vessel.tanks() {
+            let rho = tank.fluid_density();
+            fsm_mass_moment_t += tank.free_surface_moment_t() * rho;
+            fsm_mass_moment_l += tank.free_surface_moment_l() * rho;
+        }
+        
+        let fsc_t = if displacement > 0.0 { fsm_mass_moment_t / displacement } else { 0.0 };
+        let fsc_l = if displacement > 0.0 { fsm_mass_moment_l / displacement } else { 0.0 };
+
+        // GM Calculations
+        let (gmt_dry, gml_dry, gmt_wet, gml_wet) = if let Some(vcg_val) = vcg {
+            let kb = vcb;
+            let kg = vcg_val;
             
-            let fsc_l = if displacement > 1e-6 {
-                fsm_l / displacement
-            } else {
-                0.0
-            };
-            
-            // Calculate wet GM (with free surface correction - more conservative)
-            let gmt_wet_val = gmt_dry_val - fsc_t;
-            let gml_wet_val = gml_dry_val - fsc_l;
+            let gm_t_dry = kb + bmt - kg;
+            let gm_l_dry = kb + bml - kg;
             
             (
-                Some(full_cog),
-                Some(gmt_wet_val),  // gmt = wet (conservative)
-                Some(gml_wet_val),  // gml = wet
-                Some(gmt_dry_val),  // gmt_dry
-                Some(gml_dry_val),  // gml_dry
+                Some(gm_t_dry),
+                Some(gm_l_dry),
+                Some(gm_t_dry - fsc_t),
+                Some(gm_l_dry - fsc_l)
             )
         } else {
-            (None, None, None, None, None)
+            (None, None, None, None)
         };
+        
+        // Stiffness Matrix
+        let g = 9.81;
+        let rho_g = self.water_density * g;
+        let mut k = [0.0; 36];
+        
+        // Heave (3,3)
+        k[14] = rho_g * wp_area;
+        
+        // Pitch-Heave Coupling
+        let c35 = -rho_g * wp_area * lcf; 
+        k[16] = c35; // Row 2, Col 4 (3,5)
+        k[26] = c35; // Row 4, Col 2 (5,3)
+        
+        // Roll (4,4)
+        if let Some(gmt) = gmt_wet {
+            k[21] = displacement * g * gmt;
+        }
+
+        // Pitch (5,5)
+        if let Some(gml) = gml_wet {
+             k[28] = displacement * g * gml;
+        }
+
+        let cog_ret = vcg.map(|z| [lcb, tcb, z]);
 
         Some(HydrostaticState {
             draft,
@@ -191,17 +240,30 @@ impl<'a> HydrostaticsCalculator<'a> {
             volume: total_volume,
             displacement,
             cob,
-            cog,
-            waterplane_area,
+            cog: cog_ret,
+            waterplane_area: wp_area,
             lcf,
             bmt,
             bml,
-            gmt,
-            gml,
-            gmt_dry,
-            gml_dry,
-            lwl: bounds.1 - bounds.0, // Simplified
-            bwl: bounds.3 - bounds.2, // Simplified
+            gmt: gmt_wet,
+            gml: gml_wet,
+            gmt_dry: gmt_dry,
+            gml_dry: gml_dry,
+            free_surface_correction_t: fsc_t,
+            free_surface_correction_l: fsc_l,
+            lwl,
+            bwl,
+            wetted_surface_area: total_wetted_surface,
+            midship_area: total_midship_area,
+            cm,
+            cb,
+            cp,
+            stiffness_matrix: k,
+            los: if max_x_submerged > min_x_submerged {
+                max_x_submerged - min_x_submerged
+            } else {
+                0.0
+            },
         })
     }
 
@@ -324,6 +386,208 @@ impl<'a> HydrostaticsCalculator<'a> {
     pub fn water_density(&self) -> f64 {
         self.water_density
     }
+
+
+
+}
+
+/// Calculate total surface area of a mesh
+fn calculate_mesh_area(mesh: &parry3d_f64::shape::TriMesh) -> f64 {
+    let vertices = mesh.vertices();
+    let indices = mesh.indices();
+    let mut area = 0.0;
+    
+    for tri in indices {
+        let v0 = vertices[tri[0] as usize];
+        let v1 = vertices[tri[1] as usize];
+        let v2 = vertices[tri[2] as usize];
+        
+        let ab = v1 - v0;
+        let ac = v2 - v0;
+        let cross = ab.cross(&ac);
+        area += 0.5 * cross.norm();
+    }
+    area
+}
+
+/// Calculate the cross-sectional area of a mesh at a given X plane
+fn calculate_section_area(mesh: &parry3d_f64::shape::TriMesh, x_plane: f64) -> f64 {
+    let vertices = mesh.vertices();
+    let indices = mesh.indices();
+    
+    // Find intersection segments with X plane
+    let mut segments: Vec<(Point3<f64>, Point3<f64>)> = Vec::new();
+    let tolerance = 1e-6;
+    
+    for tri in indices {
+        let v0 = vertices[tri[0] as usize];
+        let v1 = vertices[tri[1] as usize];
+        let v2 = vertices[tri[2] as usize];
+        
+        // Calculate signed distances and signs
+        let dists: [f64; 3] = [v0.x - x_plane, v1.x - x_plane, v2.x - x_plane];
+        let signs: [i32; 3] = dists.map(|d| {
+            if d.abs() < tolerance { 0 } else if d < 0.0 { -1 } else { 1 }
+        });
+
+        // Helper to interpolate
+        let interp = |i: usize, j: usize| -> Point3<f64> {
+            let p_i = vertices[tri[i] as usize];
+            let p_j = vertices[tri[j] as usize];
+            let d_i = dists[i];
+            let d_j = dists[j];
+            let t = d_i / (d_i - d_j);
+             Point3::new(
+                x_plane,
+                p_i.y + (p_j.y - p_i.y) * t,
+                p_i.z + (p_j.z - p_i.z) * t
+            )
+        };
+        
+        // Match cases based on signs (s0, s1, s2)
+        match signs {
+            // No intersection (all same side strict)
+            [1, 1, 1] | [-1, -1, -1] => {}
+            
+            // Single vertex on plane, others same side (touching)
+            [0, 1, 1] | [0, -1, -1] => {} // Point contact v0
+            [1, 0, 1] | [-1, 0, -1] => {} // Point contact v1
+            [1, 1, 0] | [-1, -1, 0] => {} // Point contact v2
+            
+            // Edge on plane, other same side (edge contact)
+            [0, 0, 1] | [0, 0, -1] => {
+                 segments.push((vertices[tri[0] as usize], vertices[tri[1] as usize]));
+            }
+            [1, 0, 0] | [-1, 0, 0] => {
+                 segments.push((vertices[tri[1] as usize], vertices[tri[2] as usize]));
+            }
+            [0, 1, 0] | [0, -1, 0] => {
+                 segments.push((vertices[tri[2] as usize], vertices[tri[0] as usize]));
+            }
+            
+            // Face on plane (degenerate)
+            [0, 0, 0] => {
+                 let p0 = vertices[tri[0] as usize];
+                 let p1 = vertices[tri[1] as usize];
+                 let p2 = vertices[tri[2] as usize];
+                 segments.push((p0, p1));
+                 segments.push((p1, p2));
+                 segments.push((p2, p0));
+            }
+            
+            // Standard Crossing (one distinct side) -> 2 intersections
+            // v2 is alone
+            [s0, s1, s2] if s0 == s1 && s2 != s0 => {
+                let p_a = interp(1, 2);
+                let p_b = interp(2, 0);
+                segments.push((p_a, p_b));
+            }
+            // v0 is alone
+            [s0, s1, s2] if s1 == s2 && s0 != s1 => {
+                let p_a = interp(2, 0);
+                let p_b = interp(0, 1);
+                segments.push((p_a, p_b));
+            }
+            // v1 is alone
+            [s0, s1, s2] if s2 == s0 && s1 != s2 => {
+                let p_a = interp(0, 1);
+                let p_b = interp(1, 2);
+                segments.push((p_a, p_b));
+            }
+            
+            // Single vertex on plane, others splitted
+            [0, -1, 1] | [0, 1, -1] => {
+                 let p0 = vertices[tri[0] as usize];
+                 let p_cross = interp(1, 2);
+                 segments.push((p0, p_cross));
+            }
+            [-1, 0, 1] | [1, 0, -1] => {
+                 let p1 = vertices[tri[1] as usize];
+                 let p_cross = interp(2, 0);
+                 segments.push((p1, p_cross));
+            }
+            [-1, 1, 0] | [1, -1, 0] => {
+                 let p2 = vertices[tri[2] as usize];
+                 let p_cross = interp(0, 1);
+                 segments.push((p2, p_cross));
+            }
+            
+            // impossible cases
+             _ => {}
+        }
+    
+
+    }
+    
+    // println!("Total segments found: {}", segments.len());
+    
+    if segments.is_empty() {
+        // println!("No segments found at X={}", x_plane);
+        return 0.0;
+    }
+    
+    // Chain segments into contours
+    // Naive O(N^2) chaining
+    let mut contours: Vec<Vec<Point3<f64>>> = Vec::new();
+    
+    while !segments.is_empty() {
+        // Start a new contour with the last segment (pop for efficiency)
+        let (start, mut current) = segments.pop().unwrap();
+        let mut contour = vec![start, current];
+        
+        let mut loop_closed = false;
+        
+        while !loop_closed {
+            // Find a segment starting at 'current'
+            let mut found_idx = None;
+            
+            for (i, (s, e)) in segments.iter().enumerate() {
+                if (s - current).norm_squared() < tolerance {
+                    found_idx = Some((i, *e, false)); // Standard direction
+                    break;
+                } else if (e - current).norm_squared() < tolerance {
+                    found_idx = Some((i, *s, true)); // Reversed direction
+                    break;
+                }
+            }
+            
+            if let Some((idx, next_pt, reversed)) = found_idx {
+                segments.swap_remove(idx); // Remove found segment
+                current = next_pt;
+                contour.push(current);
+                
+                // Check if loop closed
+                if (current - start).norm_squared() < tolerance {
+                    loop_closed = true;
+                }
+            } else {
+                 // Broken loop or open chain
+                 break;
+            }
+        }
+        
+        if loop_closed {
+             contours.push(contour);
+        }
+    }
+    
+    // Calculate area of contours (YZ plane)
+    let mut total_area = 0.0;
+    for contour in contours {
+        let mut loop_area = 0.0;
+        let n = contour.len();
+        if n < 3 { continue; }
+        
+        for i in 0..n {
+            let p1 = contour[i];
+            let p2 = contour[(i + 1) % n];
+            // Shoelace formula: (y1 + y2)(z1 - z2) / 2
+            loop_area += (p1.y + p2.y) * (p1.z - p2.z);
+        }
+        total_area += 0.5 * loop_area.abs(); // Assume disjoint loops add up
+    }
+    
+    total_area
 }
 
 #[cfg(test)]
@@ -399,6 +663,29 @@ mod tests {
         assert!((state.displacement - target_disp).abs() < 1.0, "Displacement mismatch");
         assert_eq!(state.trim, 0.0);
         assert_eq!(state.heel, 0.0);
+    }
+
+    #[test]
+    fn test_calculate_section_area() {
+        // Create a 10x10x10 box
+        let hull = create_box_hull(10.0, 10.0, 10.0);
+        let mesh = hull.mesh();
+        
+        // Full slice at X=5.0
+        let area = calculate_section_area(mesh, 5.0);
+        assert!((area - 100.0).abs() < 1.0, "Full area should be 100.0, got {}", area);
+        
+        // Clipped slice at X=5.0, Draft=5.0
+        // Expect 10 (width) * 5 (draft) = 50 m²
+        if let Some(clipped) = crate::mesh::clip_at_waterline(mesh, 5.0) {
+            println!("Clipped Vertices: {:?}", clipped.vertices());
+            println!("Clipped Indices: {:?}", clipped.indices());
+            
+            let area_clipped = calculate_section_area(&clipped, 5.0);
+            assert!((area_clipped - 50.0).abs() < 1.0, "Clipped area should be 50.0, got {}", area_clipped);
+        } else {
+            panic!("Clipping failed");
+        }
     }
 
     #[test]

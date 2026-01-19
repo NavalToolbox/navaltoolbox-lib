@@ -54,6 +54,18 @@ impl PyHull {
         Ok(Self { inner: hull })
     }
 
+    /// Create a box hull.
+    ///
+    /// Args:
+    ///     length: Length of the box in meters
+    ///     breadth: Breadth of the box in meters
+    ///     depth: Depth of the box in meters
+    #[staticmethod]
+    fn from_box(length: f64, breadth: f64, depth: f64) -> Self {
+        let hull = RustHull::from_box(length, breadth, depth);
+        Self { inner: hull }
+    }
+
     /// Returns the bounding box (xmin, xmax, ymin, ymax, zmin, zmax).
     fn get_bounds(&self) -> (f64, f64, f64, f64, f64, f64) {
         self.inner.get_bounds()
@@ -524,6 +536,26 @@ pub struct PyHydrostaticState {
     pub lwl: f64,
     #[pyo3(get)]
     pub bwl: f64,
+    #[pyo3(get)]
+    pub los: f64,
+
+
+    #[pyo3(get)]
+    pub wetted_surface_area: f64,
+    #[pyo3(get)]
+    pub midship_area: f64,
+    #[pyo3(get)]
+    pub cm: f64,
+    #[pyo3(get)]
+    pub cb: f64,
+    #[pyo3(get)]
+    pub cp: f64,
+    #[pyo3(get)]
+    pub free_surface_correction_t: f64,
+    #[pyo3(get)]
+    pub free_surface_correction_l: f64,
+    #[pyo3(get)]
+    pub stiffness_matrix: Vec<f64>,
 }
 
 impl From<RustHydroState> for PyHydrostaticState {
@@ -546,6 +578,15 @@ impl From<RustHydroState> for PyHydrostaticState {
             gml_dry_internal: state.gml_dry,
             lwl: state.lwl,
             bwl: state.bwl,
+            los: state.los,
+            wetted_surface_area: state.wetted_surface_area,
+            midship_area: state.midship_area,
+            cm: state.cm,
+            cb: state.cb,
+            cp: state.cp,
+            free_surface_correction_t: state.free_surface_correction_t,
+            free_surface_correction_l: state.free_surface_correction_l,
+            stiffness_matrix: state.stiffness_matrix.to_vec(),
         }
     }
 }
