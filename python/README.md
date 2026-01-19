@@ -1,0 +1,270 @@
+# NavalToolbox
+
+High-performance naval architecture library for Python, powered by Rust.
+
+[![PyPI version](https://badge.fury.io/py/navaltoolbox.svg)](https://pypi.org/project/navaltoolbox/)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+
+## Overview
+
+NavalToolbox provides fast and accurate naval architecture calculations through a Python API, with a high-performance Rust backend that handles the heavy computational work.
+
+## Features
+
+- ⚓ **Hull Geometry**: Load and manipulate ship hulls from STL/VTK files
+- 🚢 **Multi-hull Support**: Catamarans, trimarans, and arbitrary configurations
+- 📊 **Hydrostatics**: Volume, center of buoyancy, waterplane area, and more
+- ⚖️ **Stability Analysis**: GZ curve calculation with automatic trim optimization
+- 🌊 **Downflooding Detection**: Automatic detection of submerged openings
+- 🛢️ **Tank Management**: Fill levels, free surface effects, sounding tables
+- 💨 **Wind Heeling**: Silhouette-based wind calculations (DXF/VTK support)
+- ⚡ **High Performance**: Rust backend with Python convenience
+
+## Installation
+
+```bash
+pip install navaltoolbox
+```
+
+**Requirements:**
+- Python 3.9 or higher
+- No additional dependencies required (all native code included in wheels)
+
+## Quick Start
+
+### Loading a Hull
+
+```python
+from navaltoolbox import Hull
+
+# Load hull from STL file
+hull = Hull("ship.stl")
+
+# Get hull dimensions
+bounds = hull.get_bounds()
+loa = bounds[1] - bounds[0]  # Length overall
+boa = bounds[3] - bounds[2]  # Beam overall
+
+print(f"LOA: {loa:.2f}m, BOA: {boa:.2f}m")
+print(f"Triangles: {hull.num_triangles()}")
+```
+
+### Hydrostatics Calculation
+
+```python
+from navaltoolbox import Hull, Vessel, HydrostaticsCalculator
+
+# Create vessel
+hull = Hull("ship.stl")
+vessel = Vessel(hull)
+
+# Calculate hydrostatics at a given draft
+calc = HydrostaticsCalculator(vessel, water_density=1025.0)
+state = calc.calculate_at_draft(draft=5.0, trim=0.0, heel=0.0, vcg=7.0)
+
+print(f"Volume: {state.volume:.1f} m³")
+print(f"Displacement: {state.displacement:.0f} kg")
+print(f"Center of Buoyancy: ({state.cob[0]:.2f}, {state.cob[1]:.2f}, {state.cob[2]:.2f})")
+print(f"Waterplane Area: {state.waterplane_area:.1f} m²")
+print(f"GMT: {state.gm_t:.3f} m")
+```
+
+### Stability Analysis (GZ Curve)
+
+```python
+from navaltoolbox import Hull, Vessel, StabilityCalculator
+
+# Create vessel and calculator
+hull = Hull("ship.stl")
+vessel = Vessel(hull)
+calc = StabilityCalculator(vessel, water_density=1025.0)
+
+# Calculate GZ curve
+displacement_mass = 8635000.0  # kg
+cog = (71.67, 0.0, 7.555)      # LCG, TCG, VCG in meters
+heels = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]
+
+curve = calc.calculate_gz_curve(displacement_mass, cog, heels)
+
+# Display results
+print("Heel (°)  |  GZ (m)")
+print("-" * 25)
+for heel, gz in zip(curve.heels(), curve.values()):
+    print(f"{heel:7.1f}  |  {gz:7.3f}")
+
+# Get max GZ
+gz_values = curve.values()
+max_gz = max(gz_values)
+max_idx = gz_values.index(max_gz)
+max_heel = heels[max_idx]
+print(f"\nMax GZ: {max_gz:.3f}m at {max_heel}°")
+```
+
+### Tank Management
+
+```python
+from navaltoolbox import Tank, Vessel, Hull
+
+# Create a vessel
+hull = Hull("ship.stl")
+vessel = Vessel(hull)
+
+# Add a box-shaped tank
+tank = Tank.from_box(
+    name="Fuel Tank 1",
+    x_min=40.0, x_max=50.0,
+    y_min=-5.0, y_max=5.0,
+    z_min=0.0, z_max=3.0,
+    fluid_density=850.0  # diesel fuel
+)
+
+vessel.add_tank(tank)
+
+# Set fill level
+tank.fill_percent = 75.0
+
+# Get tank properties
+print(f"Tank: {tank.name}")
+print(f"Total volume: {tank.total_volume:.1f} m³")
+print(f"Fill volume: {tank.fill_volume:.1f} m³")
+print(f"Fluid mass: {tank.fluid_mass:.0f} kg")
+print(f"Center of gravity: {tank.center_of_gravity}")
+print(f"Free surface moment (transverse): {tank.free_surface_moment_t:.2f} m⁴")
+```
+
+### Multi-hull Vessels
+
+```python
+from navaltoolbox import Hull, Vessel
+
+# Load individual hulls
+port_hull = Hull("port_hull.stl")
+starboard_hull = Hull("starboard_hull.stl")
+
+# Create catamaran
+catamaran = Vessel(port_hull)
+catamaran.add_hull(starboard_hull, offset=(0.0, 8.0, 0.0))  # 8m beam between hulls
+
+# Calculate hydrostatics
+calc = HydrostaticsCalculator(catamaran, water_density=1025.0)
+state = calc.calculate_at_draft(1.5)
+
+print(f"Catamaran displacement: {state.displacement:.0f} kg")
+print(f"Waterplane area: {state.waterplane_area:.1f} m²")
+```
+
+### Downflooding Detection
+
+```python
+from navaltoolbox import Hull, Vessel, DownfloodingOpening, StabilityCalculator
+
+# Create vessel
+hull = Hull("ship.stl")
+vessel = Vessel(hull)
+
+# Add downflooding opening (e.g., air pipe, ventilator)
+opening = DownfloodingOpening.from_point(
+    name="Vent pipe",
+    x=75.0, y=9.8, z=12.5,
+    opening_type="vent"
+)
+vessel.add_downflooding_opening(opening)
+
+# Calculate GZ curve with downflooding detection
+calc = StabilityCalculator(vessel, water_density=1025.0)
+heels = list(range(0, 95, 5))
+curve = calc.calculate_gz_curve(8635000.0, (71.67, 0.0, 7.555), heels)
+
+# Check for downflooding
+for point in curve.points():
+    if point.is_flooding:
+        print(f"⚠️  Downflooding at {point.heel}° - {', '.join(point.flooded_openings)}")
+```
+
+## Documentation
+
+For more detailed documentation, examples, and API reference, visit:
+- **GitHub Repository**: [NavalToolbox/navaltoolbox-lib](https://github.com/NavalToolbox/navaltoolbox-lib)
+- **Issue Tracker**: [GitHub Issues](https://github.com/NavalToolbox/navaltoolbox-lib/issues)
+
+## Performance
+
+NavalToolbox is built with performance in mind:
+
+- Written in **Rust** for maximum speed and memory safety
+- Efficient mesh operations using `parry3d`
+- Parallel processing where applicable
+- Zero-copy data transfer between Python and Rust
+
+Example benchmark (DTMB 5415 hull, 3436 triangles):
+- Load STL: ~10ms
+- Hydrostatics calculation: ~50ms
+- GZ curve (13 points): ~650ms
+
+## Use Cases
+
+NavalToolbox is suitable for:
+
+- 🎓 **Naval architecture education**: Teaching hydrostatics and stability
+- 🔬 **Research**: Rapid prototyping of new methods and algorithms
+- 🏭 **Engineering**: Production stability calculations and analysis
+- 🤖 **Optimization**: Integration with optimization frameworks
+- 📊 **Batch processing**: Analyzing multiple design variants
+
+## Requirements and Compatibility
+
+- **Python**: 3.9, 3.10, 3.11, 3.12, 3.13
+- **Operating Systems**: 
+  - macOS (Intel and Apple Silicon)
+  - Linux (x86_64, aarch64)
+  - Windows (x86_64)
+- **File Formats**:
+  - Hull geometry: STL (binary and ASCII), VTK
+  - Silhouettes: DXF, VTK
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit issues, feature requests, or pull requests on GitHub.
+
+## License
+
+This project is licensed under the **GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later)**.
+
+This means:
+- ✅ Free to use, modify, and distribute
+- ✅ Can be used in commercial projects
+- ⚠️ Source code must be made available under AGPL
+- ⚠️ Network use is considered distribution (AGPL provision)
+
+See the [LICENSE](https://github.com/NavalToolbox/navaltoolbox-lib/blob/main/LICENSE) file for details.
+
+## Citation
+
+If you use NavalToolbox in your research, please cite:
+
+```bibtex
+@software{navaltoolbox2026,
+  author = {Anceau, Antoine},
+  title = {NavalToolbox: High-performance naval architecture library},
+  year = {2026},
+  url = {https://github.com/NavalToolbox/navaltoolbox-lib}
+}
+```
+
+## Author
+
+**Antoine ANCEAU**
+- GitHub: [@antoineanceau](https://github.com/antoineanceau)
+- Website: [antoine.anceau.fr](https://antoine.anceau.fr)
+
+## Support
+
+- 📖 **Documentation**: [GitHub Pages](https://navaltoolbox.github.io/navaltoolbox-lib)
+- 🐛 **Bug Reports**: [Open an issue](https://github.com/NavalToolbox/navaltoolbox-lib/issues)
+- 💬 **Discussions**: [GitHub Discussions](https://github.com/NavalToolbox/navaltoolbox-lib/discussions)
+- 📧 **Email**: For private inquiries
+
+---
+
+**Note**: This package uses a Rust backend for high performance. Pre-built wheels are provided for common platforms. If a wheel is not available for your platform, the package will attempt to build from source (requires Rust toolchain).

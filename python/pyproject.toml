@@ -5,11 +5,13 @@ build-backend = "maturin"
 [project]
 name = "navaltoolbox"
 description = "High-performance naval architecture library for hydrostatics, stability, and tank calculations"
+readme = "README.md"
 license = {text = "AGPL-3.0-or-later"}
 requires-python = ">=3.9"
 authors = [
     {name = "Antoine ANCEAU"}
 ]
+keywords = ["naval-architecture", "hydrostatics", "stability", "marine-engineering", "ship-design"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
@@ -26,7 +28,10 @@ classifiers = [
 dynamic = ["version"]
 
 [project.urls]
+Homepage = "https://www.navaltoolbox.com"
 Repository = "https://github.com/NavalToolbox/navaltoolbox-lib"
+Documentation = "https://navaltoolbox.github.io/navaltoolbox-lib"
+Issues = "https://github.com/NavalToolbox/navaltoolbox-lib/issues"
 
 [tool.maturin]
 features = ["python"]
