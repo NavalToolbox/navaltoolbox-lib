@@ -22,18 +22,52 @@
 use nalgebra::Point3;
 use parry3d_f64::shape::TriMesh;
 use std::fs::File;
-use std::io::{BufReader, Error, ErrorKind};
+use std::io::{Cursor, Error, ErrorKind, Read};
 use std::path::Path;
 
 /// Loads a mesh from an STL file.
 ///
 /// Supports both binary and ASCII STL formats.
+/// Uses a robust strategy: loads entire file into memory before parsing
+/// to avoid buffer underrun issues with corrupted binary STL headers.
 pub fn load_stl(path: &Path) -> Result<TriMesh, Error> {
-    let file = File::open(path)?;
-    let mut reader = BufReader::new(file);
+    // Read the entire file into memory first
+    // This prevents issues with binary STL files that have incorrect triangle counts in the header
+    let mut file = File::open(path)?;
+    let mut buffer = Vec::new();
+    file.read_to_end(&mut buffer)?;
 
-    let stl = stl_io::read_stl(&mut reader)
-        .map_err(|e| Error::new(ErrorKind::InvalidData, format!("STL parse error: {}", e)))?;
+    if buffer.is_empty() {
+        return Err(Error::new(
+            ErrorKind::InvalidData,
+            "STL file is empty",
+        ));
+    }
+
+    // Create a cursor over the buffer for parsing
+    let mut cursor = Cursor::new(buffer);
+
+    // Try to parse the STL
+    let stl = stl_io::read_stl(&mut cursor).map_err(|e| {
+        let error_msg = format!("{}", e);
+        
+        // Provide helpful error messages based on the error type
+        if error_msg.contains("failed to fill whole buffer") {
+            Error::new(
+                ErrorKind::InvalidData,
+                format!(
+                    "STL parse error: The file appears to be a binary STL with an incorrect triangle count in the header, \
+                    or the file is truncated/corrupted. Original error: {}",
+                    error_msg
+                ),
+            )
+        } else {
+            Error::new(
+                ErrorKind::InvalidData,
+                format!("STL parse error: {}", error_msg),
+            )
+        }
+    })?;
 
     if stl.vertices.is_empty() {
         return Err(Error::new(
