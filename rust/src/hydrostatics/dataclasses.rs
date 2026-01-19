@@ -26,32 +26,69 @@ pub struct HydrostaticState {
     pub trim: f64,
     /// Heel angle in degrees
     pub heel: f64,
+    
     /// Submerged volume in m³
     pub volume: f64,
     /// Displacement mass in kg
     pub displacement: f64,
-    /// Center of buoyancy X (LCB) in meters
-    pub lcb: f64,
-    /// Center of buoyancy Y (TCB) in meters
-    pub tcb: f64,
-    /// Center of buoyancy Z (VCB) in meters
-    pub vcb: f64,
+    
+    /// Center of buoyancy [LCB, TCB, VCB] in meters
+    pub cob: [f64; 3],
+    
+    /// Center of gravity [LCG, TCG, VCG] in meters (if specified)
+    pub cog: Option<[f64; 3]>,
+    
     /// Waterplane area in m²
     pub waterplane_area: f64,
     /// Waterplane centroid X (LCF) in meters
     pub lcf: f64,
+    
     /// Transverse metacentric radius BM_t in meters
     pub bmt: f64,
     /// Longitudinal metacentric radius BM_l in meters
     pub bml: f64,
+    
     /// Transverse metacentric height GM_t in meters (requires VCG)
-    pub gmt: f64,
+    pub gmt: Option<f64>,
     /// Longitudinal metacentric height GM_l in meters (requires VCG)
-    pub gml: f64,
+    pub gml: Option<f64>,
+    
     /// Length at waterline in meters
     pub lwl: f64,
     /// Beam at waterline in meters
     pub bwl: f64,
+}
+
+impl HydrostaticState {
+    /// Returns the longitudinal center of buoyancy (LCB) in meters
+    pub fn lcb(&self) -> f64 {
+        self.cob[0]
+    }
+    
+    /// Returns the transverse center of buoyancy (TCB) in meters
+    pub fn tcb(&self) -> f64 {
+        self.cob[1]
+    }
+    
+    /// Returns the vertical center of buoyancy (VCB) in meters
+    pub fn vcb(&self) -> f64 {
+        self.cob[2]
+    }
+    
+    /// Returns the longitudinal center of gravity (LCG) if specified
+    pub fn lcg(&self) -> Option<f64> {
+        self.cog.map(|c| c[0])
+    }
+    
+    /// Returns the transverse center of gravity (TCG) if specified
+    pub fn tcg(&self) -> Option<f64> {
+        self.cog.map(|c| c[1])
+    }
+    
+    /// Returns the vertical center of gravity (VCG) if specified
+    pub fn vcg(&self) -> Option<f64> {
+        self.cog.map(|c| c[2])
+    }
 }
 
 impl Default for HydrostaticState {
@@ -62,15 +99,14 @@ impl Default for HydrostaticState {
             heel: 0.0,
             volume: 0.0,
             displacement: 0.0,
-            lcb: 0.0,
-            tcb: 0.0,
-            vcb: 0.0,
+            cob: [0.0, 0.0, 0.0],
+            cog: None,
             waterplane_area: 0.0,
             lcf: 0.0,
             bmt: 0.0,
             bml: 0.0,
-            gmt: 0.0,
-            gml: 0.0,
+            gmt: None,
+            gml: None,
             lwl: 0.0,
             bwl: 0.0,
         }

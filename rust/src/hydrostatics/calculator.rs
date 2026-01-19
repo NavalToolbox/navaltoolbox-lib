@@ -50,13 +50,13 @@ impl<'a> HydrostaticsCalculator<'a> {
     /// * `draft` - Draft at the reference point in meters
     /// * `trim` - Trim angle in degrees (positive = bow down)
     /// * `heel` - Heel angle in degrees (positive = starboard down)
-    /// * `vcg` - Vertical center of gravity for GM calculation
+    /// * `vcg` - Optional vertical center of gravity for GM calculation
     pub fn calculate_at_draft(
         &self,
         draft: f64,
         trim: f64,
         heel: f64,
-        vcg: f64,
+        vcg: Option<f64>,
     ) -> Option<HydrostaticState> {
         let bounds = self.vessel.get_bounds();
         let center_x = (bounds.0 + bounds.1) / 2.0;
@@ -92,6 +92,8 @@ impl<'a> HydrostaticsCalculator<'a> {
         let lcb = total_moment[0] / total_volume;
         let tcb = total_moment[1] / total_volume;
         let vcb = total_moment[2] / total_volume;
+        
+        let cob = [lcb, tcb, vcb];
 
         let displacement = total_volume * self.water_density;
 
@@ -101,8 +103,19 @@ impl<'a> HydrostaticsCalculator<'a> {
         let lcf = lcb;
         let bmt = 0.0; // Placeholder
         let bml = 0.0; // Placeholder
-        let gmt = vcb + bmt - vcg;
-        let gml = vcb + bml - vcg;
+        
+        // Set COG with LCB, TCB from equilibrium and provided VCG
+        // GMT/GML are only defined if VCG is provided
+        let (cog, gmt, gml) = if let Some(v) = vcg {
+            let full_cog = [lcb, tcb, v];
+            let km_t = vcb + bmt;
+            let km_l = vcb + bml;
+            let gmt_val = km_t - v;
+            let gml_val = km_l - v;
+            (Some(full_cog), Some(gmt_val), Some(gml_val))
+        } else {
+            (None, None, None)
+        };
 
         Some(HydrostaticState {
             draft,
@@ -110,9 +123,8 @@ impl<'a> HydrostaticsCalculator<'a> {
             heel,
             volume: total_volume,
             displacement,
-            lcb,
-            tcb,
-            vcb,
+            cob,
+            cog,
             waterplane_area,
             lcf,
             bmt,
@@ -124,9 +136,52 @@ impl<'a> HydrostaticsCalculator<'a> {
         })
     }
 
-    /// Finds the draft that gives the target displacement using bisection.
-    pub fn find_draft_for_displacement(&self, target_displacement: f64) -> Option<f64> {
-        let target_volume = target_displacement / self.water_density;
+    /// Calculate hydrostatics for a given displacement with optional constraints.
+    ///
+    /// # Arguments
+    /// * `displacement_mass` - Target displacement in kg
+    /// * `cog` - Optional center of gravity [LCG, TCG, VCG]. Used for GM calculations and equilibrium.
+    /// * `trim` - Optional fixed trim angle in degrees
+    /// * `heel` - Optional fixed heel angle in degrees
+    ///
+    /// # Returns
+    /// Complete HydrostaticState or error if constraints are invalid/unsatisfiable
+    ///
+    /// # Constraint Validation
+    /// - Cannot specify both trim and LCG (conflicting longitudinal constraints)
+    /// - Cannot specify both heel and TCG (conflicting transverse constraints)
+    ///
+    /// # Valid Constraint Combinations
+    /// - Displacement only → finds draft, level trim/heel
+    /// - Displacement + VCG only → finds draft, level, computes GMT/GML
+    /// - Displacement + VCG + trim → finds draft with fixed trim, free heel
+    /// - Displacement + VCG + heel → finds draft with fixed heel, free trim
+    /// - Displacement + LCG + TCG + VCG → finds draft, level, full COG specified
+    /// - Displacement + trim + heel → finds draft with fixed attitude
+    pub fn calculate_at_displacement(
+        &self,
+        displacement_mass: f64,
+        cog: Option<[f64; 3]>,
+        trim: Option<f64>,
+        heel: Option<f64>,
+    ) -> Result<HydrostaticState, String> {
+        // Validate constraints
+        if let Some(cog_val) = cog {
+            if trim.is_some() && cog_val[0] != 0.0 {
+                return Err(
+                    "Cannot specify both trim and LCG: conflicting longitudinal constraints"
+                        .to_string(),
+                );
+            }
+            if heel.is_some() && cog_val[1] != 0.0 {
+                return Err(
+                    "Cannot specify both heel and TCG: conflicting transverse constraints"
+                        .to_string(),
+                );
+            }
+        }
+
+        let target_volume = displacement_mass / self.water_density;
         let bounds = self.vessel.get_bounds();
         let z_min = bounds.4;
         let z_max = bounds.5;
@@ -137,14 +192,33 @@ impl<'a> HydrostaticsCalculator<'a> {
         let mut low = z_min;
         let mut high = z_max;
 
+        let fixed_trim = trim.unwrap_or(0.0);
+        let fixed_heel = heel.unwrap_or(0.0);
+        
+        // Extract VCG if provided via cog
+        let vcg = cog.map(|c| c[2]);
+
+        // Bisection search for draft
         for _ in 0..max_iter {
             let mid = (low + high) / 2.0;
 
-            if let Some(state) = self.calculate_at_draft(mid, 0.0, 0.0, 0.0) {
+            if let Some(state) = self.calculate_at_draft(mid, fixed_trim, fixed_heel, vcg) {
                 let diff = state.volume - target_volume;
 
                 if diff.abs() < tolerance {
-                    return Some(mid);
+                    // Found the draft! Now update COG if full COG was specified
+                    let final_cog = if let Some(full_cog) = cog {
+                        // User specified full COG, keep it
+                        Some(full_cog)
+                    } else {
+                        // No COG specified or only VCG specified
+                        state.cog
+                    };
+                    
+                    return Ok(HydrostaticState {
+                        cog: final_cog,
+                        ..state
+                    });
                 }
 
                 if diff > 0.0 {
@@ -157,7 +231,24 @@ impl<'a> HydrostaticsCalculator<'a> {
             }
         }
 
-        Some((low + high) / 2.0)
+        // Convergence not achieved within max iterations
+        // Return best estimate with a warning
+        let final_draft = (low + high) / 2.0;
+        self.calculate_at_draft(final_draft, fixed_trim, fixed_heel, vcg)
+            .map(|state| {
+                let final_cog = if let Some(full_cog) = cog {
+                    Some(full_cog)
+                } else {
+                    state.cog
+                };
+                HydrostaticState {
+                    cog: final_cog,
+                    ..state
+                }
+            })
+            .ok_or_else(|| {
+                format!("Could not find draft for displacement {} kg", displacement_mass)
+            })
     }
 
     /// Returns the water density.
@@ -211,7 +302,7 @@ mod tests {
         let calc = HydrostaticsCalculator::new(&vessel, 1025.0);
 
         // At draft 5m, volume should be 10 * 10 * 5 = 500 m³
-        let state = calc.calculate_at_draft(5.0, 0.0, 0.0, 0.0).unwrap();
+        let state = calc.calculate_at_draft(5.0, 0.0, 0.0, None).unwrap();
         assert!(
             (state.volume - 500.0).abs() < 1.0,
             "Volume was {}",

@@ -499,12 +499,29 @@ pub struct PyHydrostaticState {
     pub volume: f64,
     #[pyo3(get)]
     pub displacement: f64,
+    
+    // Internal storage as vectors
+    cob_internal: [f64; 3],
+    cog_internal: Option<[f64; 3]>,
+    
+    // Expose all hydrostatic properties
     #[pyo3(get)]
-    pub lcb: f64,
+    pub waterplane_area: f64,
     #[pyo3(get)]
-    pub tcb: f64,
+    pub lcf: f64,
     #[pyo3(get)]
-    pub vcb: f64,
+    pub bmt: f64,
+    #[pyo3(get)]
+    pub bml: f64,
+    
+    // Optional GMT/GML (None if VCG not specified)
+    gmt_internal: Option<f64>,
+    gml_internal: Option<f64>,
+    
+    #[pyo3(get)]
+    pub lwl: f64,
+    #[pyo3(get)]
+    pub bwl: f64,
 }
 
 impl From<RustHydroState> for PyHydrostaticState {
@@ -515,19 +532,87 @@ impl From<RustHydroState> for PyHydrostaticState {
             heel: state.heel,
             volume: state.volume,
             displacement: state.displacement,
-            lcb: state.lcb,
-            tcb: state.tcb,
-            vcb: state.vcb,
+            cob_internal: state.cob,
+            cog_internal: state.cog,
+            waterplane_area: state.waterplane_area,
+            lcf: state.lcf,
+            bmt: state.bmt,
+            bml: state.bml,
+            gmt_internal: state.gmt,
+            gml_internal: state.gml,
+            lwl: state.lwl,
+            bwl: state.bwl,
         }
     }
 }
 
 #[pymethods]
 impl PyHydrostaticState {
+    /// Returns center of buoyancy as tuple (lcb, tcb, vcb)
+    #[getter]
+    fn cob(&self) -> (f64, f64, f64) {
+        (self.cob_internal[0], self.cob_internal[1], self.cob_internal[2])
+    }
+    
+    /// Returns center of gravity as tuple (lcg, tcg, vcg) if specified, None otherwise
+    #[getter]
+    fn cog(&self) -> Option<(f64, f64, f64)> {
+        self.cog_internal.map(|c| (c[0], c[1], c[2]))
+    }
+    
+    // Convenience getters for individual COB components
+    #[getter]
+    fn lcb(&self) -> f64 {
+        self.cob_internal[0]
+    }
+    
+    #[getter]
+    fn tcb(&self) -> f64 {
+        self.cob_internal[1]
+    }
+    
+    #[getter]
+    fn vcb(&self) -> f64 {
+        self.cob_internal[2]
+    }
+    
+    // Convenience getters for individual COG components
+    #[getter]
+    fn lcg(&self) -> Option<f64> {
+        self.cog_internal.map(|c| c[0])
+    }
+    
+    #[getter]
+    fn tcg(&self) -> Option<f64> {
+        self.cog_internal.map(|c| c[1])
+    }
+    
+    #[getter]
+    fn vcg(&self) -> Option<f64> {
+        self.cog_internal.map(|c| c[2])
+    }
+    
+    // GMT/GML getters (optional)
+    #[getter]
+    fn gmt(&self) -> Option<f64> {
+        self.gmt_internal
+    }
+    
+    #[getter]
+    fn gml(&self) -> Option<f64> {
+        self.gml_internal
+    }
+    
     fn __repr__(&self) -> String {
+        let cog_str = if let Some(c) = self.cog_internal {
+            format!("COG=({:.2}, {:.2}, {:.2})", c[0], c[1], c[2])
+        } else {
+            "COG=None".to_string()
+        };
+        
         format!(
-            "HydrostaticState(draft={:.3}m, volume={:.2}m³, displacement={:.0}kg)",
-            self.draft, self.volume, self.displacement
+            "HydrostaticState(draft={:.3}m, volume={:.2}m³, displacement={:.0}kg, {})",
+            self.draft, self.volume, self.displacement, cog_str
         )
     }
 }
@@ -556,13 +641,22 @@ impl PyHydrostaticsCalculator {
     }
 
     /// Calculate hydrostatics at a given draft, trim, and heel.
-    #[pyo3(signature = (draft, trim=0.0, heel=0.0, vcg=0.0))]
+    ///
+    /// Args:
+    ///     draft: Draft at reference point in meters
+    ///     trim: Trim angle in degrees (default 0.0)
+    ///     heel: Heel angle in degrees (default 0.0)
+    ///     vcg: Optional vertical center of gravity for GMT/GML calculation
+    ///
+    /// Returns:
+    ///     HydrostaticState with all properties
+    #[pyo3(signature = (draft, trim=0.0, heel=0.0, vcg=None))]
     fn calculate_at_draft(
         &self,
         draft: f64,
         trim: f64,
         heel: f64,
-        vcg: f64,
+        vcg: Option<f64>,
     ) -> PyResult<PyHydrostaticState> {
         let calc = RustHydroCalc::new(&self.vessel, self.water_density);
         calc.calculate_at_draft(draft, trim, heel, vcg)
@@ -570,15 +664,46 @@ impl PyHydrostaticsCalculator {
             .ok_or_else(|| PyValueError::new_err("No submerged volume at this draft"))
     }
 
-    /// Find the draft for a given displacement mass.
-    fn find_draft_for_displacement(&self, displacement_mass: f64) -> PyResult<f64> {
+    /// Calculate hydrostatics for a given displacement with optional constraints.
+    ///
+    /// Args:
+    ///     displacement_mass: Target displacement in kg
+    ///     cog: Optional (lcg, tcg, vcg) tuple in meters for GM calculations
+    ///     trim: Optional trim angle in degrees (conflicts with LCG if both specified)
+    ///     heel: Optional heel angle in degrees (conflicts with TCG if both specified)
+    ///
+    /// Returns:
+    ///     Complete HydrostaticState
+    ///
+    /// Raises:
+    ///     ValueError: If constraints are invalid or unsatisfiable
+    ///
+    /// Examples:
+    ///     >>> # Basic: find draft for displacement
+    ///     >>> state = calc.calculate_at_displacement(8635000.0)
+    ///     
+    ///     >>> # With VCG: compute GMT/GML
+    ///     >>> state = calc.calculate_at_displacement(8635000.0, cog=(71.67, 0.0, 7.555))
+    ///     
+    ///     >>> # With trim constraint
+    ///     >>> state = calc.calculate_at_displacement(8635000.0, cog=(0, 0, 7.5), trim=2.0)
+    #[pyo3(signature = (displacement_mass, cog=None, trim=None, heel=None))]
+    fn calculate_at_displacement(
+        &self,
+        displacement_mass: f64,
+        cog: Option<(f64, f64, f64)>,
+        trim: Option<f64>,
+        heel: Option<f64>,
+    ) -> PyResult<PyHydrostaticState> {
         let calc = RustHydroCalc::new(&self.vessel, self.water_density);
-        calc.find_draft_for_displacement(displacement_mass)
-            .ok_or_else(|| PyValueError::new_err("Could not find draft for displacement"))
+        let cog_array = cog.map(|(x, y, z)| [x, y, z]);
+        
+        calc.calculate_at_displacement(displacement_mass, cog_array, trim, heel)
+            .map(|s| s.into())
+            .map_err(|e| PyValueError::new_err(e))
     }
 
-    /// Returns the water density.
-    #[getter]
+    /// Returns the water density.\n    #[getter]
     fn water_density(&self) -> f64 {
         self.water_density
     }
