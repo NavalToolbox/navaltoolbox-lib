@@ -24,8 +24,10 @@ Basic GZ Calculation
     calc = StabilityCalculator(vessel, water_density=1025.0)
 
     # Define loading condition
+    # Note: This is the vessel mass EXCLUDING dynamic tank fluids.
+    # The calculator will add the mass of any active tanks to this value.
     displacement = 8635000  # kg (8635 tonnes)
-    cog = (71.67, 0.0, 7.555)  # LCG, TCG, VCG in meters
+    cog = (71.67, 0.0, 7.555)  # LCG, TCG, VCG in meters (Base/Lightship COG)
 
     # Heel angles to calculate
     heels = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60]
@@ -157,4 +159,11 @@ Free surface effects reduce effective GM:
     fs_correction = (fsm * fuel_tank.fluid_mass / fuel_tank.fill_volume) / displacement
 
     print(f"Free surface moment: {fsm:.1f} m⁴")
-    print(f"GM reduction: {fs_correction:.3f}m")
+    print(f"GM reduction (virtual VCG rise): {fs_correction:.3f}m")
+
+    print(f"GM reduction (virtual VCG rise): {fs_correction:.3f}m")
+
+    # Note: Both HydrostaticsCalculator and StabilityCalculator apply this
+    # correction automatically if tanks are present in the vessel.
+    # The GZ curve computed above ALREADY includes this reduction.
+    # No manual adjustment of VCG is required.

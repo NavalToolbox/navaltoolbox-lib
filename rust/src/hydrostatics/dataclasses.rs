@@ -49,9 +49,16 @@ pub struct HydrostaticState {
     pub bml: f64,
     
     /// Transverse metacentric height GM_t in meters (requires VCG)
+    /// Includes free surface correction from tanks (wet - conservative)
     pub gmt: Option<f64>,
     /// Longitudinal metacentric height GM_l in meters (requires VCG)
+    /// Includes free surface correction from tanks (wet - conservative)
     pub gml: Option<f64>,
+    
+    /// Transverse metacentric height without free surface correction (dry)
+    pub gmt_dry: Option<f64>,
+    /// Longitudinal metacentric height without free surface correction (dry)
+    pub gml_dry: Option<f64>,
     
     /// Length at waterline in meters
     pub lwl: f64,
@@ -107,6 +114,8 @@ impl Default for HydrostaticState {
             bml: 0.0,
             gmt: None,
             gml: None,
+            gmt_dry: None,
+            gml_dry: None,
             lwl: 0.0,
             bwl: 0.0,
         }

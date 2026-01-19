@@ -15,7 +15,7 @@ NavalToolbox is built as a **Rust library** (`navaltoolbox`) with optional Pytho
 
 - **Hull geometry**: Load STL/VTK files, transform, scale, export
 - **Multi-hull support**: Catamarans, trimarans, arbitrary configurations
-- **Hydrostatics**: Volume, center of buoyancy, waterplane properties
+- **Hydrostatics**: Volume, COB vector, Waterplane properties ($A_{wp}$, LCF, $BM_t$, $BM_l$), Free Surface Correction ($GM_{dry}/GM_{wet}$)
 - **Stability**: GZ curve calculation with trim optimization and downflooding detection
 - **Tanks**: Fill level management, free surface effects
 - **Silhouettes**: Wind heeling calculations (DXF/VTK support)
@@ -52,9 +52,18 @@ print(f"Bounds: {hull.get_bounds()}")
 vessel = Vessel(hull)
 
 # Calculate hydrostatics
+# Calculate hydrostatics
 calc = HydrostaticsCalculator(vessel, water_density=1025.0)
-state = calc.calculate_at_draft(5.0)
-print(f"Volume: {state.volume} m³")
+
+# Option 1: At draft with VCG
+state = calc.calculate_at_draft(5.0, vcg=6.0)
+print(f"Volume: {state.volume:.1f} m³")
+print(f"Waterplane Area: {state.waterplane_area:.1f} m²")
+print(f"GMT (wet): {state.gmt:.3f} m")
+
+# Option 2: Find draft for displacement
+state_disp = calc.calculate_at_displacement(512500.0)
+print(f"Draft: {state_disp.draft:.3f} m")
 
 # Calculate GZ curve
 stab = StabilityCalculator(vessel, water_density=1025.0)

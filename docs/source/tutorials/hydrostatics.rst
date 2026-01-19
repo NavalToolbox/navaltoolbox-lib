@@ -48,6 +48,27 @@ Calculate hydrostatics at a specific draft:
     print(f"TCB: {state.tcb:.3f}m (should be ~0)")
     print(f"VCB: {state.vcb:.2f}m (KB)")
 
+Waterplane & Stability
+----------------------
+
+The calculator computes accurate waterplane properties and applies Free Surface Correction (FSC) automatically if tanks are present:
+
+.. code-block:: python
+
+    # Waterplane Properties
+    print(f"Waterplane Area: {state.waterplane_area:.1f} m²")
+    print(f"LCF: {state.lcf:.2f} m from AP")
+    print(f"BMt: {state.bmt:.2f} m")
+    print(f"BMl: {state.bml:.2f} m")
+
+    # Metacentric Heights (requires VCG)
+    # KM = KB + BM
+    # GM_dry = KM - VCG
+    # GM_wet = GM_dry - FSC
+    print(f"KMt: {state.vcb + state.bmt:.2f} m")
+    print(f"GMT (corrected/wet): {state.gmt:.3f} m")
+    print(f"GMT (solid/dry):     {state.gmt_dry:.3f} m")
+
 Finding Equilibrium Draft
 -------------------------
 
@@ -58,8 +79,18 @@ Find the draft for a known displacement:
     # DTMB 5415 reference displacement: 8635 tonnes
     target_displacement = 8635000  # kg
 
-    draft = calc.find_draft_for_displacement(target_displacement)
-    print(f"Equilibrium draft: {draft:.3f}m")
+    # Find draft for displacement (level keel)
+    state = calc.calculate_at_displacement(target_displacement)
+    print(f"Equilibrium draft: {state.draft:.3f}m")
+    print(f"Actual displacement: {state.displacement:.0f} kg")
+
+    # Or with constraints (e.g. fixed VCG)
+    state_stab = calc.calculate_at_displacement(
+        target_displacement, 
+        vcg=7.555
+    )
+    print(f"Draft with VCG: {state_stab.draft:.3f}m")
+    print(f"GMT: {state_stab.gmt:.3f}m")
 
     # Verify
     state = calc.calculate_at_draft(draft, 0.0, 0.0, 7.555)

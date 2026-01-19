@@ -97,24 +97,91 @@ impl<'a> HydrostaticsCalculator<'a> {
 
         let displacement = total_volume * self.water_density;
 
-        // TODO: Calculate waterplane properties properly
-        // For now, use simplified values
-        let waterplane_area = 0.0; // Placeholder
-        let lcf = lcb;
-        let bmt = 0.0; // Placeholder
-        let bml = 0.0; // Placeholder
+        // Calculate waterplane properties for metacentric calculations
+        // We need to calculate on the transformed mesh to account for heel/trim
+        let (waterplane_area, lcf, bmt, bml) = if total_volume > 0.0 {
+            // For each hull, calculate its waterplane contribution
+            let mut total_wp_area = 0.0;
+            let mut total_i_t = 0.0;
+            let mut total_i_l = 0.0;
+            let mut wp_moment_x = 0.0;
+            
+            for hull in self.vessel.hulls() {
+                // Transform hull for heel/trim
+                let transformed = transform_mesh(hull.mesh(), heel, trim, pivot);
+                
+                // Calculate waterplane properties at this draft
+                if let Some(wp) = super::waterplane::calculate_waterplane_properties(&transformed, draft) {
+                    total_wp_area += wp.area;
+                    wp_moment_x += wp.area * wp.centroid[0];
+                    total_i_t += wp.i_transverse + wp.area * wp.centroid[1].powi(2); // Parallel axis
+                    total_i_l += wp.i_longitudinal + wp.area * wp.centroid[0].powi(2); // Parallel axis
+                }
+            }
+            
+            if total_wp_area > 0.0 {
+                let lcf_calc = wp_moment_x / total_wp_area;
+                
+                // Transfer to centroidal axes
+                let wp_tcf = tcb; // Assume waterplane TCF aligns with COB TCB
+                let wp_lcf = lcf_calc;
+                
+                let i_t_centroidal = total_i_t - total_wp_area * wp_tcf.powi(2);
+                let i_l_centroidal = total_i_l - total_wp_area * wp_lcf.powi(2);
+                
+                // Metacentric radii
+                let bm_t = i_t_centroidal / total_volume;
+                let bm_l = i_l_centroidal / total_volume;
+                
+                (total_wp_area, wp_lcf, bm_t.max(0.0), bm_l.max(0.0))
+            } else {
+                // Fallback if waterplane calculation fails
+                (0.0, lcb, 0.0, 0.0)
+            }
+        } else {
+            (0.0, lcb, 0.0, 0.0)
+        };
         
         // Set COG with LCB, TCB from equilibrium and provided VCG
         // GMT/GML are only defined if VCG is provided
-        let (cog, gmt, gml) = if let Some(v) = vcg {
+        let (cog, gmt, gml, gmt_dry, gml_dry) = if let Some(v) = vcg {
             let full_cog = [lcb, tcb, v];
             let km_t = vcb + bmt;
             let km_l = vcb + bml;
-            let gmt_val = km_t - v;
-            let gml_val = km_l - v;
-            (Some(full_cog), Some(gmt_val), Some(gml_val))
+            
+            // Calculate dry GM (without free surface correction)
+            let gmt_dry_val = km_t - v;
+            let gml_dry_val = km_l - v;
+            
+            // Calculate free surface correction from vessel tanks
+            let (fsm_t, fsm_l) = self.vessel.get_total_free_surface_moment();
+            
+            // FSC = FSM / displacement (in meters)
+            let fsc_t = if displacement > 1e-6 {
+                fsm_t / displacement
+            } else {
+                0.0
+            };
+            
+            let fsc_l = if displacement > 1e-6 {
+                fsm_l / displacement
+            } else {
+                0.0
+            };
+            
+            // Calculate wet GM (with free surface correction - more conservative)
+            let gmt_wet_val = gmt_dry_val - fsc_t;
+            let gml_wet_val = gml_dry_val - fsc_l;
+            
+            (
+                Some(full_cog),
+                Some(gmt_wet_val),  // gmt = wet (conservative)
+                Some(gml_wet_val),  // gml = wet
+                Some(gmt_dry_val),  // gmt_dry
+                Some(gml_dry_val),  // gml_dry
+            )
         } else {
-            (None, None, None)
+            (None, None, None, None, None)
         };
 
         Some(HydrostaticState {
@@ -131,6 +198,8 @@ impl<'a> HydrostaticsCalculator<'a> {
             bml,
             gmt,
             gml,
+            gmt_dry,
+            gml_dry,
             lwl: bounds.1 - bounds.0, // Simplified
             bwl: bounds.3 - bounds.2, // Simplified
         })
@@ -308,5 +377,77 @@ mod tests {
             "Volume was {}",
             state.volume
         );
+    }
+
+
+    #[test]
+    fn test_calculate_at_displacement_level() {
+        let hull = create_box_hull(10.0, 10.0, 10.0);
+        let vessel = Vessel::new(hull);
+        let calc = HydrostaticsCalculator::new(&vessel, 1025.0);
+
+        // Target displacement: 500 m³ * 1025 kg/m³ = 512500 kg
+        let target_disp = 500.0 * 1025.0;
+        
+        // Calculate at displacement with no other constraints (level keel)
+        let state = calc.calculate_at_displacement(
+            target_disp,
+            None, None, None
+        ).expect("Calculation failed");
+
+        assert!((state.draft - 5.0).abs() < 0.01, "Draft should be ~5.0m, got {}", state.draft);
+        assert!((state.displacement - target_disp).abs() < 1.0, "Displacement mismatch");
+        assert_eq!(state.trim, 0.0);
+        assert_eq!(state.heel, 0.0);
+    }
+
+    #[test]
+    fn test_calculate_at_displacement_with_vcg() {
+        let hull = create_box_hull(10.0, 10.0, 10.0);
+        let vessel = Vessel::new(hull);
+        let calc = HydrostaticsCalculator::new(&vessel, 1025.0);
+        let target_disp = 512500.0; // 5m draft condition
+
+        // With VCG provided, should compute GMT/GML
+        // Note: LCB/TCB assumed 0.0 for box hull, so just set VCG=7.0
+        let state = calc.calculate_at_displacement(
+            target_disp,
+            Some([0.0, 0.0, 7.0]), None, None
+        ).expect("Calculation failed");
+
+        assert!((state.draft - 5.0).abs() < 0.01);
+        
+        // Check VCG is set
+        let cog = state.cog.expect("COG should be set");
+        assert_eq!(cog[2], 7.0);
+
+        // Check Stability calculation
+        // BM_t = 10²/60 = 1.667
+        // VCB = 2.5
+        // KM_t = 4.167
+        // GMT_dry = 4.167 - 7.0 = -2.833
+        assert!(state.gmt.is_some());
+        assert!((state.gmt_dry.unwrap() - -2.833).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_constraints_validation() {
+        let hull = create_box_hull(10.0, 10.0, 10.0);
+        let vessel = Vessel::new(hull);
+        let calc = HydrostaticsCalculator::new(&vessel, 1025.0);
+
+        // Invalid: Trim provided but also LCG constrained (non-zero)
+        let res = calc.calculate_at_displacement(
+             100000.0,
+             Some([5.0, 0.0, 0.0]), Some(0.0), None
+        );
+        assert!(res.is_err(), "Should fail for both LCG and Trim specified");
+
+        // Invalid: Heel provided but also TCG constrained
+        let res = calc.calculate_at_displacement(
+             100000.0,
+             Some([0.0, 5.0, 0.0]), None, Some(0.0)
+        );
+        assert!(res.is_err(), "Should fail for both TCG and Heel specified");
     }
 }

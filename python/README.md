@@ -14,7 +14,7 @@ NavalToolbox provides fast and accurate naval architecture calculations through 
 
 - ⚓ **Hull Geometry**: Load and manipulate ship hulls from STL/VTK files
 - 🚢 **Multi-hull Support**: Catamarans, trimarans, and arbitrary configurations
-- 📊 **Hydrostatics**: Volume, center of buoyancy, waterplane area, and more
+- 📊 **Hydrostatics**: Volume, COB, Waterplane ($A_{wp}$, LCF, $BM_t$, $BM_l$), Free Surface Correction ($GM_{dry}/GM_{wet}$)
 - ⚖️ **Stability Analysis**: GZ curve calculation with automatic trim optimization
 - 🌊 **Downflooding Detection**: Automatic detection of submerged openings
 - 🛢️ **Tank Management**: Fill levels, free surface effects, sounding tables
@@ -61,13 +61,21 @@ vessel = Vessel(hull)
 
 # Calculate hydrostatics at a given draft
 calc = HydrostaticsCalculator(vessel, water_density=1025.0)
-state = calc.calculate_at_draft(draft=5.0, trim=0.0, heel=0.0, vcg=7.0)
+
+# Option 1: At draft with VCG (computes stability)
+state = calc.calculate_at_draft(draft=5.0, vcg=7.0)
 
 print(f"Volume: {state.volume:.1f} m³")
 print(f"Displacement: {state.displacement:.0f} kg")
-print(f"Center of Buoyancy: ({state.cob[0]:.2f}, {state.cob[1]:.2f}, {state.cob[2]:.2f})")
+print(f"COB: ({state.cob[0]:.2f}, {state.cob[1]:.2f}, {state.cob[2]:.2f})")
 print(f"Waterplane Area: {state.waterplane_area:.1f} m²")
-print(f"GMT: {state.gm_t:.3f} m")
+print(f"LCF: {state.lcf:.2f} m")
+print(f"GMT (wet): {state.gmt:.3f} m")
+print(f"GMT (dry): {state.gmt_dry:.3f} m")
+
+# Option 2: Find draft for displacement
+state_disp = calc.calculate_at_displacement(512500.0)
+print(f"Draft for {state_disp.displacement:.0f}kg: {state_disp.draft:.3f} m")
 ```
 
 ### Stability Analysis (GZ Curve)

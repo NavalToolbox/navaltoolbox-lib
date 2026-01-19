@@ -59,6 +59,20 @@ impl<'a> StabilityCalculator<'a> {
         let z_min = bounds.4;
         let z_max = bounds.5;
 
+        // Calculate total mass and volume
+        // Input displacement_mass is treated as the fixed "Ship Mass".
+        // Tank contents are added to this.
+        let ship_mass = displacement_mass;
+        let ship_cog = cog; // Fixed ship center of gravity
+
+        let mut total_fluid_mass = 0.0;
+        for tank in self.vessel.tanks() {
+            total_fluid_mass += tank.fluid_mass();
+        }
+
+        let total_mass = ship_mass + total_fluid_mass;
+        let target_volume = total_mass / self.water_density;
+
         // Find upright equilibrium draft
         let upright_draft = self.find_draft_for_volume(target_volume, 0.0, 0.0, z_min, z_max);
         let _ = upright_draft; // Used for reference
@@ -67,10 +81,39 @@ impl<'a> StabilityCalculator<'a> {
         let mut prev_trim = 0.0;
 
         for &heel in heels {
-            // Find equilibrium at this heel
+            // Calculate total Center of Gravity at this orientation
+            // G_total = (M_ship * G_ship + Sum(M_tank * G_tank(phi))) / M_total
+            
+            let mut total_moment_x = ship_mass * ship_cog[0];
+            let mut total_moment_y = ship_mass * ship_cog[1];
+            let mut total_moment_z = ship_mass * ship_cog[2];
+
+            if total_fluid_mass > 0.0 {
+                for tank in self.vessel.tanks() {
+                    let mass = tank.fluid_mass();
+                    if mass > 0.0 {
+                        let tank_cog = tank.center_of_gravity_at(heel, prev_trim);
+                        total_moment_x += mass * tank_cog[0];
+                        total_moment_y += mass * tank_cog[1];
+                        total_moment_z += mass * tank_cog[2];
+                    }
+                }
+            }
+
+            let effective_cog = if total_mass > 1e-6 {
+                [
+                    total_moment_x / total_mass,
+                    total_moment_y / total_mass,
+                    total_moment_z / total_mass,
+                ]
+            } else {
+                ship_cog
+            };
+
+            // Find equilibrium at this heel using the current total COG
             let (draft, trim, gz) = self.find_equilibrium_at_heel(
                 target_volume,
-                cog,
+                effective_cog,
                 heel,
                 prev_trim,
                 center_x,
@@ -81,7 +124,9 @@ impl<'a> StabilityCalculator<'a> {
 
             prev_trim = trim;
 
-            // Check downflooding openings
+            // Check downflooding using the effective properties (draft/trim)
+            // Note: check_openings_submerged depends on hull position relative to water.
+            // It doesn't use COG, so it's fine.
             let pivot = [center_x, center_y, draft];
             let flooded_openings = crate::downflooding::check_openings_submerged(
                 self.vessel.downflooding_openings(),
@@ -288,6 +333,71 @@ mod tests {
             curve.points[0].value.abs() < 0.01,
             "GZ at 0 heel = {}",
             curve.points[0].value
+        );
+    }
+    #[test]
+    fn test_fsc_gz_reduction() {
+        use crate::tanks::Tank;
+
+        let hull = create_box_hull(10.0, 10.0, 10.0);
+        let mut vessel = Vessel::new(hull);
+        
+        // Add tank with free surface
+        // 5x5x2 tank, 50% fill, water density inside
+        let tank = Tank::from_box("FSC_Test", 0.0, 5.0, -2.5, 2.5, 0.0, 2.0, 1000.0);
+        let mut tank = tank;
+        tank.set_fill_percent(50.0);
+        vessel.add_tank(tank.clone());
+
+        let calc = StabilityCalculator::new(&vessel, 1025.0);
+        let target_total_displacement = 500.0 * 1025.0; // 500m³ * 1.025
+        let tank_mass = tank.fluid_mass();
+        // Since calculator adds tank mass, we subtract it from input to keep total same
+        let ship_mass = target_total_displacement - tank_mass;
+        
+        // Ship COG. We want the Total Upright COG to be [0,0,5] for comparison.
+        // Total_Moment = Ship_M + Tank_M = Total_Mass * Total_COG
+        // Ship_M = Total_M - Tank_M
+        // Ship_COG = (Total_M * Target_COG - Tank_M * Tank_COG) / Ship_Mass
+        // Tank is at z=0..2 (centered at z=1). COG_tank = [0, 0, 0.5] approx (for 50% full? 0..1m filled -> z=0.5)
+        // Let's assume input cog is just the ship cog and we accept the resulting total cog
+        // but for the verification logic (GG' reduction), we need to know the effective VCG.
+        //
+        // SIMPLIFICATION: 
+        // Let's just run the dry case with the same TOTAL properties (Mass, COG) as the wet case's UPRIGHT state.
+        
+        let ship_cog = [0.0, 0.0, 5.0];
+        let heel = 10.0;
+        
+        // Calculate GZ with FSC (Wet)
+        let curve_wet = calc.calculate_gz_curve(ship_mass, ship_cog, &[heel]);
+        let gz_wet = curve_wet.points[0].value;
+
+        // Calculate Dry reference
+        // We need the exact total mass and exact upright COG of the wet vessel to match
+        let total_mass = ship_mass + tank_mass;
+        let tank_cog_upright = tank.center_of_gravity();
+        let total_cog_z = (ship_mass * ship_cog[2] + tank_mass * tank_cog_upright[2]) / total_mass;
+        // X and Y are 0.
+        let total_cog = [0.0, 0.0, total_cog_z];
+
+        vessel.remove_tank(0);
+        let calc_dry = StabilityCalculator::new(&vessel, 1025.0);
+        let curve_dry = calc_dry.calculate_gz_curve(total_mass, total_cog, &[heel]);
+        let gz_dry = curve_dry.points[0].value;
+
+        // Theoretical Reduction GG'
+        // FSM * rho / Total_Mass
+        let output_reduction = gz_dry - gz_wet;
+        
+        let fsm_inertia = 5.0 * 5.0f64.powi(3) / 12.0;
+        let correction_gg = (fsm_inertia * 1000.0) / total_mass;
+        let expected_reduction = correction_gg * heel.to_radians().sin();
+        
+        assert!(
+            (output_reduction - expected_reduction).abs() < 0.02, // slightly looser tolerance for dynamic method
+            "FSC Reduction mismatch. Expected: {:.4}, Actual: {:.4}, Dry: {:.4}, Wet: {:.4}",
+            expected_reduction, output_reduction, gz_dry, gz_wet
         );
     }
 }

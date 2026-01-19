@@ -141,6 +141,11 @@ impl Tank {
         self.fill_level = (percent / 100.0).clamp(0.0, 1.0);
     }
 
+    /// Returns the fluid density in kg/m³.
+    pub fn fluid_density(&self) -> f64 {
+        self.fluid_density
+    }
+
     /// Returns the filled volume in m³.
     pub fn fill_volume(&self) -> f64 {
         self.total_volume * self.fill_level
@@ -153,24 +158,103 @@ impl Tank {
 
     /// Returns the center of gravity of the fluid [x, y, z].
     pub fn center_of_gravity(&self) -> [f64; 3] {
+        self.center_of_gravity_at(0.0, 0.0)
+    }
+
+    /// Returns the center of gravity of the fluid at a specific heel and trim.
+    pub fn center_of_gravity_at(&self, heel: f64, trim: f64) -> [f64; 3] {
         if self.fill_level <= 0.0 {
             return [0.0, 0.0, 0.0];
         }
 
-        // Find Z for this fill level
-        let z = self.find_z_for_fill_level(self.fill_level);
+        // 1. Transform mesh to align water parallel to XY plane
+        // We use a dummy pivot (0,0,0) because we only care about orientation for Z-level finding
+        let pivot = nalgebra::Point3::new(0.0, 0.0, 0.0);
+        let transformed_mesh = crate::mesh::transform_mesh(&self.mesh, heel, trim, pivot);
 
-        // Clip mesh at this Z
-        if let Some(clipped) = clip_at_waterline(&self.mesh, z) {
+        // 2. Find Z level for this volume in transformed orientation
+        let z = self.find_z_for_mesh(&transformed_mesh, self.total_volume * self.fill_level);
+
+        // 3. Calculate centroid in transformed frame
+        let transformed_cog = if let Some(clipped) = clip_at_waterline(&transformed_mesh, z) {
             let mass_props = clipped.mass_properties(1.0);
             let com = mass_props.local_com;
-            [com.x, com.y, com.z]
+            nalgebra::Point3::new(com.x, com.y, com.z)
         } else {
             // Full tank
-            let mass_props = self.mesh.mass_properties(1.0);
+            let mass_props = transformed_mesh.mass_properties(1.0);
             let com = mass_props.local_com;
-            [com.x, com.y, com.z]
+            nalgebra::Point3::new(com.x, com.y, com.z)
+        };
+
+        // 4. Inverse transform back to ship frame
+        // Inverse of Rotation(h, t) around P is Rotation(-h, -t) around rotated P?
+        // Actually, transform_point(p, h, t, pivot) does: Rot * (p - pivot) + pivot
+        // Inverse: p = Rot_inv * (p' - pivot) + pivot
+        // Here pivot is 0.
+        // We need an inverse transform function or manual calculation.
+        // Since `transform_point` is:
+        // let rotation = Rotation3::from_euler_angles(roll, pitch, 0.0);
+        // let rotated = rotation * (point - pivot) + pivot;
+        
+        // Inverse:
+        // rotated - pivot = R * (point - pivot)
+        // R_inv * (rotated - pivot) = point - pivot
+        // point = R_inv * (rotated - pivot) + pivot
+        
+        // Heel is rotation around X (roll), Trim is rotation around Y (pitch).
+        // Note: transform_mesh applies Roll then Pitch? Need to check implementation.
+        // Assuming typical extrinsic Euler or similar.
+        
+        use nalgebra::Rotation3;
+        let roll = heel.to_radians();
+        let pitch = trim.to_radians();
+        // The rotation matrix used in transform_mesh (Rotation3::from_euler_angles) depends on convention.
+        // Rust nalgebra `from_euler_angles(roll, pitch, yaw)` is usually XYZ or ZYX?
+        // Let's rely on creating the same rotation matrix and transposing it (inverse).
+        
+        let rotation = Rotation3::from_euler_angles(roll, pitch, 0.0);
+        let inverse_rotation = rotation.inverse();
+        
+        let original_cog = inverse_rotation * (transformed_cog - pivot) + pivot.coords;
+        
+        [original_cog.x, original_cog.y, original_cog.z]
+    }
+
+    /// Helper to find Z level for a specific mesh
+    fn find_z_for_mesh(&self, mesh: &TriMesh, target_volume: f64) -> f64 {
+        let aabb = mesh.local_aabb();
+        let z_min = aabb.mins.z;
+        let z_max = aabb.maxs.z;
+        
+        let tolerance = target_volume.max(0.001) * 1e-4;
+        let max_iter = 20;
+
+        let mut low = z_min;
+        let mut high = z_max;
+
+        for _ in 0..max_iter {
+            let mid = (low + high) / 2.0;
+
+            let volume = if let Some(clipped) = clip_at_waterline(mesh, mid) {
+                clipped.mass_properties(1.0).mass().abs()
+            } else {
+                0.0
+            };
+
+            let diff = volume - target_volume;
+
+            if diff.abs() < tolerance {
+                return mid;
+            }
+
+            if diff > 0.0 {
+                high = mid;
+            } else {
+                low = mid;
+            }
         }
+        (low + high) / 2.0
     }
 
     /// Returns the transverse free surface moment (I_t) in m⁴.
@@ -210,42 +294,7 @@ impl Tank {
         self.free_surface_moment_l() * (self.fluid_density / self.water_density)
     }
 
-    /// Find Z coordinate for a given fill level using bisection.
-    fn find_z_for_fill_level(&self, target_fraction: f64) -> f64 {
-        let z_min = self.bounds.4;
-        let z_max = self.bounds.5;
-        let target_volume = self.total_volume * target_fraction;
 
-        let tolerance = target_volume * 1e-4;
-        let max_iter = 50;
-
-        let mut low = z_min;
-        let mut high = z_max;
-
-        for _ in 0..max_iter {
-            let mid = (low + high) / 2.0;
-
-            let volume = if let Some(clipped) = clip_at_waterline(&self.mesh, mid) {
-                clipped.mass_properties(1.0).mass().abs()
-            } else {
-                0.0
-            };
-
-            let diff = volume - target_volume;
-
-            if diff.abs() < tolerance {
-                return mid;
-            }
-
-            if diff > 0.0 {
-                high = mid;
-            } else {
-                low = mid;
-            }
-        }
-
-        (low + high) / 2.0
-    }
 }
 
 impl std::fmt::Debug for Tank {

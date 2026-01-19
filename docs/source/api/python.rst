@@ -356,22 +356,27 @@ HydrostaticsCalculator
    :param vessel: The vessel to calculate hydrostatics for
    :param water_density: Water density in kg/m³ (default: 1025.0 for seawater)
 
-   .. py:method:: calculate_at_draft(draft, trim=0.0, heel=0.0, vcg=0.0)
+   .. py:method:: calculate_at_draft(draft, trim=0.0, heel=0.0, vcg=None)
 
       Calculates hydrostatics at a given draft, trim, and heel.
 
       :param draft: Draft at reference point (m)
       :param trim: Trim angle (degrees)
       :param heel: Heel angle (degrees)
-      :param vcg: Vertical center of gravity for GM calculation
+      :param vcg: Vertical center of gravity for GM calculation (optional)
+      :type vcg: float or None
       :returns: HydrostaticState with all properties
 
-   .. py:method:: find_draft_for_displacement(displacement_mass)
+   .. py:method:: calculate_at_displacement(displacement_mass, cog=None, trim=None, heel=None)
 
-      Finds the draft for a given displacement.
+      Calculates hydrostatics for a given displacement, finding the required draft.
 
       :param displacement_mass: Target displacement in kg
-      :returns: Draft in meters
+      :param cog: Center of gravity (LCG, TCG, VCG) (optional)
+      :type cog: tuple[float, float, float] or None
+      :param trim: Fixed trim angle (optional)
+      :param heel: Fixed heel angle (optional)
+      :returns: HydrostaticState with all properties
 
 HydrostaticState
 ----------------
@@ -395,20 +400,50 @@ HydrostaticState
 
       Displacement mass (kg).
 
-   .. py:attribute:: lcb
+   .. py:attribute:: cob
+      :type: tuple[float, float, float]
+
+      Center of Buoyancy (LCB, TCB, VCB) vector.
+
+   .. py:attribute:: cog
+      :type: tuple[float, float, float] or None
+
+      Center of Gravity (LCG, TCG, VCG) vector, if provided.
+
+   .. py:attribute:: waterplane_area
       :type: float
 
-      Longitudinal center of buoyancy (m).
+      Waterplane area (m²).
 
-   .. py:attribute:: tcb
+   .. py:attribute:: lcf
       :type: float
 
-      Transverse center of buoyancy (m).
+      Longitudinal Center of Flotation (m).
 
-   .. py:attribute:: vcb
+   .. py:attribute:: bmt
       :type: float
 
-      Vertical center of buoyancy (m).
+      Transverse metacentric radius (m).
+
+   .. py:attribute:: bml
+      :type: float
+
+      Longitudinal metacentric radius (m).
+
+   .. py:attribute:: gmt
+      :type: float or None
+
+      Transverse metacentric height (Wet/Corrected) (m).
+
+   .. py:attribute:: gmt_dry
+      :type: float or None
+
+      Transverse metacentric height (Dry/Uncorrected) (m).
+
+   .. py:attribute:: gml
+      :type: float or None
+
+      Longitudinal metacentric height (Wet/Corrected) (m).
 
 StabilityCalculator
 -------------------
@@ -424,10 +459,10 @@ StabilityCalculator
 
       Calculates the GZ curve for a given loading condition.
 
-      :param displacement_mass: Displacement in kg
-      :param cog: Center of gravity (LCG, TCG, VCG)
+      :param displacement_mass: Base vessel displacement (excluding dynamic tanks) in kg
+      :param cog: Base center of gravity (LCG, TCG, VCG) excluding dynamic tanks
       :param heels: List of heel angles in degrees
-      :returns: StabilityCurve object
+      :returns: StabilityCurve object with corrected GZ values
 
 StabilityCurve
 --------------

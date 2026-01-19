@@ -515,8 +515,10 @@ pub struct PyHydrostaticState {
     pub bml: f64,
     
     // Optional GMT/GML (None if VCG not specified)
-    gmt_internal: Option<f64>,
-    gml_internal: Option<f64>,
+    gmt_internal: Option<f64>,  // wet (with FSC)
+    gml_internal: Option<f64>,  // wet (with FSC)
+    gmt_dry_internal: Option<f64>,  // dry (without FSC)
+    gml_dry_internal: Option<f64>,  // dry (without FSC)
     
     #[pyo3(get)]
     pub lwl: f64,
@@ -540,6 +542,8 @@ impl From<RustHydroState> for PyHydrostaticState {
             bml: state.bml,
             gmt_internal: state.gmt,
             gml_internal: state.gml,
+            gmt_dry_internal: state.gmt_dry,
+            gml_dry_internal: state.gml_dry,
             lwl: state.lwl,
             bwl: state.bwl,
         }
@@ -593,14 +597,28 @@ impl PyHydrostaticState {
     }
     
     // GMT/GML getters (optional)
+    /// GMT with free surface correction (wet - conservative)
     #[getter]
     fn gmt(&self) -> Option<f64> {
         self.gmt_internal
     }
     
+    /// GML with free surface correction (wet - conservative)
     #[getter]
     fn gml(&self) -> Option<f64> {
         self.gml_internal
+    }
+    
+    /// GMT without free surface correction (dry - reference)
+    #[getter]
+    fn gmt_dry(&self) -> Option<f64> {
+        self.gmt_dry_internal
+    }
+    
+    /// GML without free surface correction (dry - reference)
+    #[getter]
+    fn gml_dry(&self) -> Option<f64> {
+        self.gml_dry_internal
     }
     
     fn __repr__(&self) -> String {
