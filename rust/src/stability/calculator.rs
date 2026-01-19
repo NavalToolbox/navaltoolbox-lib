@@ -19,7 +19,9 @@
 //!
 //! Calculates KN and GZ curves.
 
+use super::complete::{CompleteStabilityResult, WindHeelingData};
 use super::{StabilityCurve, StabilityPoint};
+use crate::hydrostatics::HydrostaticsCalculator;
 use crate::mesh::{clip_at_waterline, transform_mesh, transform_point};
 use crate::vessel::Vessel;
 use nalgebra::Point3;
@@ -277,6 +279,54 @@ impl<'a> StabilityCalculator<'a> {
         }
 
         (best_draft, best_trim, best_gz)
+    }
+
+    /// Calculate complete stability analysis for a loading condition.
+    ///
+    /// Combines hydrostatic calculations, GZ curve, and wind heeling data
+    /// (if silhouettes are available) for a single loading condition.
+    ///
+    /// # Arguments
+    /// * `displacement_mass` - Target displacement in kg (ship mass, tanks are added)
+    /// * `cog` - Center of gravity (LCG, TCG, VCG) for the ship portion
+    /// * `heels` - Heel angles for GZ curve calculation in degrees
+    ///
+    /// # Returns
+    /// A `CompleteStabilityResult` containing:
+    /// - Hydrostatic state at equilibrium (GM0, draft, trim, etc.)
+    /// - GZ curve for the specified heel angles
+    /// - Wind heeling data (if silhouettes exist)
+    pub fn calculate_complete_stability(
+        &self,
+        displacement_mass: f64,
+        cog: [f64; 3],
+        heels: &[f64],
+    ) -> CompleteStabilityResult {
+        // Calculate hydrostatics at equilibrium
+        let hydro_calc = HydrostaticsCalculator::new(self.vessel, self.water_density);
+        let hydrostatics = hydro_calc
+            .calculate_at_displacement(displacement_mass, Some(cog), None, None)
+            .unwrap_or_default();
+
+        // Calculate GZ curve
+        let gz_curve = self.calculate_gz_curve(displacement_mass, cog, heels);
+
+        // Calculate wind heeling data if silhouettes exist
+        let wind_data = if self.vessel.has_silhouettes() {
+            let waterline_z = hydrostatics.draft;
+            let emerged_area = self.vessel.get_total_emerged_area(waterline_z);
+            let emerged_centroid = self.vessel.get_combined_emerged_centroid(waterline_z);
+
+            if emerged_area > 0.0 {
+                Some(WindHeelingData::new(emerged_area, emerged_centroid, waterline_z))
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        CompleteStabilityResult::new(hydrostatics, gz_curve, wind_data, displacement_mass, cog)
     }
 }
 

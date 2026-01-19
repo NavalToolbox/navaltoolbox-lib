@@ -17,6 +17,7 @@ NavalToolbox is built as a **Rust library** (`navaltoolbox`) with optional Pytho
 - **Multi-hull support**: Catamarans, trimarans, arbitrary configurations
 - **Hydrostatics**: Volume, COB vector, Waterplane ($A_{wp}$, LCF, $BM_{t/l}$), Wetted Surface, Midship Area, LOS, Coefficients ($C_b, C_m, C_p$), Stiffness Matrix, Free Surface ($GM_{dry/wet}$)
 - **Stability**: GZ curve calculation with trim optimization and downflooding detection
+- **Complete stability analysis**: Combines hydrostatics, GZ curve, and wind heeling data
 - **Tanks**: Fill level management, free surface effects
 - **Silhouettes**: Wind heeling calculations (DXF/VTK support)
 
@@ -75,6 +76,15 @@ curve = stab.calculate_gz_curve(
 )
 for heel, gz in zip(curve.heels(), curve.values()):
     print(f"Heel: {heel}°, GZ: {gz:.3f}m")
+
+# Complete stability analysis (hydrostatics + GZ + wind data)
+result = stab.calculate_complete_stability(
+    displacement_mass=1000000,
+    cog=(50.0, 0.0, 5.0),
+    heels=heels
+)
+print(f"GM0: {result.gm0:.3f}m")
+print(f"Max GZ: {result.max_gz:.3f}m at {result.heel_at_max_gz}°")
 ```
 
 ### Rust

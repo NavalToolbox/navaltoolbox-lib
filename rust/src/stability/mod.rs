@@ -17,10 +17,12 @@
 
 //! Stability module.
 //!
-//! Provides KN and GZ curve calculations.
+//! Provides KN and GZ curve calculations, as well as complete stability analysis.
 
 mod calculator;
+mod complete;
 mod dataclasses;
 
 pub use calculator::StabilityCalculator;
+pub use complete::{CompleteStabilityResult, WindHeelingData};
 pub use dataclasses::{StabilityCurve, StabilityCurveWithWind, StabilityPoint};

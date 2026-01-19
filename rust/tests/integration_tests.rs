@@ -143,7 +143,7 @@ mod box_barge_tests {
         let calc = HydrostaticsCalculator::new(&vessel, 1025.0);
 
         // At draft 5m, volume should be 10*10*5 = 500 m³
-        let state = calc.calculate_at_draft(5.0, 0.0, 0.0, 0.0).unwrap();
+        let state = calc.calculate_at_draft(5.0, 0.0, 0.0, None).unwrap();
 
         let expected_volume = 500.0;
         let error = (state.volume - expected_volume).abs();
@@ -156,12 +156,12 @@ mod box_barge_tests {
         );
 
         // Center of buoyancy should be at (0, 0, 2.5)
-        assert!(state.lcb.abs() < 0.1, "LCB should be ~0, got {}", state.lcb);
-        assert!(state.tcb.abs() < 0.1, "TCB should be ~0, got {}", state.tcb);
+        assert!(state.lcb().abs() < 0.1, "LCB should be ~0, got {}", state.lcb());
+        assert!(state.tcb().abs() < 0.1, "TCB should be ~0, got {}", state.tcb());
         assert!(
-            (state.vcb - 2.5).abs() < 0.1,
+            (state.vcb() - 2.5).abs() < 0.1,
             "VCB should be ~2.5, got {}",
-            state.vcb
+            state.vcb()
         );
     }
 }
@@ -186,7 +186,7 @@ mod hydrostatics_tests {
 
         // At draft 1.0, half is submerged
         // Expected volume: 10 * 2 * 1 = 20 m³
-        let state = calc.calculate_at_draft(1.0, 0.0, 0.0, 0.0).unwrap();
+        let state = calc.calculate_at_draft(1.0, 0.0, 0.0, None).unwrap();
 
         let expected_volume = 20.0;
         let error = (state.volume - expected_volume).abs();
@@ -209,8 +209,8 @@ mod hydrostatics_tests {
         let calc_fresh = HydrostaticsCalculator::new(&vessel, 1000.0);
         let calc_salt = HydrostaticsCalculator::new(&vessel, 1025.0);
 
-        let state_fresh = calc_fresh.calculate_at_draft(1.0, 0.0, 0.0, 0.0).unwrap();
-        let state_salt = calc_salt.calculate_at_draft(1.0, 0.0, 0.0, 0.0).unwrap();
+        let state_fresh = calc_fresh.calculate_at_draft(1.0, 0.0, 0.0, None).unwrap();
+        let state_salt = calc_salt.calculate_at_draft(1.0, 0.0, 0.0, None).unwrap();
 
         // Same volume
         assert!(
@@ -234,7 +234,7 @@ mod hydrostatics_tests {
         let vessel = create_test_hull();
         let calc = HydrostaticsCalculator::new(&vessel, 1000.0);
 
-        let state = calc.calculate_at_draft(1.0, 0.0, 0.0, 0.0).unwrap();
+        let state = calc.calculate_at_draft(1.0, 0.0, 0.0, None).unwrap();
 
         // Displacement = Volume * Density
         let expected_displacement = state.volume * 1000.0;
@@ -526,7 +526,7 @@ mod dtmb5415_tests {
         let calc = HydrostaticsCalculator::new(&vessel, 1025.0);
 
         // At draft 6.15m, volume should be ~8424 m³ (SIMMAN 2008)
-        let state = calc.calculate_at_draft(6.15, 0.0, 0.0, VCG);
+        let state = calc.calculate_at_draft(6.15, 0.0, 0.0, Some(VCG));
 
         assert!(
             state.is_some(),
@@ -707,5 +707,107 @@ mod dtmb5415_tests {
             tolerance,
             pass_rate * 100.0
         );
+    }
+}
+
+// ============================================================================
+// Complete Stability Tests
+// ============================================================================
+
+mod complete_stability_tests {
+    use super::*;
+    use navaltoolbox::Silhouette;
+
+    /// Creates a 10x10x10 box centered at origin, z from 0 to 10.
+    fn create_test_box() -> Vessel {
+        let hull = create_box_hull(-5.0, 5.0, -5.0, 5.0, 0.0, 10.0);
+        Vessel::new(hull)
+    }
+
+    #[test]
+    fn test_complete_stability_without_silhouette() {
+        let vessel = create_test_box();
+        let calc = StabilityCalculator::new(&vessel, 1025.0);
+
+        // Box: L=10, B=10, D=10, Draft=5m -> Vol=500m³
+        let displacement = 500.0 * 1025.0; // kg
+        let cog = [0.0, 0.0, 2.0]; // Low VCG
+        let heels: Vec<f64> = (0..=30).step_by(10).map(|x| x as f64).collect();
+
+        let result = calc.calculate_complete_stability(displacement, cog, &heels);
+
+        // Check hydrostatics
+        assert!(result.hydrostatics.volume > 400.0, "Volume should be ~500m³");
+        assert!(result.hydrostatics.draft > 4.0, "Draft should be ~5m");
+
+        // Check GM0 is calculated
+        assert!(
+            result.gm0().is_some(),
+            "GM0 should be calculated when COG is provided"
+        );
+        let gm0 = result.gm0().unwrap();
+        assert!(gm0 > 0.0, "GM0 should be positive for low VCG");
+
+        // Check GZ curve
+        assert_eq!(result.gz_curve.points.len(), 4, "Should have 4 GZ points (0, 10, 20, 30)");
+        assert!(
+            result.gz_curve.points[0].value.abs() < 0.02,
+            "GZ at 0° should be ~0"
+        );
+
+        // Check no wind data without silhouette
+        assert!(
+            !result.has_wind_data(),
+            "Wind data should not be available without silhouette"
+        );
+    }
+
+    #[test]
+    fn test_complete_stability_with_silhouette() {
+        let mut vessel = create_test_box();
+
+        // Add a simple silhouette (rectangle in X-Z plane)
+        // x from -5 to 5, z from 0 to 10
+        let silhouette_points = vec![
+            [-5.0, 0.0, 0.0],
+            [5.0, 0.0, 0.0],
+            [5.0, 0.0, 10.0],
+            [-5.0, 0.0, 10.0],
+            [-5.0, 0.0, 0.0], // close
+        ];
+        let silhouette = Silhouette::new(silhouette_points, "Test".to_string());
+        vessel.add_silhouette(silhouette);
+
+        let calc = StabilityCalculator::new(&vessel, 1025.0);
+
+        let displacement = 500.0 * 1025.0;
+        let cog = [0.0, 0.0, 2.0];
+        let heels: Vec<f64> = vec![0.0, 15.0, 30.0];
+
+        let result = calc.calculate_complete_stability(displacement, cog, &heels);
+
+        // Check wind data is available
+        assert!(
+            result.has_wind_data(),
+            "Wind data should be available with silhouette"
+        );
+
+        let wind_data = result.wind_data.clone().unwrap();
+        
+        // At ~5m draft, emerged area should be 10m (length) * 5m (height above waterline) = 50m²
+        assert!(
+            wind_data.emerged_area > 30.0,
+            "Emerged area should be > 30m², got {}",
+            wind_data.emerged_area
+        );
+        
+        assert!(
+            wind_data.wind_lever_arm > 0.0,
+            "Wind lever arm should be positive (centroid above waterline)"
+        );
+
+        // Check we got all the data consistently
+        assert!(result.gm0().is_some(), "GM0 should be computed");
+        assert!(result.max_gz().is_some(), "Max GZ should be found");
     }
 }

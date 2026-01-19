@@ -536,6 +536,102 @@ StabilityCalculator
       :param heels: List of heel angles in degrees
       :returns: StabilityCurve object with corrected GZ values
 
+   .. py:method:: calculate_complete_stability(displacement_mass, cog, heels)
+
+      Calculates complete stability analysis combining hydrostatics, GZ curve, and wind data.
+
+      :param displacement_mass: Target displacement in kg
+      :param cog: Center of gravity (LCG, TCG, VCG) tuple
+      :param heels: List of heel angles for GZ curve in degrees
+      :returns: CompleteStabilityResult with hydrostatics, GZ curve, and wind data
+
+CompleteStabilityResult
+-----------------------
+
+.. py:class:: CompleteStabilityResult
+
+   Complete stability calculation result combining hydrostatics, GZ curve, and wind data.
+
+   .. py:attribute:: hydrostatics
+      :type: HydrostaticState
+
+      Hydrostatic state at equilibrium (draft, trim, GM0, etc.).
+
+   .. py:attribute:: gz_curve
+      :type: StabilityCurve
+
+      GZ stability curve for the loading condition.
+
+   .. py:attribute:: wind_data
+      :type: WindHeelingData or None
+
+      Wind heeling data (if silhouettes are defined).
+
+   .. py:attribute:: displacement
+      :type: float
+
+      Displacement mass in kg.
+
+   .. py:attribute:: cog
+      :type: tuple[float, float, float]
+
+      Center of gravity (LCG, TCG, VCG).
+
+   .. py:attribute:: gm0
+      :type: float or None
+
+      Initial transverse metacentric height (GM0) with free surface correction.
+
+   .. py:attribute:: gm0_dry
+      :type: float or None
+
+      Initial transverse metacentric height without free surface correction.
+
+   .. py:attribute:: max_gz
+      :type: float or None
+
+      Maximum GZ value on the curve.
+
+   .. py:attribute:: heel_at_max_gz
+      :type: float or None
+
+      Heel angle at maximum GZ.
+
+   .. py:method:: has_wind_data()
+
+      Returns True if wind heeling data is available.
+
+      :rtype: bool
+
+WindHeelingData
+---------------
+
+.. py:class:: WindHeelingData
+
+   Wind heeling data from silhouette calculations.
+
+   Used for wind heeling moment calculations per IMO 2008 IS Code (MSC.267).
+
+   .. py:attribute:: emerged_area
+      :type: float
+
+      Total emerged lateral area above waterline (m²).
+
+   .. py:attribute:: emerged_centroid
+      :type: tuple[float, float]
+
+      Centroid of emerged area (x, z) in meters.
+
+   .. py:attribute:: wind_lever_arm
+      :type: float
+
+      Lever arm from waterline to centroid z coordinate (m).
+
+   .. py:attribute:: waterline_z
+      :type: float
+
+      Waterline Z at which calculations were performed.
+
 StabilityCurve
 --------------
 

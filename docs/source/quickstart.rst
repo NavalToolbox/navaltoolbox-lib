@@ -98,6 +98,46 @@ Calculate the stability (GZ) curve:
     for heel, gz in zip(curve.heels(), curve.values()):
         print(f"Heel {heel:5.1f}°: GZ = {gz:+.3f}m")
 
+Complete Stability Analysis
+---------------------------
+
+Calculate hydrostatics, GZ curve, and wind data in one call:
+
+.. code-block:: python
+
+    from navaltoolbox import Hull, Vessel, StabilityCalculator, Silhouette
+
+    hull = Hull("ship.stl")
+    vessel = Vessel(hull)
+
+    # Optionally add silhouette for wind heeling data
+    silhouette = Silhouette.from_points([
+        (0, 0), (150, 0), (150, 15), (0, 15), (0, 0)
+    ], "hull_profile")
+    vessel.add_silhouette(silhouette)
+
+    calc = StabilityCalculator(vessel, water_density=1025.0)
+
+    # Complete stability analysis
+    result = calc.calculate_complete_stability(
+        displacement_mass=8635000,          # kg
+        cog=(71.67, 0.0, 7.555),            # LCG, TCG, VCG
+        heels=[0, 10, 20, 30, 40, 50, 60]   # degrees
+    )
+
+    # Access hydrostatics
+    print(f"Draft: {result.hydrostatics.draft:.3f} m")
+    print(f"GM0: {result.gm0:.3f} m")
+
+    # Access GZ curve
+    print(f"Max GZ: {result.max_gz:.3f} m at {result.heel_at_max_gz}°")
+
+    # Access wind data (if silhouettes defined)
+    if result.has_wind_data():
+        wind = result.wind_data
+        print(f"Emerged area: {wind.emerged_area:.1f} m²")
+        print(f"Wind lever arm: {wind.wind_lever_arm:.2f} m")
+
 Working with Tanks
 ------------------
 

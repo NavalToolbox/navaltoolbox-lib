@@ -27,7 +27,11 @@ use crate::hull::Hull as RustHull;
 use crate::hydrostatics::{
     HydrostaticState as RustHydroState, HydrostaticsCalculator as RustHydroCalc,
 };
-use crate::stability::{StabilityCalculator as RustStabCalc, StabilityCurve as RustStabCurve};
+use crate::stability::{
+    CompleteStabilityResult as RustCompleteStabilityResult,
+    StabilityCalculator as RustStabCalc, StabilityCurve as RustStabCurve,
+    WindHeelingData as RustWindHeelingData,
+};
 use crate::tanks::Tank as RustTank;
 use crate::vessel::Vessel as RustVessel;
 
@@ -833,6 +837,148 @@ impl PyStabilityCurve {
 }
 
 // ============================================================================
+// WindHeelingData Python Wrapper
+// ============================================================================
+
+/// Wind heeling data from silhouette calculations.
+#[pyclass(name = "WindHeelingData")]
+#[derive(Clone)]
+pub struct PyWindHeelingData {
+    #[pyo3(get)]
+    pub emerged_area: f64,
+    emerged_centroid_internal: [f64; 2],
+    #[pyo3(get)]
+    pub wind_lever_arm: f64,
+    #[pyo3(get)]
+    pub waterline_z: f64,
+}
+
+impl From<RustWindHeelingData> for PyWindHeelingData {
+    fn from(data: RustWindHeelingData) -> Self {
+        Self {
+            emerged_area: data.emerged_area,
+            emerged_centroid_internal: data.emerged_centroid,
+            wind_lever_arm: data.wind_lever_arm,
+            waterline_z: data.waterline_z,
+        }
+    }
+}
+
+#[pymethods]
+impl PyWindHeelingData {
+    /// Returns the centroid of emerged area [x, z].
+    #[getter]
+    fn emerged_centroid(&self) -> (f64, f64) {
+        (self.emerged_centroid_internal[0], self.emerged_centroid_internal[1])
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "WindHeelingData(emerged_area={:.2}m², lever_arm={:.2}m)",
+            self.emerged_area, self.wind_lever_arm
+        )
+    }
+}
+
+// ============================================================================
+// CompleteStabilityResult Python Wrapper
+// ============================================================================
+
+/// Complete stability calculation result.
+///
+/// Combines hydrostatic properties, GZ curve, and wind heeling data
+/// for a single loading condition.
+#[pyclass(name = "CompleteStabilityResult")]
+pub struct PyCompleteStabilityResult {
+    inner: RustCompleteStabilityResult,
+}
+
+impl From<RustCompleteStabilityResult> for PyCompleteStabilityResult {
+    fn from(result: RustCompleteStabilityResult) -> Self {
+        Self { inner: result }
+    }
+}
+
+#[pymethods]
+impl PyCompleteStabilityResult {
+    /// Returns the hydrostatic state at equilibrium.
+    #[getter]
+    fn hydrostatics(&self) -> PyHydrostaticState {
+        self.inner.hydrostatics.clone().into()
+    }
+
+    /// Returns the GZ stability curve.
+    #[getter]
+    fn gz_curve(&self) -> PyStabilityCurve {
+        PyStabilityCurve {
+            inner: self.inner.gz_curve.clone(),
+        }
+    }
+
+    /// Returns the wind heeling data (if silhouettes are defined).
+    #[getter]
+    fn wind_data(&self) -> Option<PyWindHeelingData> {
+        self.inner.wind_data.clone().map(|d| d.into())
+    }
+
+    /// Returns the displacement mass in kg.
+    #[getter]
+    fn displacement(&self) -> f64 {
+        self.inner.displacement
+    }
+
+    /// Returns the center of gravity (lcg, tcg, vcg).
+    #[getter]
+    fn cog(&self) -> (f64, f64, f64) {
+        (self.inner.cog[0], self.inner.cog[1], self.inner.cog[2])
+    }
+
+    /// Returns the initial transverse metacentric height (GM0) with FSC.
+    #[getter]
+    fn gm0(&self) -> Option<f64> {
+        self.inner.gm0()
+    }
+
+    /// Returns the initial transverse metacentric height without FSC.
+    #[getter]
+    fn gm0_dry(&self) -> Option<f64> {
+        self.inner.gm0_dry()
+    }
+
+    /// Returns the maximum GZ value.
+    #[getter]
+    fn max_gz(&self) -> Option<f64> {
+        self.inner.max_gz()
+    }
+
+    /// Returns the heel angle at maximum GZ.
+    #[getter]
+    fn heel_at_max_gz(&self) -> Option<f64> {
+        self.inner.heel_at_max_gz()
+    }
+
+    /// Returns true if wind heeling data is available.
+    fn has_wind_data(&self) -> bool {
+        self.inner.has_wind_data()
+    }
+
+    fn __repr__(&self) -> String {
+        let gm_str = self.inner.gm0()
+            .map(|gm| format!("{:.3}m", gm))
+            .unwrap_or_else(|| "N/A".to_string());
+        let max_gz_str = self.inner.max_gz()
+            .map(|gz| format!("{:.3}m", gz))
+            .unwrap_or_else(|| "N/A".to_string());
+        format!(
+            "CompleteStabilityResult(GM0={}, max_GZ={}, wind_data={})",
+            gm_str,
+            max_gz_str,
+            self.inner.has_wind_data()
+        )
+    }
+}
+
+// ============================================================================
 // StabilityCalculator Python Wrapper
 // ============================================================================
 
@@ -865,6 +1011,33 @@ impl PyStabilityCalculator {
         let calc = RustStabCalc::new(&self.vessel, self.water_density);
         let curve = calc.calculate_gz_curve(displacement_mass, [cog.0, cog.1, cog.2], &heels);
         PyStabilityCurve { inner: curve }
+    }
+
+    /// Calculate complete stability analysis for a loading condition.
+    ///
+    /// Combines hydrostatic calculations, GZ curve, and wind heeling data
+    /// (if silhouettes are available) for a single loading condition.
+    ///
+    /// Args:
+    ///     displacement_mass: Target displacement in kg
+    ///     cog: Center of gravity (lcg, tcg, vcg) tuple
+    ///     heels: List of heel angles for GZ curve in degrees
+    ///
+    /// Returns:
+    ///     CompleteStabilityResult with hydrostatics, GZ curve, and wind data
+    fn calculate_complete_stability(
+        &self,
+        displacement_mass: f64,
+        cog: (f64, f64, f64),
+        heels: Vec<f64>,
+    ) -> PyCompleteStabilityResult {
+        let calc = RustStabCalc::new(&self.vessel, self.water_density);
+        let result = calc.calculate_complete_stability(
+            displacement_mass,
+            [cog.0, cog.1, cog.2],
+            &heels,
+        );
+        result.into()
     }
 }
 
@@ -998,6 +1171,8 @@ fn navaltoolbox(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyHydrostaticsCalculator>()?;
     m.add_class::<PyStabilityPoint>()?;
     m.add_class::<PyStabilityCurve>()?;
+    m.add_class::<PyWindHeelingData>()?;
+    m.add_class::<PyCompleteStabilityResult>()?;
     m.add_class::<PyStabilityCalculator>()?;
     m.add_class::<PyTank>()?;
     Ok(())

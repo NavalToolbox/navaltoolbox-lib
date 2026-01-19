@@ -51,7 +51,7 @@ pub use downflooding::{DownfloodingOpening, OpeningGeometry, OpeningType};
 pub use hull::Hull;
 pub use hydrostatics::{HydrostaticState, HydrostaticsCalculator};
 pub use silhouette::Silhouette;
-pub use stability::{StabilityCalculator, StabilityCurve, StabilityPoint};
+pub use stability::{CompleteStabilityResult, StabilityCalculator, StabilityCurve, StabilityPoint, WindHeelingData};
 pub use tanks::{Tank, TankState};
 pub use vessel::Vessel;
 
