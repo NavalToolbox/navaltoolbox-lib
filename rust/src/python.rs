@@ -767,7 +767,7 @@ impl PyHydrostaticsCalculator {
         heel: Option<f64>,
     ) -> PyResult<PyHydrostaticState> {
         let calc = RustHydroCalc::new(&self.vessel, self.water_density);
-        
+
         // Convert cog tuple to array if provided
         let cog_array = cog.map(|(lcg, tcg, vcg_val)| [lcg, tcg, vcg_val]);
 

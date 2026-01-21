@@ -127,8 +127,8 @@ impl<'a> StabilityCalculator<'a> {
                     target_volume,
                     effective_cog,
                     heel,
-                    0.0,                    // Initial trim
-                    Some(upright_draft),    // Warm start from upright draft
+                    0.0,                 // Initial trim
+                    Some(upright_draft), // Warm start from upright draft
                     center_x,
                     center_y,
                     z_min,
@@ -183,10 +183,7 @@ impl<'a> StabilityCalculator<'a> {
         let (mut low, mut high) = if let Some(init) = initial_draft {
             // Start search around initial draft with a reasonable margin
             let margin = (z_max - z_min) * 0.2;
-            (
-                (init - margin).max(z_min),
-                (init + margin).min(z_max),
-            )
+            ((init - margin).max(z_min), (init + margin).min(z_max))
         } else {
             (z_min, z_max)
         };

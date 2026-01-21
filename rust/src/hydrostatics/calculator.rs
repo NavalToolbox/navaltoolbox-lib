@@ -774,11 +774,13 @@ mod tests {
         let calc = HydrostaticsCalculator::new(&vessel, 1025.0);
 
         // Invalid: Trim provided but also LCG constrained (non-zero)
-        let res = calc.calculate_at_displacement(100000.0, None, Some([5.0, 0.0, 0.0]), Some(0.0), None);
+        let res =
+            calc.calculate_at_displacement(100000.0, None, Some([5.0, 0.0, 0.0]), Some(0.0), None);
         assert!(res.is_err(), "Should fail for both LCG and Trim specified");
 
         // Invalid: Heel provided but also TCG constrained
-        let res = calc.calculate_at_displacement(100000.0, None, Some([0.0, 5.0, 0.0]), None, Some(0.0));
+        let res =
+            calc.calculate_at_displacement(100000.0, None, Some([0.0, 5.0, 0.0]), None, Some(0.0));
         assert!(res.is_err(), "Should fail for both TCG and Heel specified");
     }
 }
