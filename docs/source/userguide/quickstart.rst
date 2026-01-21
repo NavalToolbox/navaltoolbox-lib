@@ -207,7 +207,7 @@ Create silhouettes for wind heeling calculations:
 Next Steps
 ----------
 
-- See :doc:`tutorials/hydrostatics` for detailed hydrostatics calculations
-- See :doc:`tutorials/stability` for complete stability analysis
-- See :doc:`api/python` for full API reference
+- See :doc:`../tutorials/hydrostatics` for detailed hydrostatics calculations
+- See :doc:`../tutorials/stability` for complete stability analysis
+- See :doc:`../api/python/index` for full API reference
 

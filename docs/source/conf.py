@@ -20,9 +20,9 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
     "sphinx.ext.napoleon",  # Google/NumPy style docstrings
-    "sphinx.ext.viewcode",
     "sphinx.ext.intersphinx",
     "sphinx_copybutton",  # Copy button for code blocks
+    "sphinx_design",  # Grid and cards
 ]
 
 templates_path = ["_templates"]
@@ -32,6 +32,9 @@ exclude_patterns = []
 
 html_theme = "pydata_sphinx_theme"
 
+# NavalToolbox color scheme
+# Light: primary=#125C8B, secondary=#0094D3
+# Dark: primary=#E8F0F5, secondary=#6DCFF6, background=#1E3A4C
 html_theme_options = {
     "logo": {
         "image_light": "_static/logo.png",
@@ -47,18 +50,37 @@ html_theme_options = {
         {
             "name": "PyPI",
             "url": "https://pypi.org/project/navaltoolbox/",
-            "icon": "fa-solid fa-box",
+            "icon": "fa-brands fa-python",
+        },
+        {
+            "name": "crates.io",
+            "url": "https://crates.io/crates/navaltoolbox",
+            "icon": "fa-solid fa-cube",
         },
     ],
     "navbar_end": ["theme-switcher", "navbar-icon-links"],
     "show_toc_level": 2,
     "navigation_with_keys": True,
+    # Hide source links and prev/next buttons
+    "show_prev_next": False,
+    # Custom colors for NavalToolbox
+    "primary_sidebar_end": [],
+    "pygments_light_style": "default",
+    "pygments_dark_style": "monokai",
 }
 
 html_favicon = "_static/favicon.png"
 
 html_static_path = ["_static"]
 html_css_files = ["custom.css"]
+
+# Hide "Show Source" link
+html_show_sourcelink = False
+
+# Custom context for templates
+html_context = {
+    "default_mode": "auto",
+}
 
 # -- Extension configuration -------------------------------------------------
 

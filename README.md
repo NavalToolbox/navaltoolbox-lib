@@ -131,6 +131,10 @@ maturin develop --release
 
 AGPL-3.0-or-later
 
+## Disclaimer
+
+NavalToolbox has been developed with care to ensure that all models and methods are correct, and that calculations reflect the most accurate results achievable with the implemented algorithms. However, **results must not be considered as a guarantee of performance**. The author cannot be held responsible for any inaccuracies in the calculations or for any consequences arising from the use of this software. Users are advised to independently verify critical calculations and to use this software as a tool to support, not replace, professional engineering judgment.
+
 ## Author
 
 [Antoine ANCEAU](https://github.com/antoineanceau) · [Website](https://antoine.anceau.fr)

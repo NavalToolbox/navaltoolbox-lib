@@ -4,7 +4,7 @@ Installation
 Python Package
 --------------
 
-Install from PyPI (when available):
+Install from PyPI :
 
 .. code-block:: bash
 

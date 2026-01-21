@@ -1,16 +1,325 @@
 /* Custom CSS for NavalToolbox documentation */
+/* Color scheme based on navaltoolbox.com */
 
-/* Slightly larger code blocks */
+/* ============================================================
+   LIGHT MODE - NavalToolbox colors
+   ============================================================ */
+html {
+    --pst-color-primary: #125C8B;
+    --pst-color-secondary: #023246 !important;
+    --pst-color-accent: #0094D3;
+    --pst-color-link: #125C8B;
+    --pst-color-link-hover: #0094D3;
+}
+
+/* ============================================================
+   DARK MODE - NavalToolbox dark app colors
+   Based on the app screenshot: dark navy blue background
+   ============================================================ */
+html[data-theme="dark"] {
+    --pst-color-primary: #E8F0F5;
+    --pst-color-secondary: #6DCFF6 !important;
+    --pst-color-accent: #6DCFF6;
+    --pst-color-link: #E8F0F5;
+    --pst-color-link-hover: #6DCFF6;
+    --pst-color-background: #1E3A4C;
+    --pst-color-on-background: #2A4D5E;
+    --pst-color-surface: #152936;
+    --pst-color-on-surface: #E8F0F5;
+    --pst-color-text-base: #E8F0F5;
+    --pst-color-text-muted: #9BB8C9;
+    --pst-color-border: #2A4D5E;
+}
+
+html[data-theme="dark"] body {
+    background-color: #1E3A4C !important;
+}
+
+/* ============================================================
+   CODE BLOCKS
+   ============================================================ */
 .highlight pre {
     font-size: 0.9rem;
     line-height: 1.4;
 }
 
-/* API reference styling */
 .sig-name {
     font-weight: 600;
 }
 
 .sig-param {
     font-style: italic;
+}
+
+/* ============================================================
+   HERO SECTION
+   ============================================================ */
+.hero-section {
+    background: linear-gradient(135deg, #0A3D5C 0%, #0E486C 50%, #125C8B 100%) !important;
+    border-radius: 12px;
+    padding: 2.5rem;
+    margin-bottom: 2rem;
+    text-align: center;
+    color: white;
+}
+
+html[data-theme="dark"] .hero-section {
+    background: linear-gradient(135deg, #0F1F2A 0%, #152936 50%, #1E3A4C 100%) !important;
+    border: 1px solid #2A4D5E;
+}
+
+.hero-section h1 {
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+    color: white !important;
+}
+
+.hero-section p {
+    font-size: 1.2rem;
+    opacity: 0.95;
+    margin-bottom: 1.5rem;
+    color: white !important;
+}
+
+.hero-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.hero-btn {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    border-radius: 6px;
+    font-weight: 600;
+    text-decoration: none !important;
+    transition: all 0.2s ease;
+}
+
+.hero-btn:hover {
+    text-decoration: none !important;
+}
+
+.hero-btn-primary {
+    background: white;
+    color: #0E486C !important;
+}
+
+.hero-btn-primary:hover {
+    background: #f0f4f8;
+    color: #125C8B !important;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+html[data-theme="dark"] .hero-btn-primary {
+    background: #6DCFF6;
+    color: #0F1F2A !important;
+}
+
+html[data-theme="dark"] .hero-btn-primary:hover {
+    background: #9DDFF9;
+    color: #0F1F2A !important;
+}
+
+.hero-btn-secondary {
+    background: transparent;
+    border: 2px solid white;
+    color: white !important;
+}
+
+.hero-btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: white !important;
+    transform: translateY(-2px);
+}
+
+/* ============================================================
+   FEATURE GRID
+   ============================================================ */
+.feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin: 2rem 0;
+}
+
+.feature-card {
+    background: var(--pst-color-surface);
+    border: 1px solid var(--pst-color-border);
+    border-radius: 8px;
+    padding: 1.5rem;
+    transition: all 0.2s ease;
+}
+
+.feature-card:hover {
+    border-color: var(--pst-color-secondary);
+    box-shadow: 0 4px 12px rgba(18, 92, 139, 0.15);
+}
+
+html[data-theme="dark"] .feature-card:hover {
+    box-shadow: 0 4px 12px rgba(109, 207, 246, 0.15);
+}
+
+.feature-card h3 {
+    margin-top: 0;
+    color: var(--pst-color-primary);
+}
+
+.feature-card p {
+    margin-bottom: 0;
+    color: var(--pst-color-text-base);
+}
+
+/* ============================================================
+   SPHINX-DESIGN GRID CARDS - CRITICAL FOR DARK MODE
+   ============================================================ */
+.sd-card {
+    border-color: var(--pst-color-border) !important;
+    transition: all 0.2s ease;
+}
+
+.sd-card:hover {
+    border-color: var(--pst-color-secondary) !important;
+}
+
+.sd-card-title {
+    color: var(--pst-color-primary) !important;
+}
+
+/* Dark mode specific card styling */
+html[data-theme="dark"] .sd-card {
+    background-color: #152936 !important;
+    border-color: #2A4D5E !important;
+}
+
+html[data-theme="dark"] .sd-card:hover {
+    border-color: #6DCFF6 !important;
+    box-shadow: 0 4px 12px rgba(109, 207, 246, 0.15);
+}
+
+html[data-theme="dark"] .sd-card-title {
+    color: #E8F0F5 !important;
+}
+
+html[data-theme="dark"] .sd-card-body {
+    color: #9BB8C9 !important;
+}
+
+html[data-theme="dark"] .sd-card-text {
+    color: #9BB8C9 !important;
+}
+
+/* Card icon colors in dark mode */
+html[data-theme="dark"] .sd-card-header {
+    background-color: #1E3A4C !important;
+    border-bottom-color: #2A4D5E !important;
+}
+
+/* ============================================================
+   SIDEBAR AND NAVIGATION - DARK MODE
+   ============================================================ */
+html[data-theme="dark"] .bd-sidebar {
+    background-color: #152936 !important;
+}
+
+html[data-theme="dark"] .bd-sidebar-primary {
+    background-color: #152936 !important;
+}
+
+html[data-theme="dark"] .sidebar-container {
+    background-color: #152936 !important;
+}
+
+/* ============================================================
+   MAIN CONTENT AREA - DARK MODE
+   ============================================================ */
+html[data-theme="dark"] .bd-main {
+    background-color: #1E3A4C !important;
+}
+
+html[data-theme="dark"] .bd-content {
+    background-color: #1E3A4C !important;
+}
+
+html[data-theme="dark"] .bd-article-container {
+    background-color: #1E3A4C !important;
+}
+
+/* ============================================================
+   NAVBAR - DARK MODE
+   ============================================================ */
+html[data-theme="dark"] .bd-header {
+    background-color: #0F1F2A !important;
+    border-bottom-color: #2A4D5E !important;
+}
+
+html[data-theme="dark"] .navbar {
+    background-color: #0F1F2A !important;
+}
+
+/* ============================================================
+   FOOTER - DARK MODE
+   ============================================================ */
+html[data-theme="dark"] .bd-footer {
+    background-color: #0F1F2A !important;
+    border-top-color: #2A4D5E !important;
+}
+
+html[data-theme="dark"] .bd-footer-content {
+    background-color: #0F1F2A !important;
+}
+
+/* ============================================================
+   TOC (Table of Contents) - DARK MODE
+   ============================================================ */
+html[data-theme="dark"] .bd-toc {
+    background-color: transparent !important;
+}
+
+html[data-theme="dark"] .toc-entry a {
+    color: #9BB8C9 !important;
+}
+
+html[data-theme="dark"] .toc-entry a:hover {
+    color: #6DCFF6 !important;
+}
+
+html[data-theme="dark"] .toc-entry a.active {
+    color: #E8F0F5 !important;
+}
+
+/* ============================================================
+   LINKS - DARK MODE
+   ============================================================ */
+html[data-theme="dark"] a {
+    color: #E8F0F5;
+}
+
+html[data-theme="dark"] a:hover {
+    color: #6DCFF6;
+}
+
+/* ============================================================
+   HIDE FOOTER CREDITS
+   ============================================================ */
+.bd-footer .footer-items__end,
+.bd-footer-content .footer-items__end,
+footer .sphinx-bs,
+.footer-item p:has(a[href*="sphinx"]),
+.footer-item p:has(a[href*="pydata"]) {
+    display: none !important;
+}
+
+/* Hide "Built with" and "Created using" text */
+.bd-footer-content p,
+footer p {
+    display: none !important;
+}
+
+/* Keep copyright visible */
+.bd-footer-content .copyright,
+footer .copyright {
+    display: block !important;
 }

@@ -36,6 +36,14 @@
 //! let state = calc.calculate_at_draft(5.0, 0.0, 0.0)?;
 //! println!("Volume: {} m³", state.volume);
 //! ```
+//!
+//! ## Disclaimer
+//!
+//! NavalToolbox has been developed with care to ensure that all models and methods are correct.
+//! However, **results must not be considered as a guarantee of performance**. The author cannot
+//! be held responsible for any inaccuracies in the calculations or for any consequences arising
+//! from the use of this software. Users are advised to independently verify critical calculations
+//! and to use this software as a tool to support, not replace, professional engineering judgment.
 
 pub mod downflooding;
 pub mod hull;

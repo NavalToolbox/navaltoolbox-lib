@@ -1,43 +1,44 @@
 NavalToolbox Documentation
 ===========================
 
-**NavalToolbox** is a high-performance naval architecture library for hydrostatics, 
-stability, and tank calculations. Built in Rust with Python bindings.
+.. raw:: html
 
-.. grid:: 1 1 2 2
-    :gutter: 2
+   <div class="hero-section">
+       <h1>NavalToolbox</h1>
+       <p>High-performance naval architecture library for hydrostatics and stability calculations</p>
+       <div class="hero-buttons">
+           <a href="userguide/quickstart.html" class="hero-btn hero-btn-primary">Get Started</a>
+           <a href="userguide/installation.html" class="hero-btn hero-btn-secondary">Install</a>
+           <a href="api/index.html" class="hero-btn hero-btn-secondary">API Reference</a>
+       </div>
+   </div>
 
-    .. grid-item-card:: 🚀 Getting Started
-        :link: quickstart
-        :link-type: doc
+**NavalToolbox** is a Rust library with Python bindings designed for naval architects, 
+marine engineers, and researchers who need accurate and fast hydrostatic and stability calculations.
 
-        New to NavalToolbox? Start here to learn the basics.
+Key Features
+------------
 
-    .. grid-item-card:: 📖 API Reference
-        :link: api/python
-        :link-type: doc
+.. raw:: html
 
-        Complete reference for all Python classes and methods.
-
-    .. grid-item-card:: 🎓 Tutorials
-        :link: tutorials/hydrostatics
-        :link-type: doc
-
-        In-depth tutorials for hydrostatics and stability calculations.
-
-    .. grid-item-card:: ⚙️ Installation
-        :link: installation
-        :link-type: doc
-
-        How to install NavalToolbox for Python or Rust.
-
-Features
---------
-
-- **Fast**: Rust core with Python bindings via PyO3
-- **Accurate**: Validated against DTMB 5415 reference hull (< 3.5cm GZ error)
-- **Complete**: Hull, Vessel, Hydrostatics, Stability, Tanks modules
-- **Dual API**: Use from Python or as a native Rust library
+   <div class="feature-grid">
+       <div class="feature-card">
+           <h3>⚡ High Performance</h3>
+           <p>Rust core with parallel processing (Rayon) delivers blazing-fast calculations. GZ curves computed in seconds.</p>
+       </div>
+       <div class="feature-card">
+           <h3>🎯 Accurate</h3>
+           <p>Validated against DTMB 5415 reference hull with <3.5cm GZ error. Wall-sided formula verification included.</p>
+       </div>
+       <div class="feature-card">
+           <h3>🐍 Python API</h3>
+           <p>Easy-to-use Python bindings via PyO3. Ideal for scripts, Jupyter notebooks, and rapid prototyping.</p>
+       </div>
+       <div class="feature-card">
+           <h3>📐 Complete</h3>
+           <p>Hull, Vessel, Tanks, Hydrostatics, Stability modules. Supports multi-hull configurations.</p>
+       </div>
+   </div>
 
 Quick Example
 -------------
@@ -64,10 +65,20 @@ Quick Example
 .. toctree::
    :maxdepth: 2
    :hidden:
+   :caption: Get started
 
-   installation
-   quickstart
-   api/python
-   api/rust
-   tutorials/hydrostatics
-   tutorials/stability
+   userguide/index
+
+.. toctree::
+   :maxdepth: 2
+   :hidden:
+   :caption: Tutorials
+
+   tutorials/index
+
+.. toctree::
+   :maxdepth: 2
+   :hidden:
+   :caption: API Reference
+
+   api/index

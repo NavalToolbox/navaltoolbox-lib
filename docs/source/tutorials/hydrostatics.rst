@@ -84,17 +84,13 @@ Find the draft for a known displacement:
     print(f"Equilibrium draft: {state.draft:.3f}m")
     print(f"Actual displacement: {state.displacement:.0f} kg")
 
-    # Or with constraints (e.g. fixed VCG)
-    state_stab = calc.calculate_at_displacement(
+    # With center of gravity (LCG, TCG, VCG) for GM calculation
+    state = calc.calculate_at_displacement(
         target_displacement, 
-        vcg=7.555
+        cog=(71.67, 0.0, 7.555)
     )
-    print(f"Draft with VCG: {state_stab.draft:.3f}m")
-    print(f"GMT: {state_stab.gmt:.3f}m")
-
-    # Verify
-    state = calc.calculate_at_draft(draft, 0.0, 0.0, 7.555)
-    print(f"Actual displacement: {state.displacement:.0f} kg")
+    print(f"Draft: {state.draft:.3f}m")
+    print(f"GMT: {state.gmt:.3f}m")
 
 Calculating at Heel
 -------------------
