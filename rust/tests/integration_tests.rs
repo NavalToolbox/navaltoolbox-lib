@@ -156,8 +156,16 @@ mod box_barge_tests {
         );
 
         // Center of buoyancy should be at (0, 0, 2.5)
-        assert!(state.lcb().abs() < 0.1, "LCB should be ~0, got {}", state.lcb());
-        assert!(state.tcb().abs() < 0.1, "TCB should be ~0, got {}", state.tcb());
+        assert!(
+            state.lcb().abs() < 0.1,
+            "LCB should be ~0, got {}",
+            state.lcb()
+        );
+        assert!(
+            state.tcb().abs() < 0.1,
+            "TCB should be ~0, got {}",
+            state.tcb()
+        );
         assert!(
             (state.vcb() - 2.5).abs() < 0.1,
             "VCB should be ~2.5, got {}",
@@ -737,7 +745,10 @@ mod complete_stability_tests {
         let result = calc.calculate_complete_stability(displacement, cog, &heels);
 
         // Check hydrostatics
-        assert!(result.hydrostatics.volume > 400.0, "Volume should be ~500m³");
+        assert!(
+            result.hydrostatics.volume > 400.0,
+            "Volume should be ~500m³"
+        );
         assert!(result.hydrostatics.draft > 4.0, "Draft should be ~5m");
 
         // Check GM0 is calculated
@@ -749,7 +760,11 @@ mod complete_stability_tests {
         assert!(gm0 > 0.0, "GM0 should be positive for low VCG");
 
         // Check GZ curve
-        assert_eq!(result.gz_curve.points.len(), 4, "Should have 4 GZ points (0, 10, 20, 30)");
+        assert_eq!(
+            result.gz_curve.points.len(),
+            4,
+            "Should have 4 GZ points (0, 10, 20, 30)"
+        );
         assert!(
             result.gz_curve.points[0].value.abs() < 0.02,
             "GZ at 0° should be ~0"
@@ -793,14 +808,14 @@ mod complete_stability_tests {
         );
 
         let wind_data = result.wind_data.clone().unwrap();
-        
+
         // At ~5m draft, emerged area should be 10m (length) * 5m (height above waterline) = 50m²
         assert!(
             wind_data.emerged_area > 30.0,
             "Emerged area should be > 30m², got {}",
             wind_data.emerged_area
         );
-        
+
         assert!(
             wind_data.wind_lever_arm > 0.0,
             "Wind lever arm should be positive (centroid above waterline)"

@@ -28,9 +28,8 @@ use crate::hydrostatics::{
     HydrostaticState as RustHydroState, HydrostaticsCalculator as RustHydroCalc,
 };
 use crate::stability::{
-    CompleteStabilityResult as RustCompleteStabilityResult,
-    StabilityCalculator as RustStabCalc, StabilityCurve as RustStabCurve,
-    WindHeelingData as RustWindHeelingData,
+    CompleteStabilityResult as RustCompleteStabilityResult, StabilityCalculator as RustStabCalc,
+    StabilityCurve as RustStabCurve, WindHeelingData as RustWindHeelingData,
 };
 use crate::tanks::Tank as RustTank;
 use crate::vessel::Vessel as RustVessel;
@@ -515,11 +514,11 @@ pub struct PyHydrostaticState {
     pub volume: f64,
     #[pyo3(get)]
     pub displacement: f64,
-    
+
     // Internal storage as vectors
     cob_internal: [f64; 3],
     cog_internal: Option<[f64; 3]>,
-    
+
     // Expose all hydrostatic properties
     #[pyo3(get)]
     pub waterplane_area: f64,
@@ -529,20 +528,19 @@ pub struct PyHydrostaticState {
     pub bmt: f64,
     #[pyo3(get)]
     pub bml: f64,
-    
+
     // Optional GMT/GML (None if VCG not specified)
-    gmt_internal: Option<f64>,  // wet (with FSC)
-    gml_internal: Option<f64>,  // wet (with FSC)
-    gmt_dry_internal: Option<f64>,  // dry (without FSC)
-    gml_dry_internal: Option<f64>,  // dry (without FSC)
-    
+    gmt_internal: Option<f64>,     // wet (with FSC)
+    gml_internal: Option<f64>,     // wet (with FSC)
+    gmt_dry_internal: Option<f64>, // dry (without FSC)
+    gml_dry_internal: Option<f64>, // dry (without FSC)
+
     #[pyo3(get)]
     pub lwl: f64,
     #[pyo3(get)]
     pub bwl: f64,
     #[pyo3(get)]
     pub los: f64,
-
 
     #[pyo3(get)]
     pub wetted_surface_area: f64,
@@ -600,79 +598,83 @@ impl PyHydrostaticState {
     /// Returns center of buoyancy as tuple (lcb, tcb, vcb)
     #[getter]
     fn cob(&self) -> (f64, f64, f64) {
-        (self.cob_internal[0], self.cob_internal[1], self.cob_internal[2])
+        (
+            self.cob_internal[0],
+            self.cob_internal[1],
+            self.cob_internal[2],
+        )
     }
-    
+
     /// Returns center of gravity as tuple (lcg, tcg, vcg) if specified, None otherwise
     #[getter]
     fn cog(&self) -> Option<(f64, f64, f64)> {
         self.cog_internal.map(|c| (c[0], c[1], c[2]))
     }
-    
+
     // Convenience getters for individual COB components
     #[getter]
     fn lcb(&self) -> f64 {
         self.cob_internal[0]
     }
-    
+
     #[getter]
     fn tcb(&self) -> f64 {
         self.cob_internal[1]
     }
-    
+
     #[getter]
     fn vcb(&self) -> f64 {
         self.cob_internal[2]
     }
-    
+
     // Convenience getters for individual COG components
     #[getter]
     fn lcg(&self) -> Option<f64> {
         self.cog_internal.map(|c| c[0])
     }
-    
+
     #[getter]
     fn tcg(&self) -> Option<f64> {
         self.cog_internal.map(|c| c[1])
     }
-    
+
     #[getter]
     fn vcg(&self) -> Option<f64> {
         self.cog_internal.map(|c| c[2])
     }
-    
+
     // GMT/GML getters (optional)
     /// GMT with free surface correction (wet - conservative)
     #[getter]
     fn gmt(&self) -> Option<f64> {
         self.gmt_internal
     }
-    
+
     /// GML with free surface correction (wet - conservative)
     #[getter]
     fn gml(&self) -> Option<f64> {
         self.gml_internal
     }
-    
+
     /// GMT without free surface correction (dry - reference)
     #[getter]
     fn gmt_dry(&self) -> Option<f64> {
         self.gmt_dry_internal
     }
-    
+
     /// GML without free surface correction (dry - reference)
     #[getter]
     fn gml_dry(&self) -> Option<f64> {
         self.gml_dry_internal
     }
-    
+
     fn __repr__(&self) -> String {
         let cog_str = if let Some(c) = self.cog_internal {
             format!("COG=({:.2}, {:.2}, {:.2})", c[0], c[1], c[2])
         } else {
             "COG=None".to_string()
         };
-        
+
         format!(
             "HydrostaticState(draft={:.3}m, volume={:.2}m³, displacement={:.0}kg, {})",
             self.draft, self.volume, self.displacement, cog_str
@@ -760,7 +762,7 @@ impl PyHydrostaticsCalculator {
     ) -> PyResult<PyHydrostaticState> {
         let calc = RustHydroCalc::new(&self.vessel, self.water_density);
         let cog_array = cog.map(|(x, y, z)| [x, y, z]);
-        
+
         calc.calculate_at_displacement(displacement_mass, cog_array, trim, heel)
             .map(|s| s.into())
             .map_err(|e| PyValueError::new_err(e))
@@ -869,7 +871,10 @@ impl PyWindHeelingData {
     /// Returns the centroid of emerged area [x, z].
     #[getter]
     fn emerged_centroid(&self) -> (f64, f64) {
-        (self.emerged_centroid_internal[0], self.emerged_centroid_internal[1])
+        (
+            self.emerged_centroid_internal[0],
+            self.emerged_centroid_internal[1],
+        )
     }
 
     fn __repr__(&self) -> String {
@@ -963,10 +968,14 @@ impl PyCompleteStabilityResult {
     }
 
     fn __repr__(&self) -> String {
-        let gm_str = self.inner.gm0()
+        let gm_str = self
+            .inner
+            .gm0()
             .map(|gm| format!("{:.3}m", gm))
             .unwrap_or_else(|| "N/A".to_string());
-        let max_gz_str = self.inner.max_gz()
+        let max_gz_str = self
+            .inner
+            .max_gz()
             .map(|gz| format!("{:.3}m", gz))
             .unwrap_or_else(|| "N/A".to_string());
         format!(
@@ -1032,11 +1041,8 @@ impl PyStabilityCalculator {
         heels: Vec<f64>,
     ) -> PyCompleteStabilityResult {
         let calc = RustStabCalc::new(&self.vessel, self.water_density);
-        let result = calc.calculate_complete_stability(
-            displacement_mass,
-            [cog.0, cog.1, cog.2],
-            &heels,
-        );
+        let result =
+            calc.calculate_complete_stability(displacement_mass, [cog.0, cog.1, cog.2], &heels);
         result.into()
     }
 }

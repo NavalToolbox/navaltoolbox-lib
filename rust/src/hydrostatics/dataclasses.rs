@@ -26,40 +26,40 @@ pub struct HydrostaticState {
     pub trim: f64,
     /// Heel angle in degrees
     pub heel: f64,
-    
+
     /// Submerged volume in m³
     pub volume: f64,
     /// Displacement mass in kg
     pub displacement: f64,
-    
+
     /// Center of buoyancy [LCB, TCB, VCB] in meters
     pub cob: [f64; 3],
-    
+
     /// Center of gravity [LCG, TCG, VCG] in meters (if specified)
     pub cog: Option<[f64; 3]>,
-    
+
     /// Waterplane area in m²
     pub waterplane_area: f64,
     /// Waterplane centroid X (LCF) in meters
     pub lcf: f64,
-    
+
     /// Transverse metacentric radius BM_t in meters
     pub bmt: f64,
     /// Longitudinal metacentric radius BM_l in meters
     pub bml: f64,
-    
+
     /// Transverse metacentric height GM_t in meters (requires VCG)
     /// Includes free surface correction from tanks (wet - conservative)
     pub gmt: Option<f64>,
     /// Longitudinal metacentric height GM_l in meters (requires VCG)
     /// Includes free surface correction from tanks (wet - conservative)
     pub gml: Option<f64>,
-    
+
     /// Transverse metacentric height without free surface correction (dry)
     pub gmt_dry: Option<f64>,
     /// Longitudinal metacentric height without free surface correction (dry)
     pub gml_dry: Option<f64>,
-    
+
     /// Length at waterline in meters
     pub lwl: f64,
     /// Beam at waterline in meters
@@ -75,15 +75,15 @@ pub struct HydrostaticState {
     pub cb: f64,
     /// Prismatic coefficient
     pub cp: f64,
-    
+
     /// Transverse free surface correction (meters)
     pub free_surface_correction_t: f64,
     /// Longitudinal free surface correction (meters)
     pub free_surface_correction_l: f64,
-    
+
     /// 6x6 Hydrostatic stiffness matrix (flattened row-major)
     pub stiffness_matrix: [f64; 36],
-    
+
     /// Length overall submerged in meters
     pub los: f64,
 }
@@ -93,27 +93,27 @@ impl HydrostaticState {
     pub fn lcb(&self) -> f64 {
         self.cob[0]
     }
-    
+
     /// Returns the transverse center of buoyancy (TCB) in meters
     pub fn tcb(&self) -> f64 {
         self.cob[1]
     }
-    
+
     /// Returns the vertical center of buoyancy (VCB) in meters
     pub fn vcb(&self) -> f64 {
         self.cob[2]
     }
-    
+
     /// Returns the longitudinal center of gravity (LCG) if specified
     pub fn lcg(&self) -> Option<f64> {
         self.cog.map(|c| c[0])
     }
-    
+
     /// Returns the transverse center of gravity (TCG) if specified
     pub fn tcg(&self) -> Option<f64> {
         self.cog.map(|c| c[1])
     }
-    
+
     /// Returns the vertical center of gravity (VCG) if specified
     pub fn vcg(&self) -> Option<f64> {
         self.cog.map(|c| c[2])

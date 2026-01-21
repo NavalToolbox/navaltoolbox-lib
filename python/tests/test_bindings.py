@@ -18,7 +18,8 @@
 """
 Tests for navaltoolbox Python bindings.
 
-These tests mirror the Rust integration tests to verify Python bindings work correctly.
+These tests mirror the Rust integration tests to verify
+Python bindings work correctly.
 """
 
 import pytest
@@ -32,59 +33,79 @@ class TestHullLoading:
     def test_load_normal_stl(self):
         """Test loading a normal STL file (DTMB 5415)."""
         from navaltoolbox import Hull
-        
-        stl_path = Path(__file__).parent.parent.parent / "rust" / "tests" / "data" / "dtmb5415.stl"
-        
+
+        stl_path = (
+            Path(__file__).parent.parent.parent
+            / "rust"
+            / "tests"
+            / "data"
+            / "dtmb5415.stl"
+        )
+
         if not stl_path.exists():
             pytest.skip(f"DTMB 5415 STL not found at {stl_path}")
-        
+
         hull = Hull(str(stl_path))
         num_triangles = hull.num_triangles()
         bounds = hull.get_bounds()
-        
+
         # Verify hull loaded successfully
-        assert num_triangles > 1000, f"Expected > 1000 triangles, got {num_triangles}"
-        
+        assert num_triangles > 1000, (
+            f"Expected > 1000 triangles, got {num_triangles}"
+        )
+
         # Verify bounds are reasonable for DTMB 5415
         loa = bounds[1] - bounds[0]
         boa = bounds[3] - bounds[2]
-        
+
         assert 140.0 < loa < 160.0, f"LOA should be ~142-153m, got {loa:.2f}m"
         assert 15.0 < boa < 25.0, f"BOA should be ~19-20m, got {boa:.2f}m"
 
     def test_load_box_stl(self):
         """Test loading a box STL file."""
         from navaltoolbox import Hull
-        
-        stl_path = Path(__file__).parent.parent.parent / "rust" / "tests" / "data" / "box_10x10.stl"
-        
+
+        stl_path = (
+            Path(__file__).parent.parent.parent
+            / "rust"
+            / "tests"
+            / "data"
+            / "box_10x10.stl"
+        )
+
         if not stl_path.exists():
             pytest.skip(f"Box STL not found at {stl_path}")
-        
+
         hull = Hull(str(stl_path))
         num_triangles = hull.num_triangles()
-        
+
         # Box should have a reasonable number of triangles
         assert num_triangles > 0, "Box hull should have triangles"
 
     def test_empty_stl_file_error(self):
         """Test that loading an empty file raises an appropriate error."""
         from navaltoolbox import Hull
-        
+
         with tempfile.NamedTemporaryFile(suffix=".stl", delete=False) as f:
             temp_path = f.name
-        
+
         try:
             # Attempt to load empty file should raise an error
             with pytest.raises(Exception) as exc_info:
-                hull = Hull(temp_path)
-            
+                _ = Hull(temp_path)
+
             error_msg = str(exc_info.value).lower()
             # Check that error message is meaningful
-            assert "empty" in error_msg or "stl" in error_msg or "failed" in error_msg, (
-                f"Error message should mention empty/STL/failed, got: {exc_info.value}"
+            is_meaningful = (
+                "empty" in error_msg
+                or "stl" in error_msg
+                or "failed" in error_msg
             )
-            
+            assert is_meaningful, (
+                f"Error message should mention empty/STL/failed, "
+                f"got: {exc_info.value}"
+            )
+
         finally:
             Path(temp_path).unlink(missing_ok=True)
 
@@ -102,7 +123,10 @@ class TestTank:
         expected_volume = 100.0
         error = abs(tank.total_volume - expected_volume)
 
-        assert error < 1.0, f"Tank volume error: expected {expected_volume}, got {tank.total_volume}"
+        assert error < 1.0, (
+            f"Tank volume error: expected {expected_volume}, "
+            f"got {tank.total_volume}"
+        )
 
     def test_tank_fill_level(self):
         """Test tank fill level management."""
@@ -117,10 +141,14 @@ class TestTank:
         assert abs(tank.fill_percent - 50.0) < 1e-6
 
         # Fill volume should be ~50 m³
-        assert abs(tank.fill_volume - 50.0) < 1.0, f"Fill volume should be ~50, got {tank.fill_volume}"
+        assert (
+            abs(tank.fill_volume - 50.0) < 1.0
+        ), f"Fill volume should be ~50, got {tank.fill_volume}"
 
         # Fluid mass should be ~50000 kg
-        assert abs(tank.fluid_mass - 50000.0) < 100.0, f"Fluid mass should be ~50000, got {tank.fluid_mass}"
+        assert (
+            abs(tank.fluid_mass - 50000.0) < 100.0
+        ), f"Fluid mass should be ~50000, got {tank.fluid_mass}"
 
     def test_tank_center_of_gravity(self):
         """Test tank center of gravity calculation."""
@@ -155,8 +183,12 @@ class TestTank:
         # For box tank:
         # I_t = L * B³ / 12 = 10 * 5³ / 12 ≈ 104.17
         # I_l = B * L³ / 12 = 5 * 10³ / 12 ≈ 416.67
-        assert abs(fsm_t - 104.17) < 5.0, f"FSM_t should be ~104.17, got {fsm_t}"
-        assert abs(fsm_l - 416.67) < 20.0, f"FSM_l should be ~416.67, got {fsm_l}"
+        assert abs(fsm_t - 104.17) < 5.0, (
+            f"FSM_t should be ~104.17, got {fsm_t}"
+        )
+        assert abs(fsm_l - 416.67) < 20.0, (
+            f"FSM_l should be ~416.67, got {fsm_l}"
+        )
 
     def test_tank_no_free_surface_when_full(self):
         """Test no free surface when tank is full."""
@@ -177,7 +209,13 @@ class TestVessel:
         from navaltoolbox import Vessel, Tank, Hull
 
         # We need a hull to create a vessel - use the DTMB5415
-        stl_path = Path(__file__).parent.parent.parent / "rust" / "tests" / "data" / "dtmb5415.stl"
+        stl_path = (
+            Path(__file__).parent.parent.parent
+            / "rust"
+            / "tests"
+            / "data"
+            / "dtmb5415.stl"
+        )
         if not stl_path.exists():
             pytest.skip("DTMB5415 STL file not found")
 
@@ -224,7 +262,13 @@ class TestDTMB5415:
         """Load DTMB5415 hull and create vessel."""
         from navaltoolbox import Hull, Vessel
 
-        stl_path = Path(__file__).parent.parent.parent / "rust" / "tests" / "data" / "dtmb5415.stl"
+        stl_path = (
+            Path(__file__).parent.parent.parent
+            / "rust"
+            / "tests"
+            / "data"
+            / "dtmb5415.stl"
+        )
         if not stl_path.exists():
             pytest.skip("DTMB5415 STL file not found")
 
@@ -235,7 +279,13 @@ class TestDTMB5415:
         """Test DTMB5415 hull loads correctly."""
         from navaltoolbox import Hull
 
-        stl_path = Path(__file__).parent.parent.parent / "rust" / "tests" / "data" / "dtmb5415.stl"
+        stl_path = (
+            Path(__file__).parent.parent.parent
+            / "rust"
+            / "tests"
+            / "data"
+            / "dtmb5415.stl"
+        )
         if not stl_path.exists():
             pytest.skip("DTMB5415 STL file not found")
 
@@ -262,7 +312,9 @@ class TestDTMB5415:
         print(f"DTMB5415 at T=6.15m: Volume={state.volume:.1f}m³")
 
         # Reference: ~8424 m³
-        assert 7500.0 < state.volume < 9000.0, f"Volume should be ~8424m³, got {state.volume:.1f}"
+        assert 7500.0 < state.volume < 9000.0, (
+            f"Volume should be ~8424m³, got {state.volume:.1f}"
+        )
 
     def test_dtmb5415_gz_curve_accuracy(self, dtmb5415_vessel):
         """Test GZ curve accuracy against reference data."""
@@ -271,11 +323,8 @@ class TestDTMB5415:
         calc = StabilityCalculator(dtmb5415_vessel, 1025.0)
 
         heels = list(self.REFERENCE_DATA.keys())
-        curve = calc.calculate_gz_curve(
-            self.DISPLACEMENT,
-            (self.LCG, self.TCG, self.VCG),
-            heels
-        )
+        cog = (self.LCG, self.TCG, self.VCG)
+        curve = calc.calculate_gz_curve(self.DISPLACEMENT, cog, heels)
 
         tolerance = 0.10  # 10cm
 
@@ -294,12 +343,17 @@ class TestDTMB5415:
             if error < tolerance:
                 passed += 1
 
-            print(f"{heel:5.1f}°    {gz:7.3f}m   {ref_gz:7.3f}m   {error:.3f}m {status}")
+            print(
+                f"{heel:5.1f}°    {gz:7.3f}m   "
+                f"{ref_gz:7.3f}m   {error:.3f}m {status}"
+            )
 
         pass_rate = passed / total
         print(f"\nPassed: {passed}/{total} ({pass_rate * 100:.0f}%)")
 
-        assert pass_rate >= 0.7, f"At least 70% should pass, got {pass_rate * 100:.0f}%"
+        assert pass_rate >= 0.7, (
+            f"At least 70% should pass, got {pass_rate * 100:.0f}%"
+        )
 
     def test_dtmb5415_max_gz_location(self, dtmb5415_vessel):
         """Test maximum GZ location."""
@@ -308,11 +362,8 @@ class TestDTMB5415:
         calc = StabilityCalculator(dtmb5415_vessel, 1025.0)
 
         heels = list(range(0, 65, 5))
-        curve = calc.calculate_gz_curve(
-            self.DISPLACEMENT,
-            (self.LCG, self.TCG, self.VCG),
-            heels
-        )
+        cog = (self.LCG, self.TCG, self.VCG)
+        curve = calc.calculate_gz_curve(self.DISPLACEMENT, cog, heels)
 
         # Find max GZ
         gz_values = curve.values()
@@ -320,7 +371,10 @@ class TestDTMB5415:
         max_idx = gz_values.index(max_gz)
         max_heel = heels[max_idx]
 
-        print(f"DTMB5415 Max GZ: {max_gz:.3f}m at {max_heel}° (Ref: ~1.08m at ~38°)")
+        print(
+            f"DTMB5415 Max GZ: {max_gz:.3f}m at {max_heel}° "
+            f"(Ref: ~1.08m at ~38°)"
+        )
 
         # Max should be between 30-50°
         assert 30.0 <= max_heel <= 50.0, f"Max GZ at wrong angle: {max_heel}°"
@@ -358,80 +412,92 @@ class TestWaterplaneCalculations:
     def test_dtmb5415_metacentric_height(self):
         """
         Validate GMT and KMt against DTMB 5415 reference data.
-        
+
         Reference (Semarak paper, Table 3):
         - Draft: 6.15 m
         - VCG: 7.555 m
         - KMt: 9.493 m
         - GMT: 1.95 m (KMt - VCG)
-        
+
         Tolerance: ±0.1 m
         """
         from navaltoolbox import Hull, Vessel, HydrostaticsCalculator
-        
-        stl_path = Path(__file__).parent.parent.parent / "rust" / "tests" / "data" / "dtmb5415.stl"
-        
+
+        stl_path = (
+            Path(__file__).parent.parent.parent
+            / "rust"
+            / "tests"
+            / "data"
+            / "dtmb5415.stl"
+        )
+
         if not stl_path.exists():
             pytest.skip(f"DTMB 5415 STL not found at {stl_path}")
-        
+
         hull = Hull(str(stl_path))
         vessel = Vessel(hull)
         calc = HydrostaticsCalculator(vessel, 1025.0)
-        
+
         # Calculate at reference draft with VCG
         state = calc.calculate_at_draft(6.15, vcg=7.555)
-        
+
         # Calculate KMt
         kmt = state.vcb + state.bmt
         gmt = state.gmt
-        
+
         # Reference values
         ref_kmt = 9.493
         ref_gmt = 1.95
         tolerance = 0.1
-        
+
         # Validate KMt
         kmt_error = abs(kmt - ref_kmt)
         assert kmt_error < tolerance, (
             f"KMt error {kmt_error:.3f}m exceeds tolerance {tolerance}m. "
             f"Calculated: {kmt:.3f}m, Reference: {ref_kmt}m"
         )
-        
+
         # Validate GMT
         gmt_error = abs(gmt - ref_gmt)
         assert gmt_error < tolerance, (
             f"GMT error {gmt_error:.3f}m exceeds tolerance {tolerance}m. "
             f"Calculated: {gmt:.3f}m, Reference: {ref_gmt}m"
         )
-        
-        print(f"\n✅ DTMB 5415 Waterplane Validation:")
+
+        print("\n✅ DTMB 5415 Waterplane Validation:")
         print(f"   KMt: {kmt:.3f}m (ref: {ref_kmt}m, error: {kmt_error:.3f}m)")
         print(f"   GMT: {gmt:.3f}m (ref: {ref_gmt}m, error: {gmt_error:.3f}m)")
         print(f"   Awp: {state.waterplane_area:.1f}m²")
 
     def test_waterplane_properties_exposed(self):
-        """Verify all waterplane properties are accessible via Python bindings."""
+        """Verify waterplane properties are accessible via bindings."""
         from navaltoolbox import Hull, Vessel, HydrostaticsCalculator
-        
-        stl_path = Path(__file__).parent.parent.parent / "rust" / "tests" / "data" / "dtmb5415.stl"
-        
+
+        stl_path = (
+            Path(__file__).parent.parent.parent
+            / "rust"
+            / "tests"
+            / "data"
+            / "dtmb5415.stl"
+        )
+
         if not stl_path.exists():
-            pytest.skip(f"DTMB 5415 STL not found")
-        
+            pytest.skip("DTMB 5415 STL not found")
+
         hull = Hull(str(stl_path))
         vessel = Vessel(hull)
         calc = HydrostaticsCalculator(vessel, 1025.0)
-        
+
         state = calc.calculate_at_draft(6.15, vcg=7.555)
-        
+
         # Check that all waterplane properties exist and are reasonable
-        assert hasattr(state, 'waterplane_area')
-        assert hasattr(state, 'lcf')
-        assert hasattr(state, 'bmt')
-        assert hasattr(state, 'bml')
-        assert hasattr(state, 'lwl')
-        assert hasattr(state, 'bwl')
-        
+        assert hasattr(state, "waterplane_area")
+        assert hasattr(state, "lcf")
+        assert hasattr(state, "bmt")
+        assert hasattr(state, "bml")
+        assert hasattr(state, "lwl")
+        assert hasattr(state, "bwl")
+
         # Values should be positive and reasonable
         assert state.waterplane_area > 1000.0, "Awp should be > 1000 m²"
         assert state.bmt > 0.0, "BMt should be positive"
@@ -442,24 +508,30 @@ class TestWaterplaneCalculations:
     def test_gmt_gml_optional_without_vcg(self):
         """Verify GMT/GML are None when VCG not provided."""
         from navaltoolbox import Hull, Vessel, HydrostaticsCalculator
-        
-        stl_path = Path(__file__).parent.parent.parent / "rust" / "tests" / "data" / "dtmb5415.stl"
-        
+
+        stl_path = (
+            Path(__file__).parent.parent.parent
+            / "rust"
+            / "tests"
+            / "data"
+            / "dtmb5415.stl"
+        )
+
         if not stl_path.exists():
-            pytest.skip(f"DTMB 5415 STL not found")
-        
+            pytest.skip("DTMB 5415 STL not found")
+
         hull = Hull(str(stl_path))
         vessel = Vessel(hull)
         calc = HydrostaticsCalculator(vessel, 1025.0)
-        
+
         # Calculate without VCG
         state = calc.calculate_at_draft(6.15)
-        
+
         # GMT/GML should be None
         assert state.gmt is None, "GMT should be None when VCG not provided"
         assert state.gml is None, "GML should be None when VCG not provided"
         assert state.cog is None, "COG should be None when VCG not provided"
-        
+
         # But waterplane properties should still be calculated
         assert state.waterplane_area > 0.0
         assert state.bmt > 0.0
@@ -472,19 +544,31 @@ class TestFreeSurfaceCorrection:
     def test_calc_fsc_box_tank(self):
         """
         Validate FSC calculation for a box tank.
-        
+
         Tank: 5m x 5m x 2m
         FSM_t = L * B³ / 12 = 5 * 125 / 12 = 52.083 m⁴
         Displacement (Mass) calculated from box hull.
         FSC = FSM / Displacement
         """
         from navaltoolbox import Hull, Vessel, Tank, HydrostaticsCalculator
-        
+
         # 1. Setup Vessel
-        stl_path = Path(__file__).parent.parent.parent / "rust" / "tests" / "data" / "box_10x10.stl"
+        stl_path = (
+            Path(__file__).parent.parent.parent
+            / "rust"
+            / "tests"
+            / "data"
+            / "box_10x10.stl"
+        )
         if not stl_path.exists():
-             # Fallback to DTMB if box not available, but box is better for exact calc
-             stl_path = Path(__file__).parent.parent.parent / "rust" / "tests" / "data" / "dtmb5415.stl"
+            # Fallback to DTMB if box not available
+            stl_path = (
+                Path(__file__).parent.parent.parent
+                / "rust"
+                / "tests"
+                / "data"
+                / "dtmb5415.stl"
+            )
 
         if not stl_path.exists():
             pytest.skip("No suitable STL found for FSC test")
@@ -495,15 +579,18 @@ class TestFreeSurfaceCorrection:
         # 2. Add Tank
         tank = Tank.from_box(
             name="TestTank",
-            x_min=0.0, x_max=5.0,
-            y_min=-2.5, y_max=2.5,
-            z_min=0.0, z_max=2.0,
-            fluid_density=1000.0
+            x_min=0.0,
+            x_max=5.0,
+            y_min=-2.5,
+            y_max=2.5,
+            z_min=0.0,
+            z_max=2.0,
+            fluid_density=1000.0,
         )
         tank.fill_percent = 50.0
         vessel.add_tank(tank)
 
-        expected_fsm = 5.0 * 5.0**3 / 12.0 # 52.083
+        expected_fsm = 5.0 * 5.0**3 / 12.0  # 52.083
         assert abs(tank.free_surface_moment_t - expected_fsm) < 0.1
 
         # 3. Calculate
@@ -513,17 +600,23 @@ class TestFreeSurfaceCorrection:
         # 4. Validate
         gmt_wet = state.gmt
         gmt_dry = state.gmt_dry
-        
+
         # Check dry calculation
         kmt = state.vcb + state.bmt
         expected_dry = kmt - 5.0
         assert abs(gmt_dry - expected_dry) < 1e-6, "GMT dry mismatch"
 
         # Check wet calculation
-        expected_fsc = tank.free_surface_moment_t / state.displacement
+        # FSC = (FSM * fluid_density) / displacement
+        fluid_density = 1000.0  # Tank fluid density in kg/m³
+        expected_fsc = (
+            tank.free_surface_moment_t * fluid_density / state.displacement
+        )
         actual_fsc = gmt_dry - gmt_wet
-        
-        assert abs(actual_fsc - expected_fsc) < 1e-6, f"FSC mismatch: expected {expected_fsc}, got {actual_fsc}"
+
+        assert abs(actual_fsc - expected_fsc) < 1e-6, (
+            f"FSC mismatch: expected {expected_fsc}, got {actual_fsc}"
+        )
         assert gmt_wet < gmt_dry, "Wet GMT should be less than dry GMT"
 
 

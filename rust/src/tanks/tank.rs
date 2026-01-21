@@ -196,28 +196,28 @@ impl Tank {
         // Since `transform_point` is:
         // let rotation = Rotation3::from_euler_angles(roll, pitch, 0.0);
         // let rotated = rotation * (point - pivot) + pivot;
-        
+
         // Inverse:
         // rotated - pivot = R * (point - pivot)
         // R_inv * (rotated - pivot) = point - pivot
         // point = R_inv * (rotated - pivot) + pivot
-        
+
         // Heel is rotation around X (roll), Trim is rotation around Y (pitch).
         // Note: transform_mesh applies Roll then Pitch? Need to check implementation.
         // Assuming typical extrinsic Euler or similar.
-        
+
         use nalgebra::Rotation3;
         let roll = heel.to_radians();
         let pitch = trim.to_radians();
         // The rotation matrix used in transform_mesh (Rotation3::from_euler_angles) depends on convention.
         // Rust nalgebra `from_euler_angles(roll, pitch, yaw)` is usually XYZ or ZYX?
         // Let's rely on creating the same rotation matrix and transposing it (inverse).
-        
+
         let rotation = Rotation3::from_euler_angles(roll, pitch, 0.0);
         let inverse_rotation = rotation.inverse();
-        
+
         let original_cog = inverse_rotation * (transformed_cog - pivot) + pivot.coords;
-        
+
         [original_cog.x, original_cog.y, original_cog.z]
     }
 
@@ -226,7 +226,7 @@ impl Tank {
         let aabb = mesh.local_aabb();
         let z_min = aabb.mins.z;
         let z_max = aabb.maxs.z;
-        
+
         let tolerance = target_volume.max(0.001) * 1e-4;
         let max_iter = 20;
 
@@ -293,8 +293,6 @@ impl Tank {
     pub fn free_surface_correction_l(&self) -> f64 {
         self.free_surface_moment_l() * (self.fluid_density / self.water_density)
     }
-
-
 }
 
 impl std::fmt::Debug for Tank {

@@ -17,8 +17,8 @@
 
 //! Complete stability calculation combining hydrostatics, GZ curve, and wind data.
 
-use crate::hydrostatics::HydrostaticState;
 use super::StabilityCurve;
+use crate::hydrostatics::HydrostaticState;
 
 /// Wind heeling data from silhouette calculations.
 ///
@@ -38,11 +38,7 @@ pub struct WindHeelingData {
 
 impl WindHeelingData {
     /// Create new wind heeling data.
-    pub fn new(
-        emerged_area: f64,
-        emerged_centroid: [f64; 2],
-        waterline_z: f64,
-    ) -> Self {
+    pub fn new(emerged_area: f64, emerged_centroid: [f64; 2], waterline_z: f64) -> Self {
         let wind_lever_arm = emerged_centroid[1] - waterline_z;
         Self {
             emerged_area,

@@ -38,10 +38,7 @@ pub fn load_stl(path: &Path) -> Result<TriMesh, Error> {
     file.read_to_end(&mut buffer)?;
 
     if buffer.is_empty() {
-        return Err(Error::new(
-            ErrorKind::InvalidData,
-            "STL file is empty",
-        ));
+        return Err(Error::new(ErrorKind::InvalidData, "STL file is empty"));
     }
 
     // Create a cursor over the buffer for parsing
@@ -50,7 +47,7 @@ pub fn load_stl(path: &Path) -> Result<TriMesh, Error> {
     // Try to parse the STL
     let stl = stl_io::read_stl(&mut cursor).map_err(|e| {
         let error_msg = format!("{}", e);
-        
+
         // Provide helpful error messages based on the error type
         if error_msg.contains("failed to fill whole buffer") {
             Error::new(

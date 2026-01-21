@@ -63,11 +63,11 @@ impl Hull {
     /// Creates a box hull with given dimensions.
     pub fn from_box(length: f64, breadth: f64, depth: f64) -> Self {
         let hb = breadth / 2.0;
-        let hl = length / 2.0; 
+        let _hl = length / 2.0;
         // Note: Convention usually puts origin at AP or Midships.
         // Let's assume origin at 0,0,0 (AP if x positive?), centered transversely
         // Box vertices [0..L], [-B/2..B/2], [0..D]
-        
+
         // Vertices
         let vertices = vec![
             Point3::new(0.0, -hb, 0.0),
@@ -82,12 +82,18 @@ impl Hull {
 
         // Indices (12 triangles)
         let indices = vec![
-            [0, 2, 1], [0, 3, 2], // Bottom
-            [4, 5, 6], [4, 6, 7], // Top
-            [0, 1, 5], [0, 5, 4], // Side 1
-            [2, 3, 7], [2, 7, 6], // Side 2
-            [0, 4, 7], [0, 7, 3], // Back
-            [1, 2, 6], [1, 6, 5], // Front
+            [0, 2, 1],
+            [0, 3, 2], // Bottom
+            [4, 5, 6],
+            [4, 6, 7], // Top
+            [0, 1, 5],
+            [0, 5, 4], // Side 1
+            [2, 3, 7],
+            [2, 7, 6], // Side 2
+            [0, 4, 7],
+            [0, 7, 3], // Back
+            [1, 2, 6],
+            [1, 6, 5], // Front
         ];
 
         let mesh = TriMesh::new(vertices, indices).expect("Failed to create box mesh");

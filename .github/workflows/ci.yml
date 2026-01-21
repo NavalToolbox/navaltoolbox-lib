@@ -32,6 +32,27 @@ jobs:
         run: cd rust && cargo clippy -- -D warnings
 
   # ============================================================================
+  # Python linting
+  # ============================================================================
+  lint-python:
+    name: Lint Python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install linting tools
+        run: pip install flake8
+      
+      - name: Run flake8
+        run: cd python && python -m flake8 . --count --statistics
+
+
+  # ============================================================================
   # Rust tests
   # ============================================================================
   test-rust:
@@ -124,13 +145,14 @@ jobs:
   # ============================================================================
   ci-success:
     name: CI Success
-    needs: [lint-rust, test-rust, build-wheels, test-python]
+    needs: [lint-rust, lint-python, test-rust, build-wheels, test-python]
     runs-on: ubuntu-latest
     if: always()
     steps:
       - name: Check all jobs passed
         run: |
           if [[ "${{ needs.lint-rust.result }}" != "success" ]] || \
+             [[ "${{ needs.lint-python.result }}" != "success" ]] || \
              [[ "${{ needs.test-rust.result }}" != "success" ]] || \
              [[ "${{ needs.build-wheels.result }}" != "success" ]] || \
              [[ "${{ needs.test-python.result }}" != "success" ]]; then
@@ -138,3 +160,4 @@ jobs:
             exit 1
           fi
           echo "All CI jobs passed!"
+

@@ -54,7 +54,6 @@ impl<'a> StabilityCalculator<'a> {
         cog: [f64; 3],
         heels: &[f64],
     ) -> StabilityCurve {
-        let target_volume = displacement_mass / self.water_density;
         let bounds = self.vessel.get_bounds();
         let center_x = (bounds.0 + bounds.1) / 2.0;
         let center_y = (bounds.2 + bounds.3) / 2.0;
@@ -85,7 +84,7 @@ impl<'a> StabilityCalculator<'a> {
         for &heel in heels {
             // Calculate total Center of Gravity at this orientation
             // G_total = (M_ship * G_ship + Sum(M_tank * G_tank(phi))) / M_total
-            
+
             let mut total_moment_x = ship_mass * ship_cog[0];
             let mut total_moment_y = ship_mass * ship_cog[1];
             let mut total_moment_z = ship_mass * ship_cog[2];
@@ -318,7 +317,11 @@ impl<'a> StabilityCalculator<'a> {
             let emerged_centroid = self.vessel.get_combined_emerged_centroid(waterline_z);
 
             if emerged_area > 0.0 {
-                Some(WindHeelingData::new(emerged_area, emerged_centroid, waterline_z))
+                Some(WindHeelingData::new(
+                    emerged_area,
+                    emerged_centroid,
+                    waterline_z,
+                ))
             } else {
                 None
             }
@@ -391,7 +394,7 @@ mod tests {
 
         let hull = create_box_hull(10.0, 10.0, 10.0);
         let mut vessel = Vessel::new(hull);
-        
+
         // Add tank with free surface
         // 5x5x2 tank, 50% fill, water density inside
         let tank = Tank::from_box("FSC_Test", 0.0, 5.0, -2.5, 2.5, 0.0, 2.0, 1000.0);
@@ -404,7 +407,7 @@ mod tests {
         let tank_mass = tank.fluid_mass();
         // Since calculator adds tank mass, we subtract it from input to keep total same
         let ship_mass = target_total_displacement - tank_mass;
-        
+
         // Ship COG. We want the Total Upright COG to be [0,0,5] for comparison.
         // Total_Moment = Ship_M + Tank_M = Total_Mass * Total_COG
         // Ship_M = Total_M - Tank_M
@@ -413,12 +416,12 @@ mod tests {
         // Let's assume input cog is just the ship cog and we accept the resulting total cog
         // but for the verification logic (GG' reduction), we need to know the effective VCG.
         //
-        // SIMPLIFICATION: 
+        // SIMPLIFICATION:
         // Let's just run the dry case with the same TOTAL properties (Mass, COG) as the wet case's UPRIGHT state.
-        
+
         let ship_cog = [0.0, 0.0, 5.0];
         let heel = 10.0;
-        
+
         // Calculate GZ with FSC (Wet)
         let curve_wet = calc.calculate_gz_curve(ship_mass, ship_cog, &[heel]);
         let gz_wet = curve_wet.points[0].value;
@@ -439,15 +442,18 @@ mod tests {
         // Theoretical Reduction GG'
         // FSM * rho / Total_Mass
         let output_reduction = gz_dry - gz_wet;
-        
+
         let fsm_inertia = 5.0 * 5.0f64.powi(3) / 12.0;
         let correction_gg = (fsm_inertia * 1000.0) / total_mass;
         let expected_reduction = correction_gg * heel.to_radians().sin();
-        
+
         assert!(
             (output_reduction - expected_reduction).abs() < 0.02, // slightly looser tolerance for dynamic method
             "FSC Reduction mismatch. Expected: {:.4}, Actual: {:.4}, Dry: {:.4}, Wet: {:.4}",
-            expected_reduction, output_reduction, gz_dry, gz_wet
+            expected_reduction,
+            output_reduction,
+            gz_dry,
+            gz_wet
         );
     }
 }
