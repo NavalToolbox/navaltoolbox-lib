@@ -24,16 +24,17 @@ HydrostaticsCalculator
       :type vcg: float or None
       :returns: HydrostaticState with all properties
 
-   .. py:method:: calculate_at_displacement(displacement_mass, cog=None, trim=None, heel=None)
+   .. py:method:: calculate_at_displacement(displacement_mass, vcg=None, cog=None, trim=None, heel=None)
 
       Calculates hydrostatics for a given displacement, finding the required draft.
 
       :param displacement_mass: Target displacement in kg
-      :param cog: Center of gravity (LCG, TCG, VCG) (optional)
-      :type cog: tuple[float, float, float] or None
-      :param trim: Fixed trim angle (optional)
-      :param heel: Fixed heel angle (optional)
+      :param vcg: Vertical center of gravity (m) for GM calculation (optional)
+      :param cog: Full center of gravity (LCG, TCG, VCG) tuple (optional, overrides vcg)
+      :param trim: Fixed trim angle in degrees (optional, default 0.0)
+      :param heel: Fixed heel angle in degrees (optional, default 0.0)
       :returns: HydrostaticState with all properties
+
 
 HydrostaticState
 ----------------

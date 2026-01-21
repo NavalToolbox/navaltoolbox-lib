@@ -317,16 +317,24 @@ impl<'a> HydrostaticsCalculator<'a> {
     /// - Displacement + VCG only → finds draft, level, computes GMT/GML
     /// - Displacement + VCG + trim → finds draft with fixed trim, free heel
     /// - Displacement + VCG + heel → finds draft with fixed heel, free trim
-    /// - Displacement + LCG + TCG + VCG → finds draft, level, full COG specified
+    /// - Displacement + COG (full) → finds draft, level, full COG specified
     /// - Displacement + trim + heel → finds draft with fixed attitude
+    ///
+    /// # Arguments
+    /// * `displacement_mass` - Target displacement in kg
+    /// * `vcg` - Optional VCG only (m) for GM calculation
+    /// * `cog` - Optional full COG [LCG, TCG, VCG] (overrides vcg if provided)
+    /// * `trim` - Optional trim angle in degrees (default 0.0)
+    /// * `heel` - Optional heel angle in degrees (default 0.0)
     pub fn calculate_at_displacement(
         &self,
         displacement_mass: f64,
+        vcg: Option<f64>,
         cog: Option<[f64; 3]>,
         trim: Option<f64>,
         heel: Option<f64>,
     ) -> Result<HydrostaticState, String> {
-        // Validate constraints
+        // Validate COG constraints (only if full COG is provided)
         if let Some(cog_val) = cog {
             if trim.is_some() && cog_val[0] != 0.0 {
                 return Err(
@@ -353,28 +361,30 @@ impl<'a> HydrostaticsCalculator<'a> {
         let mut low = z_min;
         let mut high = z_max;
 
+        // Default trim and heel to 0.0
         let fixed_trim = trim.unwrap_or(0.0);
         let fixed_heel = heel.unwrap_or(0.0);
 
-        // Extract VCG if provided via cog
-        let vcg = cog.map(|c| c[2]);
+        // Determine VCG: COG takes precedence over vcg parameter
+        let effective_vcg = if let Some(full_cog) = cog {
+            Some(full_cog[2])
+        } else {
+            vcg
+        };
 
         // Bisection search for draft
         for _ in 0..max_iter {
             let mid = (low + high) / 2.0;
 
-            if let Some(state) = self.calculate_at_draft(mid, fixed_trim, fixed_heel, vcg) {
+            if let Some(state) = self.calculate_at_draft(mid, fixed_trim, fixed_heel, effective_vcg)
+            {
                 let diff = state.volume - target_volume;
 
                 if diff.abs() < tolerance {
-                    // Found the draft! Now update COG if full COG was specified
-                    let final_cog = if let Some(full_cog) = cog {
-                        // User specified full COG, keep it
-                        Some(full_cog)
-                    } else {
-                        // No COG specified or only VCG specified
-                        state.cog
-                    };
+                    // Found the draft! Set COG in result:
+                    // - If full COG was provided, use it
+                    // - Otherwise, don't store a fake COG (only VCG was for GM calc)
+                    let final_cog = cog;
 
                     return Ok(HydrostaticState {
                         cog: final_cog,
@@ -393,19 +403,12 @@ impl<'a> HydrostaticsCalculator<'a> {
         }
 
         // Convergence not achieved within max iterations
-        // Return best estimate with a warning
+        // Return best estimate
         let final_draft = (low + high) / 2.0;
-        self.calculate_at_draft(final_draft, fixed_trim, fixed_heel, vcg)
-            .map(|state| {
-                let final_cog = if let Some(full_cog) = cog {
-                    Some(full_cog)
-                } else {
-                    state.cog
-                };
-                HydrostaticState {
-                    cog: final_cog,
-                    ..state
-                }
+        self.calculate_at_draft(final_draft, fixed_trim, fixed_heel, effective_vcg)
+            .map(|state| HydrostaticState {
+                cog, // Only set full COG if it was provided
+                ..state
             })
             .ok_or_else(|| {
                 format!(
@@ -689,7 +692,7 @@ mod tests {
 
         // Calculate at displacement with no other constraints (level keel)
         let state = calc
-            .calculate_at_displacement(target_disp, None, None, None)
+            .calculate_at_displacement(target_disp, None, None, None, None)
             .expect("Calculation failed");
 
         assert!(
@@ -746,14 +749,14 @@ mod tests {
         // With VCG provided, should compute GMT/GML
         // Note: LCB/TCB assumed 0.0 for box hull, so just set VCG=7.0
         let state = calc
-            .calculate_at_displacement(target_disp, Some([0.0, 0.0, 7.0]), None, None)
+            .calculate_at_displacement(target_disp, Some(7.0), None, None, None)
             .expect("Calculation failed");
 
         assert!((state.draft - 5.0).abs() < 0.01);
 
-        // Check VCG is set
-        let cog = state.cog.expect("COG should be set");
-        assert_eq!(cog[2], 7.0);
+        // Check that GMT is computed (VCG was provided)
+        // For vcg-only mode, cog should be None in result
+        assert!(state.cog.is_none(), "COG should be None for vcg-only mode");
 
         // Check Stability calculation
         // BM_t = 10²/60 = 1.667
@@ -771,11 +774,11 @@ mod tests {
         let calc = HydrostaticsCalculator::new(&vessel, 1025.0);
 
         // Invalid: Trim provided but also LCG constrained (non-zero)
-        let res = calc.calculate_at_displacement(100000.0, Some([5.0, 0.0, 0.0]), Some(0.0), None);
+        let res = calc.calculate_at_displacement(100000.0, None, Some([5.0, 0.0, 0.0]), Some(0.0), None);
         assert!(res.is_err(), "Should fail for both LCG and Trim specified");
 
         // Invalid: Heel provided but also TCG constrained
-        let res = calc.calculate_at_displacement(100000.0, Some([0.0, 5.0, 0.0]), None, Some(0.0));
+        let res = calc.calculate_at_displacement(100000.0, None, Some([0.0, 5.0, 0.0]), None, Some(0.0));
         assert!(res.is_err(), "Should fail for both TCG and Heel specified");
     }
 }

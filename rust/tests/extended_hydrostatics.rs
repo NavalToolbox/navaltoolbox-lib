@@ -103,10 +103,7 @@ fn test_box_displacement_calculation() {
     // Vol = 500
     let target_disp = 500.0 * 1025.0;
 
-    // Calculate at displacement
-    let state = calc
-        .calculate_at_displacement(target_disp, None, None, None)
-        .expect("Failed to calculate at displacement");
+    // Calculate at displacement\n    let state = calc\n        .calculate_at_displacement(target_disp, None, None, None, None)\n        .expect(\"Failed to calculate at displacement\");
 
     // Check draft
     assert!(

@@ -733,9 +733,11 @@ impl PyHydrostaticsCalculator {
     ///
     /// Args:
     ///     displacement_mass: Target displacement in kg
-    ///     cog: Optional (lcg, tcg, vcg) tuple in meters for GM calculations
-    ///     trim: Optional trim angle in degrees (conflicts with LCG if both specified)
-    ///     heel: Optional heel angle in degrees (conflicts with TCG if both specified)
+    ///     vcg: Optional vertical center of gravity (m) for GM calculations
+    ///     cog: Optional (lcg, tcg, vcg) tuple in meters for full COG specification
+    ///          (overrides vcg if both are provided)
+    ///     trim: Optional trim angle in degrees (default 0.0)
+    ///     heel: Optional heel angle in degrees (default 0.0)
     ///
     /// Returns:
     ///     Complete HydrostaticState
@@ -747,23 +749,29 @@ impl PyHydrostaticsCalculator {
     ///     >>> # Basic: find draft for displacement
     ///     >>> state = calc.calculate_at_displacement(8635000.0)
     ///     
-    ///     >>> # With VCG: compute GMT/GML
+    ///     >>> # With VCG only: compute GMT/GML
+    ///     >>> state = calc.calculate_at_displacement(8635000.0, vcg=7.555)
+    ///     
+    ///     >>> # With full COG: for trim optimization
     ///     >>> state = calc.calculate_at_displacement(8635000.0, cog=(71.67, 0.0, 7.555))
     ///     
     ///     >>> # With trim constraint
-    ///     >>> state = calc.calculate_at_displacement(8635000.0, cog=(0, 0, 7.5), trim=2.0)
-    #[pyo3(signature = (displacement_mass, cog=None, trim=None, heel=None))]
+    ///     >>> state = calc.calculate_at_displacement(8635000.0, vcg=7.5, trim=2.0)
+    #[pyo3(signature = (displacement_mass, vcg=None, cog=None, trim=None, heel=None))]
     fn calculate_at_displacement(
         &self,
         displacement_mass: f64,
+        vcg: Option<f64>,
         cog: Option<(f64, f64, f64)>,
         trim: Option<f64>,
         heel: Option<f64>,
     ) -> PyResult<PyHydrostaticState> {
         let calc = RustHydroCalc::new(&self.vessel, self.water_density);
-        let cog_array = cog.map(|(x, y, z)| [x, y, z]);
+        
+        // Convert cog tuple to array if provided
+        let cog_array = cog.map(|(lcg, tcg, vcg_val)| [lcg, tcg, vcg_val]);
 
-        calc.calculate_at_displacement(displacement_mass, cog_array, trim, heel)
+        calc.calculate_at_displacement(displacement_mass, vcg, cog_array, trim, heel)
             .map(|s| s.into())
             .map_err(|e| PyValueError::new_err(e))
     }
