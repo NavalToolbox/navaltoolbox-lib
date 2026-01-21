@@ -400,10 +400,55 @@ class TestWallSidedFormula:
 
         Formula: GZ = (GM + 0.5 * BM * tan²(φ)) * sin(φ)
         """
-        # This test requires creating a box mesh programmatically
-        # Since we can't do that easily in Python, we skip this test
-        # The equivalent test is run in Rust
-        pytest.skip("Box mesh creation not available in Python bindings")
+        import math
+        from navaltoolbox import Hull, Vessel, StabilityCalculator
+
+        # Create box hull using from_box
+        hull = Hull.from_box(10.0, 10.0, 10.0)
+        vessel = Vessel(hull)
+        stab_calc = StabilityCalculator(vessel, water_density=1025.0)
+
+        # Parameters
+        L, B = 10.0, 10.0  # D not used after box creation
+        T = 5.0  # Draft
+        KG = 2.0  # VCG
+
+        # Calculated values
+        KB = T / 2.0  # 2.5
+        BM = (B ** 2) / (12.0 * T)  # 1.6667
+        GM = KB + BM - KG  # 2.1667
+
+        # Displacement for T=5m
+        volume = L * B * T
+        displacement = volume * 1025.0
+
+        # COG: centered at (L/2, 0, KG)
+        cog = (L / 2.0, 0.0, KG)
+
+        # Calculate GZ curve
+        heels = [0.0, 10.0, 20.0, 30.0]
+        curve = stab_calc.calculate_gz_curve(displacement, cog, heels)
+
+        # Validate against wall-sided formula
+        # points() returns [(heel, draft, trim, gz), ...]
+        for (heel, draft, trim, gz) in curve.points():
+            heel_rad = math.radians(heel)
+            tan_phi = math.tan(heel_rad)
+            sin_phi = math.sin(heel_rad)
+
+            # Wall-sided formula: GZ = (GM + 0.5 * BM * tan²φ) * sin(φ)
+            gz_theoretical = (GM + 0.5 * BM * tan_phi ** 2) * sin_phi
+
+            # Allow some tolerance (numerical integration vs analytical)
+            tolerance = 0.05  # 5cm
+            error = abs(gz - gz_theoretical)
+
+            assert error < tolerance, (
+                f"At heel={heel}°: "
+                f"calculated GZ={gz:.4f}m, "
+                f"theoretical={gz_theoretical:.4f}m, "
+                f"error={error:.4f}m"
+            )
 
 
 class TestWaterplaneCalculations:

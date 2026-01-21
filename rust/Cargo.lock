@@ -564,6 +564,7 @@ dependencies = [
  "ordered-float",
  "parry3d-f64",
  "pyo3",
+ "rayon",
  "stl_io",
  "thiserror 2.0.18",
  "vtkio",

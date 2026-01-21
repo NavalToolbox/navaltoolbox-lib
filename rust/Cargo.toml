@@ -37,6 +37,8 @@ dxf = "0.5"
 vtkio = "0.6"
 # Logging
 log = "0.4"
+# Parallel processing
+rayon = "1.10"
 
 # Python bindings (optional)
 [dependencies.pyo3]

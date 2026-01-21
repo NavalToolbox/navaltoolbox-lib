@@ -48,12 +48,17 @@ impl<'a> StabilityCalculator<'a> {
     /// * `displacement_mass` - Target displacement in kg
     /// * `cog` - Center of gravity (LCG, TCG, VCG)
     /// * `heels` - List of heel angles in degrees
+    ///
+    /// This function uses parallel processing (Rayon) for improved performance.
     pub fn calculate_gz_curve(
         &self,
         displacement_mass: f64,
         cog: [f64; 3],
         heels: &[f64],
     ) -> StabilityCurve {
+        use rayon::prelude::*;
+
+        // Pre-calculate constant geometric properties (computed once)
         let bounds = self.vessel.get_bounds();
         let center_x = (bounds.0 + bounds.1) / 2.0;
         let center_y = (bounds.2 + bounds.3) / 2.0;
@@ -66,109 +71,125 @@ impl<'a> StabilityCalculator<'a> {
         let ship_mass = displacement_mass;
         let ship_cog = cog; // Fixed ship center of gravity
 
-        let mut total_fluid_mass = 0.0;
-        for tank in self.vessel.tanks() {
-            total_fluid_mass += tank.fluid_mass();
-        }
+        let total_fluid_mass: f64 = self.vessel.tanks().iter().map(|t| t.fluid_mass()).sum();
 
         let total_mass = ship_mass + total_fluid_mass;
         let target_volume = total_mass / self.water_density;
 
-        // Find upright equilibrium draft
-        let upright_draft = self.find_draft_for_volume(target_volume, 0.0, 0.0, z_min, z_max);
-        let _ = upright_draft; // Used for reference
+        // Warm start: compute upright equilibrium draft once
+        let upright_draft = self.find_draft_for_volume(
+            target_volume,
+            0.0,
+            0.0,
+            center_x,
+            center_y,
+            z_min,
+            z_max,
+            None,
+        );
 
-        let mut points = Vec::with_capacity(heels.len());
-        let mut prev_trim = 0.0;
+        // Parallel computation of each heel angle with warm start
+        let points: Vec<StabilityPoint> = heels
+            .par_iter()
+            .map(|&heel| {
+                // Calculate total Center of Gravity at this orientation
+                // G_total = (M_ship * G_ship + Sum(M_tank * G_tank(phi))) / M_total
 
-        for &heel in heels {
-            // Calculate total Center of Gravity at this orientation
-            // G_total = (M_ship * G_ship + Sum(M_tank * G_tank(phi))) / M_total
+                let mut total_moment_x = ship_mass * ship_cog[0];
+                let mut total_moment_y = ship_mass * ship_cog[1];
+                let mut total_moment_z = ship_mass * ship_cog[2];
 
-            let mut total_moment_x = ship_mass * ship_cog[0];
-            let mut total_moment_y = ship_mass * ship_cog[1];
-            let mut total_moment_z = ship_mass * ship_cog[2];
-
-            if total_fluid_mass > 0.0 {
-                for tank in self.vessel.tanks() {
-                    let mass = tank.fluid_mass();
-                    if mass > 0.0 {
-                        let tank_cog = tank.center_of_gravity_at(heel, prev_trim);
-                        total_moment_x += mass * tank_cog[0];
-                        total_moment_y += mass * tank_cog[1];
-                        total_moment_z += mass * tank_cog[2];
+                if total_fluid_mass > 0.0 {
+                    for tank in self.vessel.tanks() {
+                        let mass = tank.fluid_mass();
+                        if mass > 0.0 {
+                            // Use 0.0 as initial trim for parallel (no inter-angle dependency)
+                            let tank_cog = tank.center_of_gravity_at(heel, 0.0);
+                            total_moment_x += mass * tank_cog[0];
+                            total_moment_y += mass * tank_cog[1];
+                            total_moment_z += mass * tank_cog[2];
+                        }
                     }
                 }
-            }
 
-            let effective_cog = if total_mass > 1e-6 {
-                [
-                    total_moment_x / total_mass,
-                    total_moment_y / total_mass,
-                    total_moment_z / total_mass,
-                ]
-            } else {
-                ship_cog
-            };
+                let effective_cog = if total_mass > 1e-6 {
+                    [
+                        total_moment_x / total_mass,
+                        total_moment_y / total_mass,
+                        total_moment_z / total_mass,
+                    ]
+                } else {
+                    ship_cog
+                };
 
-            // Find equilibrium at this heel using the current total COG
-            let (draft, trim, gz) = self.find_equilibrium_at_heel(
-                target_volume,
-                effective_cog,
-                heel,
-                prev_trim,
-                center_x,
-                center_y,
-                z_min,
-                z_max,
-            );
+                // Find equilibrium at this heel with warm start from upright draft
+                let (draft, trim, gz) = self.find_equilibrium_at_heel(
+                    target_volume,
+                    effective_cog,
+                    heel,
+                    0.0,                    // Initial trim
+                    Some(upright_draft),    // Warm start from upright draft
+                    center_x,
+                    center_y,
+                    z_min,
+                    z_max,
+                );
 
-            prev_trim = trim;
+                // Check downflooding
+                let pivot = [center_x, center_y, draft];
+                let flooded_openings = crate::downflooding::check_openings_submerged(
+                    self.vessel.downflooding_openings(),
+                    heel,
+                    trim,
+                    pivot,
+                    draft,
+                );
+                let is_flooding = !flooded_openings.is_empty();
 
-            // Check downflooding using the effective properties (draft/trim)
-            // Note: check_openings_submerged depends on hull position relative to water.
-            // It doesn't use COG, so it's fine.
-            let pivot = [center_x, center_y, draft];
-            let flooded_openings = crate::downflooding::check_openings_submerged(
-                self.vessel.downflooding_openings(),
-                heel,
-                trim,
-                pivot,
-                draft,
-            );
-            let is_flooding = !flooded_openings.is_empty();
-
-            points.push(StabilityPoint {
-                heel,
-                draft,
-                trim,
-                value: gz,
-                is_flooding,
-                flooded_openings,
-            });
-        }
+                StabilityPoint {
+                    heel,
+                    draft,
+                    trim,
+                    value: gz,
+                    is_flooding,
+                    flooded_openings,
+                }
+            })
+            .collect();
 
         StabilityCurve::new_gz(displacement_mass, cog, points)
     }
 
     /// Find draft for target volume at given heel and trim.
+    ///
+    /// Uses warm start: if initial_draft is provided, uses it as starting point
+    /// for faster convergence.
+    #[allow(clippy::too_many_arguments)]
     fn find_draft_for_volume(
         &self,
         target_volume: f64,
         heel: f64,
         trim: f64,
+        center_x: f64,
+        center_y: f64,
         z_min: f64,
         z_max: f64,
+        initial_draft: Option<f64>,
     ) -> f64 {
-        let bounds = self.vessel.get_bounds();
-        let center_x = (bounds.0 + bounds.1) / 2.0;
-        let center_y = (bounds.2 + bounds.3) / 2.0;
-
         let tolerance = target_volume * 1e-4;
         let max_iter = 50;
 
-        let mut low = z_min;
-        let mut high = z_max;
+        // Warm start: use initial_draft if provided, otherwise use midpoint
+        let (mut low, mut high) = if let Some(init) = initial_draft {
+            // Start search around initial draft with a reasonable margin
+            let margin = (z_max - z_min) * 0.2;
+            (
+                (init - margin).max(z_min),
+                (init + margin).min(z_max),
+            )
+        } else {
+            (z_min, z_max)
+        };
 
         for _ in 0..max_iter {
             let mid = (low + high) / 2.0;
@@ -199,6 +220,9 @@ impl<'a> StabilityCalculator<'a> {
     }
 
     /// Find equilibrium state at a specific heel angle.
+    ///
+    /// Optimized: Combines draft search and property calculation in a single pass
+    /// to avoid redundant mesh operations.
     #[allow(clippy::too_many_arguments)]
     fn find_equilibrium_at_heel(
         &self,
@@ -206,49 +230,90 @@ impl<'a> StabilityCalculator<'a> {
         cog: [f64; 3],
         heel: f64,
         initial_trim: f64,
+        initial_draft: Option<f64>,
         center_x: f64,
         center_y: f64,
         z_min: f64,
         z_max: f64,
     ) -> (f64, f64, f64) {
-        let _lcg = cog[0];
-        let _vcg = cog[2];
         let lcb_tolerance = 0.5;
-        let max_iter = 15;
+        let volume_tolerance = target_volume * 1e-4;
+        let max_trim_iter = 15;
+        let max_draft_iter = 50;
 
         let mut trim = initial_trim;
-        let mut best_draft = (z_min + z_max) / 2.0;
+        let mut best_draft = initial_draft.unwrap_or((z_min + z_max) / 2.0);
         let mut best_trim = trim;
         let mut best_gz = 0.0;
         let mut best_error = f64::INFINITY;
 
-        for _ in 0..max_iter {
-            let draft = self.find_draft_for_volume(target_volume, heel, trim, z_min, z_max);
-            let pivot = Point3::new(center_x, center_y, draft);
+        // Warm start bounds for draft search
+        let mut draft_low = z_min;
+        let mut draft_high = z_max;
+        if let Some(init) = initial_draft {
+            let margin = (z_max - z_min) * 0.2;
+            draft_low = (init - margin).max(z_min);
+            draft_high = (init + margin).min(z_max);
+        }
 
-            let mut total_volume = 0.0;
-            let mut total_moment = [0.0, 0.0, 0.0];
+        for _ in 0..max_trim_iter {
+            // Find draft for target volume using bisection
+            // Optimized: Return volume and COB from the converged draft in one pass
+            let mut low = draft_low;
+            let mut high = draft_high;
+            let mut final_draft = (low + high) / 2.0;
+            let mut final_volume = 0.0;
+            let mut final_moment = [0.0f64; 3];
 
-            for hull in self.vessel.hulls() {
-                let transformed = transform_mesh(hull.mesh(), heel, trim, pivot);
-                if let Some(clipped) = clip_at_waterline(&transformed, draft) {
-                    let mass_props = clipped.mass_properties(1.0);
-                    let vol = mass_props.mass();
-                    let cob = mass_props.local_com;
+            for _ in 0..max_draft_iter {
+                let mid = (low + high) / 2.0;
+                let pivot = Point3::new(center_x, center_y, mid);
 
-                    total_volume += vol;
-                    total_moment[0] += vol * cob.x;
-                    total_moment[1] += vol * cob.y;
-                    total_moment[2] += vol * cob.z;
+                // Single-pass: compute volume AND center of buoyancy together
+                let mut total_volume = 0.0;
+                let mut total_moment = [0.0f64; 3];
+
+                for hull in self.vessel.hulls() {
+                    let transformed = transform_mesh(hull.mesh(), heel, trim, pivot);
+                    if let Some(clipped) = clip_at_waterline(&transformed, mid) {
+                        let mass_props = clipped.mass_properties(1.0);
+                        let vol = mass_props.mass();
+                        let com = mass_props.local_com;
+
+                        total_volume += vol;
+                        total_moment[0] += vol * com.x;
+                        total_moment[1] += vol * com.y;
+                        total_moment[2] += vol * com.z;
+                    }
+                }
+
+                let diff = total_volume - target_volume;
+
+                // Store the latest values
+                final_draft = mid;
+                final_volume = total_volume;
+                final_moment = total_moment;
+
+                if diff.abs() < volume_tolerance {
+                    break;
+                }
+
+                if diff > 0.0 {
+                    high = mid;
+                } else {
+                    low = mid;
                 }
             }
 
-            if total_volume <= 0.0 {
+            // Use cached COB values from the converged draft (no recomputation!)
+            if final_volume <= 0.0 {
                 continue;
             }
 
-            let lcb = total_moment[0] / total_volume;
-            let tcb = total_moment[1] / total_volume;
+            let lcb = final_moment[0] / final_volume;
+            let tcb = final_moment[1] / final_volume;
+
+            let pivot = Point3::new(center_x, center_y, final_draft);
 
             // Transform CoG
             let g_ship = Point3::new(cog[0], cog[1], cog[2]);
@@ -262,13 +327,18 @@ impl<'a> StabilityCalculator<'a> {
 
             if lcb_error < best_error {
                 best_error = lcb_error;
-                best_draft = draft;
+                best_draft = final_draft;
                 best_trim = trim;
                 best_gz = gz;
+
+                // Update warm start bounds for next trim iteration
+                let margin = (z_max - z_min) * 0.1;
+                draft_low = (final_draft - margin).max(z_min);
+                draft_high = (final_draft + margin).min(z_max);
             }
 
             if lcb_error < lcb_tolerance {
-                return (draft, trim, gz);
+                return (final_draft, trim, gz);
             }
 
             // Adjust trim
