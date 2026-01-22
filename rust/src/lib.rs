@@ -33,7 +33,7 @@
 //! let hull = Hull::from_stl("ship.stl")?;
 //! let vessel = Vessel::new(hull);
 //! let calc = HydrostaticsCalculator::new(&vessel, 1025.0);
-//! let state = calc.calculate_at_draft(5.0, 0.0, 0.0)?;
+//! let state = calc.from_draft(5.0, 0.0, 0.0)?;
 //! println!("Volume: {} m³", state.volume);
 //! ```
 //!

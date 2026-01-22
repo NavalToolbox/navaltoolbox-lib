@@ -35,7 +35,7 @@ Calculate hydrostatics at a specific draft:
     calc = HydrostaticsCalculator(vessel, water_density=1025.0)
 
     # Calculate at draft 6.0m, even keel
-    state = calc.calculate_at_draft(
+    state = calc.from_draft(
         draft=6.0,
         trim=0.0,
         heel=0.0,
@@ -80,17 +80,17 @@ Find the draft for a known displacement:
     target_displacement = 8635000  # kg
 
     # Find draft for displacement (level keel)
-    state = calc.calculate_at_displacement(target_displacement)
+    state = calc.from_displacement(target_displacement)
     print(f"Equilibrium draft: {state.draft:.3f}m")
     print(f"Actual displacement: {state.displacement:.0f} kg")
 
     # With VCG for GM calculation
-    state = calc.calculate_at_displacement(target_displacement, vcg=7.555)
+    state = calc.from_displacement(target_displacement, vcg=7.555)
     print(f"Draft: {state.draft:.3f}m")
     print(f"GMT: {state.gmt:.3f}m")
 
     # Or with full COG (LCG, TCG, VCG) for advanced use
-    state = calc.calculate_at_displacement(
+    state = calc.from_displacement(
         target_displacement, 
         cog=(71.67, 0.0, 7.555)
     )
@@ -104,7 +104,7 @@ Hydrostatics change with heel angle:
 
     # Compare upright vs heeled
     for heel in [0, 10, 20, 30]:
-        state = calc.calculate_at_draft(6.15, 0.0, heel, 7.555)
+        state = calc.from_draft(6.15, 0.0, heel, 7.555)
         print(f"Heel {heel:2d}°: Vol={state.volume:.1f}m³, VCB={state.vcb:.2f}m")
 
 Fresh vs Salt Water
@@ -122,8 +122,8 @@ Density affects displacement:
 
     draft = 6.0
 
-    state_fresh = calc_fresh.calculate_at_draft(draft, 0.0, 0.0, 7.5)
-    state_salt = calc_salt.calculate_at_draft(draft, 0.0, 0.0, 7.5)
+    state_fresh = calc_fresh.from_draft(draft, 0.0, 0.0, 7.5)
+    state_salt = calc_salt.from_draft(draft, 0.0, 0.0, 7.5)
 
     print(f"Fresh water: {state_fresh.displacement:.0f} kg")
     print(f"Salt water:  {state_salt.displacement:.0f} kg")

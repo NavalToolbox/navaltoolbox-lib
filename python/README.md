@@ -63,7 +63,7 @@ vessel = Vessel(hull)
 calc = HydrostaticsCalculator(vessel, water_density=1025.0)
 
 # Option 1: At draft with VCG (computes stability)
-state = calc.calculate_at_draft(draft=5.0, vcg=7.0)
+state = calc.from_draft(draft=5.0, vcg=7.0)
 
 print(f"Volume: {state.volume:.1f} m³")
 print(f"Displacement: {state.displacement:.0f} kg")
@@ -74,7 +74,7 @@ print(f"GMT (wet): {state.gmt:.3f} m")
 print(f"GMT (dry): {state.gmt_dry:.3f} m")
 
 # Option 2: Find draft for displacement
-state_disp = calc.calculate_at_displacement(512500.0)
+state_disp = calc.from_displacement(512500.0)
 print(f"Draft for {state_disp.displacement:.0f}kg: {state_disp.draft:.3f} m")
 ```
 
@@ -156,7 +156,7 @@ catamaran.add_hull(starboard_hull, offset=(0.0, 8.0, 0.0))  # 8m beam between hu
 
 # Calculate hydrostatics
 calc = HydrostaticsCalculator(catamaran, water_density=1025.0)
-state = calc.calculate_at_draft(1.5)
+state = calc.from_draft(1.5)
 
 print(f"Catamaran displacement: {state.displacement:.0f} kg")
 print(f"Waterplane area: {state.waterplane_area:.1f} m²")

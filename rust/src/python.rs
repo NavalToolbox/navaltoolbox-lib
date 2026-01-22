@@ -159,10 +159,22 @@ impl PyVessel {
         self.inner.ap()
     }
 
+    /// Sets the Aft Perpendicular position.
+    #[setter]
+    fn set_ap(&mut self, ap: f64) {
+        self.inner.set_ap(ap);
+    }
+
     /// Returns the Forward Perpendicular position.
     #[getter]
     fn fp(&self) -> f64 {
         self.inner.fp()
+    }
+
+    /// Sets the Forward Perpendicular position.
+    #[setter]
+    fn set_fp(&mut self, fp: f64) {
+        self.inner.set_fp(fp);
     }
 
     /// Returns the Length Between Perpendiculars.
@@ -715,8 +727,8 @@ impl PyHydrostaticsCalculator {
     ///
     /// Returns:
     ///     HydrostaticState with all properties
-    #[pyo3(signature = (draft, trim=0.0, heel=0.0, vcg=None))]
-    fn calculate_at_draft(
+    #[pyo3(signature = (draft, trim=0.0, heel=0.0, vcg=None), name = "from_draft")]
+    fn from_draft(
         &self,
         draft: f64,
         trim: f64,
@@ -724,7 +736,7 @@ impl PyHydrostaticsCalculator {
         vcg: Option<f64>,
     ) -> PyResult<PyHydrostaticState> {
         let calc = RustHydroCalc::new(&self.vessel, self.water_density);
-        calc.calculate_at_draft(draft, trim, heel, vcg)
+        calc.from_draft(draft, trim, heel, vcg)
             .map(|s| s.into())
             .ok_or_else(|| PyValueError::new_err("No submerged volume at this draft"))
     }
@@ -747,18 +759,18 @@ impl PyHydrostaticsCalculator {
     ///
     /// Examples:
     ///     >>> # Basic: find draft for displacement
-    ///     >>> state = calc.calculate_at_displacement(8635000.0)
+    ///     >>> state = calc.from_displacement(8635000.0)
     ///     
     ///     >>> # With VCG only: compute GMT/GML
-    ///     >>> state = calc.calculate_at_displacement(8635000.0, vcg=7.555)
+    ///     >>> state = calc.from_displacement(8635000.0, vcg=7.555)
     ///     
     ///     >>> # With full COG: for trim optimization
-    ///     >>> state = calc.calculate_at_displacement(8635000.0, cog=(71.67, 0.0, 7.555))
+    ///     >>> state = calc.from_displacement(8635000.0, cog=(71.67, 0.0, 7.555))
     ///     
     ///     >>> # With trim constraint
-    ///     >>> state = calc.calculate_at_displacement(8635000.0, vcg=7.5, trim=2.0)
-    #[pyo3(signature = (displacement_mass, vcg=None, cog=None, trim=None, heel=None))]
-    fn calculate_at_displacement(
+    ///     >>> state = calc.from_displacement(8635000.0, vcg=7.5, trim=2.0)
+    #[pyo3(signature = (displacement_mass, vcg=None, cog=None, trim=None, heel=None), name = "from_displacement")]
+    fn from_displacement(
         &self,
         displacement_mass: f64,
         vcg: Option<f64>,
@@ -771,7 +783,7 @@ impl PyHydrostaticsCalculator {
         // Convert cog tuple to array if provided
         let cog_array = cog.map(|(lcg, tcg, vcg_val)| [lcg, tcg, vcg_val]);
 
-        calc.calculate_at_displacement(displacement_mass, vcg, cog_array, trim, heel)
+        calc.from_displacement(displacement_mass, vcg, cog_array, trim, heel)
             .map(|s| s.into())
             .map_err(|e| PyValueError::new_err(e))
     }

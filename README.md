@@ -57,13 +57,13 @@ vessel = Vessel(hull)
 calc = HydrostaticsCalculator(vessel, water_density=1025.0)
 
 # Option 1: At draft with VCG
-state = calc.calculate_at_draft(5.0, vcg=6.0)
+state = calc.from_draft(5.0, vcg=6.0)
 print(f"Volume: {state.volume:.1f} m³")
 print(f"Waterplane Area: {state.waterplane_area:.1f} m²")
 print(f"GMT (wet): {state.gmt:.3f} m")
 
 # Option 2: Find draft for displacement
-state_disp = calc.calculate_at_displacement(512500.0)
+state_disp = calc.from_displacement(512500.0)
 print(f"Draft: {state_disp.draft:.3f} m")
 
 # Calculate GZ curve
@@ -101,7 +101,7 @@ let vessel = Vessel::new(hull);
 
 // Calculate hydrostatics
 let calc = HydrostaticsCalculator::new(&vessel, 1025.0);
-let state = calc.calculate_at_draft(5.0, 0.0, 0.0, 0.0)?;
+let state = calc.from_draft(5.0, 0.0, 0.0, None)?;
 println!("Volume: {} m³", state.volume);
 
 // Calculate GZ curve

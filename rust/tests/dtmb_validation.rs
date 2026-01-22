@@ -17,7 +17,7 @@ fn test_dtmb5415_simman_validation() {
     let vcg = 7.555;
 
     let state = calc
-        .calculate_at_draft(draft, 0.0, 0.0, Some(vcg))
+        .from_draft(draft, 0.0, 0.0, Some(vcg))
         .expect("Failed to calculate hydrostatics");
 
     println!("Hydrostatic State at T={}: {:#?}", draft, state);

@@ -51,7 +51,7 @@ impl<'a> HydrostaticsCalculator<'a> {
     /// * `trim` - Trim angle in degrees (positive = bow down)
     /// * `heel` - Heel angle in degrees (positive = starboard down)
     /// * `vcg` - Optional vertical center of gravity for GM calculation
-    pub fn calculate_at_draft(
+    pub fn from_draft(
         &self,
         draft: f64,
         trim: f64,
@@ -326,7 +326,7 @@ impl<'a> HydrostaticsCalculator<'a> {
     /// * `cog` - Optional full COG [LCG, TCG, VCG] (overrides vcg if provided)
     /// * `trim` - Optional trim angle in degrees (default 0.0)
     /// * `heel` - Optional heel angle in degrees (default 0.0)
-    pub fn calculate_at_displacement(
+    pub fn from_displacement(
         &self,
         displacement_mass: f64,
         vcg: Option<f64>,
@@ -376,7 +376,7 @@ impl<'a> HydrostaticsCalculator<'a> {
         for _ in 0..max_iter {
             let mid = (low + high) / 2.0;
 
-            if let Some(state) = self.calculate_at_draft(mid, fixed_trim, fixed_heel, effective_vcg)
+            if let Some(state) = self.from_draft(mid, fixed_trim, fixed_heel, effective_vcg)
             {
                 let diff = state.volume - target_volume;
 
@@ -405,7 +405,7 @@ impl<'a> HydrostaticsCalculator<'a> {
         // Convergence not achieved within max iterations
         // Return best estimate
         let final_draft = (low + high) / 2.0;
-        self.calculate_at_draft(final_draft, fixed_trim, fixed_heel, effective_vcg)
+        self.from_draft(final_draft, fixed_trim, fixed_heel, effective_vcg)
             .map(|state| HydrostaticState {
                 cog, // Only set full COG if it was provided
                 ..state
@@ -673,7 +673,7 @@ mod tests {
         let calc = HydrostaticsCalculator::new(&vessel, 1025.0);
 
         // At draft 5m, volume should be 10 * 10 * 5 = 500 m³
-        let state = calc.calculate_at_draft(5.0, 0.0, 0.0, None).unwrap();
+        let state = calc.from_draft(5.0, 0.0, 0.0, None).unwrap();
         assert!(
             (state.volume - 500.0).abs() < 1.0,
             "Volume was {}",
@@ -682,7 +682,7 @@ mod tests {
     }
 
     #[test]
-    fn test_calculate_at_displacement_level() {
+    fn test_from_displacement_level() {
         let hull = create_box_hull(10.0, 10.0, 10.0);
         let vessel = Vessel::new(hull);
         let calc = HydrostaticsCalculator::new(&vessel, 1025.0);
@@ -692,7 +692,7 @@ mod tests {
 
         // Calculate at displacement with no other constraints (level keel)
         let state = calc
-            .calculate_at_displacement(target_disp, None, None, None, None)
+            .from_displacement(target_disp, None, None, None, None)
             .expect("Calculation failed");
 
         assert!(
@@ -740,7 +740,7 @@ mod tests {
     }
 
     #[test]
-    fn test_calculate_at_displacement_with_vcg() {
+    fn test_from_displacement_with_vcg() {
         let hull = create_box_hull(10.0, 10.0, 10.0);
         let vessel = Vessel::new(hull);
         let calc = HydrostaticsCalculator::new(&vessel, 1025.0);
@@ -749,7 +749,7 @@ mod tests {
         // With VCG provided, should compute GMT/GML
         // Note: LCB/TCB assumed 0.0 for box hull, so just set VCG=7.0
         let state = calc
-            .calculate_at_displacement(target_disp, Some(7.0), None, None, None)
+            .from_displacement(target_disp, Some(7.0), None, None, None)
             .expect("Calculation failed");
 
         assert!((state.draft - 5.0).abs() < 0.01);
@@ -775,12 +775,12 @@ mod tests {
 
         // Invalid: Trim provided but also LCG constrained (non-zero)
         let res =
-            calc.calculate_at_displacement(100000.0, None, Some([5.0, 0.0, 0.0]), Some(0.0), None);
+            calc.from_displacement(100000.0, None, Some([5.0, 0.0, 0.0]), Some(0.0), None);
         assert!(res.is_err(), "Should fail for both LCG and Trim specified");
 
         // Invalid: Heel provided but also TCG constrained
         let res =
-            calc.calculate_at_displacement(100000.0, None, Some([0.0, 5.0, 0.0]), None, Some(0.0));
+            calc.from_displacement(100000.0, None, Some([0.0, 5.0, 0.0]), None, Some(0.0));
         assert!(res.is_err(), "Should fail for both TCG and Heel specified");
     }
 }

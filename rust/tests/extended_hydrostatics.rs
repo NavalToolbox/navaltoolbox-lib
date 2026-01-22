@@ -15,11 +15,11 @@ fn test_box_hydrostatics() {
     // Since VCG is optional, we pass None here for basic geo checks,
     // but the python test passed None explicitly or implicitly.
     // Python test:
-    // state = self.calc.calculate_at_draft(draft, 0.0, 0.0)
+    // state = self.calc.from_draft(draft, 0.0, 0.0)
     // Implicit VCG=None.
 
     let state = calc
-        .calculate_at_draft(draft, 0.0, 0.0, None)
+        .from_draft(draft, 0.0, 0.0, None)
         .expect("Failed to calculate box hydrostatics");
 
     println!("Box State at T=5.0: {:#?}", state);
@@ -105,7 +105,7 @@ fn test_box_displacement_calculation() {
 
     // Calculate at displacement
     let state = calc
-        .calculate_at_displacement(target_disp, None, None, None, None)
+        .from_displacement(target_disp, None, None, None, None)
         .expect("Failed to calculate at displacement");
 
     // Check draft

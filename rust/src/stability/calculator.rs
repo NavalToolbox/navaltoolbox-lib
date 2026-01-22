@@ -371,7 +371,7 @@ impl<'a> StabilityCalculator<'a> {
         // Calculate hydrostatics at equilibrium
         let hydro_calc = HydrostaticsCalculator::new(self.vessel, self.water_density);
         let hydrostatics = hydro_calc
-            .calculate_at_displacement(displacement_mass, None, Some(cog), None, None)
+            .from_displacement(displacement_mass, None, Some(cog), None, None)
             .unwrap_or_default();
 
         // Calculate GZ curve

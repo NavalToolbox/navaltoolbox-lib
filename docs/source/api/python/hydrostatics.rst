@@ -13,7 +13,7 @@ HydrostaticsCalculator
    :param vessel: The vessel to calculate hydrostatics for
    :param water_density: Water density in kg/m³ (default: 1025.0 for seawater)
 
-   .. py:method:: calculate_at_draft(draft, trim=0.0, heel=0.0, vcg=None)
+   .. py:method:: from_draft(draft, trim=0.0, heel=0.0, vcg=None)
 
       Calculates hydrostatics at a given draft, trim, and heel.
 
@@ -24,7 +24,7 @@ HydrostaticsCalculator
       :type vcg: float or None
       :returns: HydrostaticState with all properties
 
-   .. py:method:: calculate_at_displacement(displacement_mass, vcg=None, cog=None, trim=None, heel=None)
+   .. py:method:: from_displacement(displacement_mass, vcg=None, cog=None, trim=None, heel=None)
 
       Calculates hydrostatics for a given displacement, finding the required draft.
 

@@ -157,9 +157,19 @@ class Vessel:
         """Returns the Aft Perpendicular position (X coordinate)."""
         ...
     
+    @ap.setter
+    def ap(self, value: float) -> None:
+        """Sets the Aft Perpendicular position (X coordinate)."""
+        ...
+    
     @property
     def fp(self) -> float:
         """Returns the Forward Perpendicular position (X coordinate)."""
+        ...
+    
+    @fp.setter
+    def fp(self, value: float) -> None:
+        """Sets the Forward Perpendicular position (X coordinate)."""
         ...
     
     @property
@@ -486,9 +496,33 @@ class HydrostaticState:
         heel: Heel angle in degrees.
         volume: Submerged volume in m³.
         displacement: Displacement mass in kg.
+        cob: Center of buoyancy as tuple (lcb, tcb, vcb).
+        cog: Center of gravity as tuple (lcg, tcg, vcg) if specified, None otherwise.
         lcb: Longitudinal center of buoyancy (X) in meters.
         tcb: Transverse center of buoyancy (Y) in meters.
         vcb: Vertical center of buoyancy (Z) in meters.
+        lcg: Longitudinal center of gravity (X) in meters, or None.
+        tcg: Transverse center of gravity (Y) in meters, or None.
+        vcg: Vertical center of gravity (Z) in meters, or None.
+        waterplane_area: Waterplane area in m².
+        lcf: Longitudinal center of floatation (X) in meters.
+        bmt: Transverse metacentric radius in meters.
+        bml: Longitudinal metacentric radius in meters.
+        gmt: Transverse metacentric height with FSC in meters, or None.
+        gml: Longitudinal metacentric height with FSC in meters, or None.
+        gmt_dry: Transverse metacentric height without FSC in meters, or None.
+        gml_dry: Longitudinal metacentric height without FSC in meters, or None.
+        lwl: Waterline length in meters.
+        bwl: Waterline breadth in meters.
+        los: Length overall submerged in meters.
+        wetted_surface_area: Wetted surface area in m².
+        midship_area: Midship section area in m².
+        cm: Midship coefficient.
+        cb: Block coefficient.
+        cp: Prismatic coefficient.
+        free_surface_correction_t: Transverse FSC in meters.
+        free_surface_correction_l: Longitudinal FSC in meters.
+        stiffness_matrix: 6x6 hydrostatic stiffness matrix (flattened).
     """
     
     draft: float
@@ -496,9 +530,83 @@ class HydrostaticState:
     heel: float
     volume: float
     displacement: float
-    lcb: float
-    tcb: float
-    vcb: float
+    
+    @property
+    def cob(self) -> Tuple[float, float, float]:
+        """Center of buoyancy (lcb, tcb, vcb) in meters."""
+        ...
+    
+    @property
+    def cog(self) -> Tuple[float, float, float] | None:
+        """Center of gravity (lcg, tcg, vcg) if specified, None otherwise."""
+        ...
+    
+    @property
+    def lcb(self) -> float:
+        """Longitudinal center of buoyancy (X) in meters."""
+        ...
+    
+    @property
+    def tcb(self) -> float:
+        """Transverse center of buoyancy (Y) in meters."""
+        ...
+    
+    @property
+    def vcb(self) -> float:
+        """Vertical center of buoyancy (Z) in meters."""
+        ...
+    
+    @property
+    def lcg(self) -> float | None:
+        """Longitudinal center of gravity (X) in meters, or None."""
+        ...
+    
+    @property
+    def tcg(self) -> float | None:
+        """Transverse center of gravity (Y) in meters, or None."""
+        ...
+    
+    @property
+    def vcg(self) -> float | None:
+        """Vertical center of gravity (Z) in meters, or None."""
+        ...
+    
+    waterplane_area: float
+    lcf: float
+    bmt: float
+    bml: float
+    
+    @property
+    def gmt(self) -> float | None:
+        """Transverse metacentric height with FSC in meters, or None if VCG not specified."""
+        ...
+    
+    @property
+    def gml(self) -> float | None:
+        """Longitudinal metacentric height with FSC in meters, or None if VCG not specified."""
+        ...
+    
+    @property
+    def gmt_dry(self) -> float | None:
+        """Transverse metacentric height without FSC in meters, or None."""
+        ...
+    
+    @property
+    def gml_dry(self) -> float | None:
+        """Longitudinal metacentric height without FSC in meters, or None."""
+        ...
+    
+    lwl: float
+    bwl: float
+    los: float
+    wetted_surface_area: float
+    midship_area: float
+    cm: float
+    cb: float
+    cp: float
+    free_surface_correction_t: float
+    free_surface_correction_l: float
+    stiffness_matrix: List[float]
 
 
 class HydrostaticsCalculator:
@@ -511,7 +619,7 @@ class HydrostaticsCalculator:
         >>> hull = Hull("hull.stl")
         >>> vessel = Vessel(hull)
         >>> calc = HydrostaticsCalculator(vessel, water_density=1025.0)
-        >>> state = calc.calculate_at_draft(draft=5.0)
+        >>> state = calc.from_draft(draft=5.0)
         >>> print(f"Displacement: {state.displacement:.0f} kg")
     """
     
@@ -524,12 +632,12 @@ class HydrostaticsCalculator:
         """
         ...
     
-    def calculate_at_draft(
+    def from_draft(
         self,
         draft: float,
         trim: float = 0.0,
         heel: float = 0.0,
-        vcg: float = 0.0,
+        vcg: float | None = None,
     ) -> HydrostaticState:
         """Calculate hydrostatics at a given draft, trim, and heel.
         
@@ -537,7 +645,7 @@ class HydrostaticsCalculator:
             draft: Draft at midship in meters.
             trim: Trim angle in degrees (default: 0).
             heel: Heel angle in degrees (default: 0).
-            vcg: Vertical center of gravity in meters (default: 0).
+            vcg: Optional vertical center of gravity in meters for GMT/GML calculation.
         
         Returns:
             HydrostaticState with calculated properties.
@@ -547,17 +655,39 @@ class HydrostaticsCalculator:
         """
         ...
     
-    def find_draft_for_displacement(self, displacement_mass: float) -> float:
-        """Find the draft for a given displacement mass.
+    def from_displacement(
+        self,
+        displacement_mass: float,
+        vcg: float | None = None,
+        cog: Tuple[float, float, float] | None = None,
+        trim: float | None = None,
+        heel: float | None = None,
+    ) -> HydrostaticState:
+        """Calculate hydrostatics for a given displacement with optional constraints.
         
         Args:
             displacement_mass: Target displacement in kg.
+            vcg: Optional vertical center of gravity (m) for GM calculations.
+            cog: Optional (lcg, tcg, vcg) tuple in meters for full COG specification.
+                 (overrides vcg if both are provided)
+            trim: Optional trim angle in degrees.
+            heel: Optional heel angle in degrees.
         
         Returns:
-            Draft in meters that achieves the target displacement.
+            Complete HydrostaticState.
         
         Raises:
-            ValueError: If the displacement cannot be achieved.
+            ValueError: If constraints are invalid or unsatisfiable.
+        
+        Examples:
+            >>> # Basic: find draft for displacement
+            >>> state = calc.from_displacement(8635000.0)
+            
+            >>> # With VCG only: compute GMT/GML
+            >>> state = calc.from_displacement(8635000.0, vcg=7.555)
+            
+            >>> # With full COG: for trim optimization
+            >>> state = calc.from_displacement(8635000.0, cog=(71.67, 0.0, 7.555))
         """
         ...
     

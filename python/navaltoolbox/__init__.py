@@ -36,7 +36,7 @@ Example:
     >>> hull = Hull("ship.stl")
     >>> vessel = Vessel(hull)
     >>> calc = HydrostaticsCalculator(vessel)
-    >>> state = calc.calculate_at_draft(5.0)
+    >>> state = calc.from_draft(5.0)
     >>> print(f"Displacement: {state.displacement:.0f} kg")
 """
 

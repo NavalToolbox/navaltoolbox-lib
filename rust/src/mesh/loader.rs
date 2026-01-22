@@ -41,6 +41,16 @@ pub fn load_stl(path: &Path) -> Result<TriMesh, Error> {
         return Err(Error::new(ErrorKind::InvalidData, "STL file is empty"));
     }
 
+    // Handle leading whitespace in ASCII STL files.
+    // Some CAD software exports ASCII STL with leading spaces/newlines before "solid".
+    // We trim leading whitespace to ensure correct parsing.
+    let trimmed_start = buffer.iter().position(|&c| !c.is_ascii_whitespace()).unwrap_or(0);
+    let buffer = if trimmed_start > 0 {
+        buffer[trimmed_start..].to_vec()
+    } else {
+        buffer
+    };
+
     // Create a cursor over the buffer for parsing
     let mut cursor = Cursor::new(buffer);
 

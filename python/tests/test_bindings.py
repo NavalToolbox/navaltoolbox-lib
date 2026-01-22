@@ -307,7 +307,7 @@ class TestDTMB5415:
         from navaltoolbox import HydrostaticsCalculator
 
         calc = HydrostaticsCalculator(dtmb5415_vessel, 1025.0)
-        state = calc.calculate_at_draft(6.15, 0.0, 0.0, self.VCG)
+        state = calc.from_draft(6.15, 0.0, 0.0, self.VCG)
 
         print(f"DTMB5415 at T=6.15m: Volume={state.volume:.1f}m³")
 
@@ -484,7 +484,7 @@ class TestWaterplaneCalculations:
         calc = HydrostaticsCalculator(vessel, 1025.0)
 
         # Calculate at reference draft with VCG
-        state = calc.calculate_at_draft(6.15, vcg=7.555)
+        state = calc.from_draft(6.15, vcg=7.555)
 
         # Calculate KMt
         kmt = state.vcb + state.bmt
@@ -533,7 +533,7 @@ class TestWaterplaneCalculations:
         vessel = Vessel(hull)
         calc = HydrostaticsCalculator(vessel, 1025.0)
 
-        state = calc.calculate_at_draft(6.15, vcg=7.555)
+        state = calc.from_draft(6.15, vcg=7.555)
 
         # Check that all waterplane properties exist and are reasonable
         assert hasattr(state, "waterplane_area")
@@ -570,7 +570,7 @@ class TestWaterplaneCalculations:
         calc = HydrostaticsCalculator(vessel, 1025.0)
 
         # Calculate without VCG
-        state = calc.calculate_at_draft(6.15)
+        state = calc.from_draft(6.15)
 
         # GMT/GML should be None
         assert state.gmt is None, "GMT should be None when VCG not provided"
@@ -640,7 +640,7 @@ class TestFreeSurfaceCorrection:
 
         # 3. Calculate
         calc = HydrostaticsCalculator(vessel, 1025.0)
-        state = calc.calculate_at_draft(5.0, vcg=5.0)
+        state = calc.from_draft(5.0, vcg=5.0)
 
         # 4. Validate
         gmt_wet = state.gmt

@@ -387,7 +387,7 @@ mod tests {
         let draft = 5.0;
         let vcg = 7.0;
 
-        let state = calc.calculate_at_draft(draft, 0.0, 0.0, Some(vcg)).unwrap();
+        let state = calc.from_draft(draft, 0.0, 0.0, Some(vcg)).unwrap();
 
         // Theoretical BM_t = B² / (12×T) = 100 / 60 = 1.667 m
         let expected_bmt = 10.0 * 10.0 / (12.0 * 5.0);
@@ -441,7 +441,7 @@ mod tests {
         let vessel = Vessel::new_multi(vec![hull1, hull2]).unwrap();
 
         let calc = HydrostaticsCalculator::new(&vessel, 1025.0);
-        let state = calc.calculate_at_draft(5.0, 0.0, 0.0, None).unwrap();
+        let state = calc.from_draft(5.0, 0.0, 0.0, None).unwrap();
 
         // Expected total area = 100 m²
         assert!(
@@ -474,7 +474,7 @@ mod tests {
         let vessel = Vessel::new_multi(vec![hull1, hull2]).unwrap();
 
         let calc = HydrostaticsCalculator::new(&vessel, 1025.0);
-        let state = calc.calculate_at_draft(5.0, 0.0, 0.0, None).unwrap();
+        let state = calc.from_draft(5.0, 0.0, 0.0, None).unwrap();
 
         // Expected area = 10 × 10 = 100 m²
         assert!(

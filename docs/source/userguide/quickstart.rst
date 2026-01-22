@@ -54,7 +54,7 @@ Calculate hydrostatic properties at a given draft:
     calc = HydrostaticsCalculator(vessel, water_density=1025.0)
 
     # Calculate at specific draft
-    state = calc.calculate_at_draft(
+    state = calc.from_draft(
         draft=6.0,  # meters
         trim=0.0,   # degrees
         heel=0.0,   # degrees
