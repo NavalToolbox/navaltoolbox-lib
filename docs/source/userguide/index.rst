@@ -57,3 +57,4 @@ Disclaimer
 
    installation
    quickstart
+   scripting

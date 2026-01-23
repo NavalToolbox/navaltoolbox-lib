@@ -212,3 +212,26 @@ Cross curves of stability (KN curves) describe the geometric stability of the hu
 
 .. tip::
     The `kn_curve` method is much faster than looping over displacements manually because it can optimize geometry re-use internally.
+
+Verification via Scripting
+--------------------------
+
+Once you have calculated stability, you can verify it against regulations using the built-in scripting engine.
+
+.. code-block:: python
+
+    from navaltoolbox import CriteriaContext, ScriptEngine, plotting
+
+    # 1. Create context from result
+    # (Assuming 'result' is the output of complete_stability())
+    ctx = CriteriaContext.from_result(result, "My Vessel", "Departure")
+
+    # 2. Run verification script
+    engine = ScriptEngine()
+    # Assuming rule file is available
+    # criteria = engine.run_script_file("rules/imo_a749_general.rhai", ctx)
+
+    # 3. Plot results
+    # plotting.plot_criteria_result(criteria)
+
+For more details, see the :doc:`Scriptable Verification <../userguide/scripting>` guide.

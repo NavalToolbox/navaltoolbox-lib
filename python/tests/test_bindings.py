@@ -388,22 +388,23 @@ class TestDTMB5415:
 
         calc = StabilityCalculator(dtmb5415_vessel, 1025.0)
         heels = [0, 10, 20]
-        
+
         # Test with multiple displacements
         displacements = [self.DISPLACEMENT, self.DISPLACEMENT * 0.9]
         curves = calc.kn_curve(displacements, heels)
-        
+
         assert len(curves) == 2, "Should return one curve per displacement"
-        
+
         # Verify consistent results with GZ(VCG=0)
         kn_curve_0 = curves[0]
-        
+
         # Compare with gz_curve(VCG=0)
-        gz_curve_0 = calc.gz_curve(self.DISPLACEMENT, (self.LCG, self.TCG, 0.0), heels)
-        
+        gz_curve_0 = calc.gz_curve(
+            self.DISPLACEMENT, (self.LCG, self.TCG, 0.0), heels
+        )
+
         for kn_val, gz_val in zip(kn_curve_0.values(), gz_curve_0.values()):
             assert abs(kn_val - gz_val) < 1e-6, "KN should equal GZ(VCG=0)"
-
 
 
 class TestWallSidedFormula:

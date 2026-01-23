@@ -19,6 +19,8 @@ NavalToolbox provides fast and accurate naval architecture calculations through 
 - 🌊 **Downflooding Detection**: Automatic detection of submerged openings
 - 🛢️ **Tank Management**: Fill levels, free surface effects, sounding tables
 - 💨 **Wind Heeling**: Silhouette-based wind calculations (DXF/VTK support)
+- 📝 **Scriptable Verification**: Rhai scripting engine for custom stability criteria
+- 📈 **Plotting**: Built-in plotting utilities with Matplotlib integration
 - ⚡ **High Performance**: Rust backend with Python convenience
 
 ## Installation
@@ -188,6 +190,23 @@ curve = calc.gz_curve(8635000.0, (71.67, 0.0, 7.555), heels)
 for point in curve.points():
     if point.is_flooding:
         print(f"⚠️  Downflooding at {point.heel}° - {', '.join(point.flooded_openings)}")
+```
+
+### Scripting and Plotting
+
+```python
+from navaltoolbox import CriteriaContext, ScriptEngine, plotting
+
+# Create context (assuming 'result' from stability calculation)
+ctx = CriteriaContext.from_result(result, "MV Example", "Departure")
+
+# Run verification script
+engine = ScriptEngine()
+# Running provided IMO A.749 rule
+# usage: result = engine.run_script_file("path/to/imo_a749_general.rhai", ctx)
+
+# Plot results to file
+# plotting.plot_criteria_result(result, show=False, save_to="stability_report.png")
 ```
 
 ## Documentation

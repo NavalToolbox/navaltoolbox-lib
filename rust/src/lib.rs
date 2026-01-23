@@ -49,6 +49,7 @@ pub mod downflooding;
 pub mod hull;
 pub mod hydrostatics;
 pub mod mesh;
+pub mod scripting;
 pub mod silhouette;
 pub mod stability;
 pub mod tanks;
@@ -58,6 +59,10 @@ pub mod vessel;
 pub use downflooding::{DownfloodingOpening, OpeningGeometry, OpeningType};
 pub use hull::Hull;
 pub use hydrostatics::{HydrostaticState, HydrostaticsCalculator};
+pub use scripting::{
+    CriteriaContext, CriteriaResult, CriteriaStatus, CriterionResult, PlotData, PlotElement,
+    ScriptEngine, ScriptError,
+};
 pub use silhouette::Silhouette;
 pub use stability::{
     CompleteStabilityResult, StabilityCalculator, StabilityCurve, StabilityPoint, WindHeelingData,

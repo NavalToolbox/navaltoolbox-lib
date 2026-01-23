@@ -37,6 +37,10 @@ __all__ = [
     "Tank",
     "WindHeelingData",
     "CompleteStabilityResult",
+    "CriterionResult",
+    "CriteriaResult",
+    "CriteriaContext",
+    "ScriptEngine",
 ]
 
 
@@ -1011,3 +1015,126 @@ class Tank:
         """Returns the longitudinal free surface moment in m⁴."""
         ...
 
+
+class CriterionResult:
+    """Result of a single criterion check."""
+    
+    @property
+    def name(self) -> str: ...
+    @property
+    def description(self) -> str: ...
+    @property
+    def required_value(self) -> float: ...
+    @property
+    def actual_value(self) -> float: ...
+    @property
+    def unit(self) -> str: ...
+    @property
+    def status(self) -> str:
+        """Pass/Fail status ('PASS', 'FAIL', 'WARN', 'N/A')."""
+        ...
+    @property
+    def margin(self) -> float:
+        """Margin between actual and required value."""
+        ...
+    @property
+    def notes(self) -> str | None: ...
+
+
+class CriteriaResult:
+    """Result of a criteria verification script."""
+    
+    @property
+    def regulation_name(self) -> str: ...
+    @property
+    def regulation_reference(self) -> str: ...
+    @property
+    def vessel_name(self) -> str: ...
+    @property
+    def loading_condition(self) -> str: ...
+    @property
+    def displacement(self) -> float: ...
+    @property
+    def overall_pass(self) -> bool: ...
+    @property
+    def pass_count(self) -> int: ...
+    @property
+    def fail_count(self) -> int: ...
+    @property
+    def notes(self) -> str: ...
+    @property
+    def criteria(self) -> List[CriterionResult]: ...
+    @property
+    def plots(self) -> List[str]:
+        """List of JSON strings representing plot data."""
+        ...
+
+
+class CriteriaContext:
+    """Context for Rhai scripts, wrapping stability results."""
+    
+    @staticmethod
+    def from_result(
+        result: CompleteStabilityResult,
+        vessel_name: str,
+        loading_condition: str,
+    ) -> "CriteriaContext":
+        """Create a context from a CompleteStabilityResult.
+        
+        Args:
+            result: The stability calculation result.
+            vessel_name: Name of the vessel.
+            loading_condition: Description of loading condition.
+        """
+        ...
+    
+    def set_param(self, key: str, value: str | float | bool) -> None:
+        """Set a parameter accessible to the script.
+        
+        Args:
+            key: Parameter name.
+            value: Parameter value (str, float, or bool).
+        """
+        ...
+    
+    def get_first_flooding_angle(self) -> float | None:
+        """Get the first angle where downflooding occurs, or None."""
+        ...
+    
+    def find_equilibrium_angle(self, heeling_arm: float) -> float | None:
+        """Find the first stable equilibrium angle (where GZ = heeling_arm)."""
+        ...
+    
+    def find_second_intercept(self, heeling_arm: float) -> float | None:
+        """Find the second intercept angle (unstable equilibrium)."""
+        ...
+
+
+class ScriptEngine:
+    """Rhai script execution engine."""
+    
+    def __init__(self) -> None: ...
+    
+    def run_script_file(self, path: str, context: CriteriaContext) -> CriteriaResult:
+        """Run a Rhai script from file.
+        
+        Args:
+            path: Path to .rhai script file.
+            context: Data context for the script.
+        
+        Returns:
+            Verification result.
+        
+        Raises:
+            ValueError: If script execution fails.
+        """
+        ...
+    
+    def run_script(self, script: str, context: CriteriaContext) -> CriteriaResult:
+        """Run a Rhai script from string.
+        
+        Args:
+            script: Rhai script content.
+            context: Data context for the script.
+        """
+        ...

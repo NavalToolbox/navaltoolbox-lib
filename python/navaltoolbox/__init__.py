@@ -53,6 +53,11 @@ from .navaltoolbox import (
     StabilityCurve,
     StabilityCalculator,
     Tank,
+    CompleteStabilityResult,
+    CriterionResult,
+    CriteriaResult,
+    CriteriaContext,
+    ScriptEngine,
 )
 
 __all__ = [
@@ -67,4 +72,9 @@ __all__ = [
     "StabilityCurve",
     "StabilityCalculator",
     "Tank",
+    "CompleteStabilityResult",
+    "CriterionResult",
+    "CriteriaResult",
+    "CriteriaContext",
+    "ScriptEngine",
 ]

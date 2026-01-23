@@ -27,6 +27,10 @@ use crate::hull::Hull as RustHull;
 use crate::hydrostatics::{
     HydrostaticState as RustHydroState, HydrostaticsCalculator as RustHydroCalc,
 };
+use crate::scripting::{
+    CriteriaContext as RustCriteriaContext, CriteriaResult as RustCriteriaResult,
+    ScriptEngine as RustScriptEngine,
+};
 use crate::stability::{
     CompleteStabilityResult as RustCompleteStabilityResult, StabilityCalculator as RustStabCalc,
     StabilityCurve as RustStabCurve, WindHeelingData as RustWindHeelingData,
@@ -1089,8 +1093,7 @@ impl PyStabilityCalculator {
         heels: Vec<f64>,
     ) -> PyCompleteStabilityResult {
         let calc = RustStabCalc::new(&self.vessel, self.water_density);
-        let result =
-            calc.complete_stability(displacement_mass, [cog.0, cog.1, cog.2], &heels);
+        let result = calc.complete_stability(displacement_mass, [cog.0, cog.1, cog.2], &heels);
         result.into()
     }
 }
@@ -1210,6 +1213,217 @@ impl PyTank {
 }
 
 // ============================================================================
+// Scripting Python Wrappers
+// ============================================================================
+
+/// Result of a single criterion check.
+#[pyclass(name = "CriterionResult")]
+#[derive(Clone)]
+pub struct PyCriterionResult {
+    #[pyo3(get)]
+    pub name: String,
+    #[pyo3(get)]
+    pub description: String,
+    #[pyo3(get)]
+    pub required_value: f64,
+    #[pyo3(get)]
+    pub actual_value: f64,
+    #[pyo3(get)]
+    pub unit: String,
+    #[pyo3(get)]
+    pub status: String,
+    #[pyo3(get)]
+    pub margin: f64,
+    #[pyo3(get)]
+    pub notes: Option<String>,
+    #[pyo3(get)]
+    pub plot_id: Option<String>,
+}
+
+#[pymethods]
+impl PyCriterionResult {
+    fn __repr__(&self) -> String {
+        format!("<CriterionResult '{}': {}>", self.name, self.status)
+    }
+}
+
+/// Result of a criteria verification script.
+#[pyclass(name = "CriteriaResult")]
+#[derive(Clone)]
+pub struct PyCriteriaResult {
+    #[pyo3(get)]
+    pub regulation_name: String,
+    #[pyo3(get)]
+    pub regulation_reference: String,
+    #[pyo3(get)]
+    pub vessel_name: String,
+    #[pyo3(get)]
+    pub loading_condition: String,
+    #[pyo3(get)]
+    pub displacement: f64,
+    #[pyo3(get)]
+    pub overall_pass: bool,
+    #[pyo3(get)]
+    pub pass_count: usize,
+    #[pyo3(get)]
+    pub fail_count: usize,
+    #[pyo3(get)]
+    pub notes: String,
+    #[pyo3(get)]
+    pub criteria: Vec<PyCriterionResult>,
+    /// Plots as JSON strings (list of serialized PlotData)
+    #[pyo3(get)]
+    pub plots: Vec<String>,
+}
+
+#[pymethods]
+impl PyCriteriaResult {
+    fn __repr__(&self) -> String {
+        format!(
+            "<CriteriaResult '{}': {} (Passed {}/{})>",
+            self.regulation_name,
+            if self.overall_pass { "PASS" } else { "FAIL" },
+            self.pass_count,
+            self.criteria.len()
+        )
+    }
+}
+
+/// Context for Rhai scripts.
+#[pyclass(name = "CriteriaContext")]
+#[derive(Clone)]
+pub struct PyCriteriaContext {
+    inner: RustCriteriaContext,
+}
+
+#[pymethods]
+impl PyCriteriaContext {
+    /// Create a context from a CompleteStabilityResult.
+    #[staticmethod]
+    fn from_result(
+        result: &PyCompleteStabilityResult,
+        vessel_name: String,
+        loading_condition: String,
+    ) -> Self {
+        Self {
+            inner: RustCriteriaContext::new(result.inner.clone(), vessel_name, loading_condition),
+        }
+    }
+
+    /// Get first flooding angle (or None).
+    fn get_first_flooding_angle(&self) -> Option<f64> {
+        self.inner.get_first_flooding_angle().try_cast::<f64>()
+    }
+
+    /// Find equilibrium angle for a given heeling arm.
+    fn find_equilibrium_angle(&self, heeling_arm: f64) -> Option<f64> {
+        self.inner.find_equilibrium_angle(heeling_arm).try_cast::<f64>()
+    }
+
+    /// Find second intercept angle for a given heeling arm.
+    fn find_second_intercept(&self, heeling_arm: f64) -> Option<f64> {
+        self.inner.find_second_intercept(heeling_arm).try_cast::<f64>()
+    }
+
+    /// Set a parameter for the script.
+    /// Supports string, float, and bool.
+    fn set_param(&mut self, key: &str, value: &Bound<PyAny>) -> PyResult<()> {
+        let val = if let Ok(s) = value.extract::<String>() {
+            rhai::Dynamic::from(s)
+        } else if let Ok(f) = value.extract::<f64>() {
+            rhai::Dynamic::from(f)
+        } else if let Ok(b) = value.extract::<bool>() {
+            rhai::Dynamic::from(b)
+        } else {
+            return Err(PyValueError::new_err(
+                "Unsupported parameter type. Use str, float, or bool.",
+            ));
+        };
+        self.inner.set_param(key, val);
+        Ok(())
+    }
+}
+
+/// Script execution engine.
+#[pyclass(name = "ScriptEngine")]
+pub struct PyScriptEngine {
+    inner: RustScriptEngine,
+}
+
+#[pymethods]
+impl PyScriptEngine {
+    #[new]
+    fn new() -> Self {
+        Self {
+            inner: RustScriptEngine::new(),
+        }
+    }
+
+    /// Run a script from a file path.
+    fn run_script_file(
+        &self,
+        path: &str,
+        context: &PyCriteriaContext,
+    ) -> PyResult<PyCriteriaResult> {
+        let result = self
+            .inner
+            .run_script_file(path, context.inner.clone())
+            .map_err(|e| PyValueError::new_err(format!("Script error: {}", e)))?;
+
+        Ok(map_result_to_py(result))
+    }
+
+    /// Run a script from a string.
+    fn run_script(&self, script: &str, context: &PyCriteriaContext) -> PyResult<PyCriteriaResult> {
+        let result = self
+            .inner
+            .run_script(script, context.inner.clone())
+            .map_err(|e| PyValueError::new_err(format!("Script error: {}", e)))?;
+
+        Ok(map_result_to_py(result))
+    }
+}
+
+fn map_result_to_py(res: RustCriteriaResult) -> PyCriteriaResult {
+    let criteria: Vec<PyCriterionResult> = res
+        .criteria
+        .iter()
+        .map(|c| PyCriterionResult {
+            name: c.name.clone(),
+            description: c.description.clone(),
+            required_value: c.required_value,
+            actual_value: c.actual_value,
+            unit: c.unit.clone(),
+            status: c.status.to_string(),
+            margin: c.margin,
+            notes: c.notes.clone(),
+            plot_id: c.plot_id.clone(),
+        })
+        .collect();
+
+    // Serialize plots to JSON strings
+    let plots: Vec<String> = res
+        .plots
+        .iter()
+        .map(|p| serde_json::to_string(p).unwrap_or_default())
+        .collect();
+
+    PyCriteriaResult {
+        regulation_name: res.regulation_name,
+        regulation_reference: res.regulation_reference,
+        vessel_name: res.vessel_name,
+        loading_condition: res.loading_condition,
+        displacement: res.displacement,
+        overall_pass: res.overall_pass,
+        pass_count: res.pass_count,
+        fail_count: res.fail_count,
+        notes: res.notes,
+        criteria,
+        plots,
+    }
+}
+
+// ============================================================================
 // Python Module Definition
 // ============================================================================
 
@@ -1229,5 +1443,12 @@ fn navaltoolbox(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyCompleteStabilityResult>()?;
     m.add_class::<PyStabilityCalculator>()?;
     m.add_class::<PyTank>()?;
+
+    // Scripting
+    m.add_class::<PyCriterionResult>()?;
+    m.add_class::<PyCriteriaResult>()?;
+    m.add_class::<PyCriteriaContext>()?;
+    m.add_class::<PyScriptEngine>()?;
+
     Ok(())
 }
