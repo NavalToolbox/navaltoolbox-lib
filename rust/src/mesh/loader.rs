@@ -44,7 +44,10 @@ pub fn load_stl(path: &Path) -> Result<TriMesh, Error> {
     // Handle leading whitespace in ASCII STL files.
     // Some CAD software exports ASCII STL with leading spaces/newlines before "solid".
     // We trim leading whitespace to ensure correct parsing.
-    let trimmed_start = buffer.iter().position(|&c| !c.is_ascii_whitespace()).unwrap_or(0);
+    let trimmed_start = buffer
+        .iter()
+        .position(|&c| !c.is_ascii_whitespace())
+        .unwrap_or(0);
     let buffer = if trimmed_start > 0 {
         buffer[trimmed_start..].to_vec()
     } else {

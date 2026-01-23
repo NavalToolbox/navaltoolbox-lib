@@ -376,8 +376,7 @@ impl<'a> HydrostaticsCalculator<'a> {
         for _ in 0..max_iter {
             let mid = (low + high) / 2.0;
 
-            if let Some(state) = self.from_draft(mid, fixed_trim, fixed_heel, effective_vcg)
-            {
+            if let Some(state) = self.from_draft(mid, fixed_trim, fixed_heel, effective_vcg) {
                 let diff = state.volume - target_volume;
 
                 if diff.abs() < tolerance {
@@ -774,13 +773,11 @@ mod tests {
         let calc = HydrostaticsCalculator::new(&vessel, 1025.0);
 
         // Invalid: Trim provided but also LCG constrained (non-zero)
-        let res =
-            calc.from_displacement(100000.0, None, Some([5.0, 0.0, 0.0]), Some(0.0), None);
+        let res = calc.from_displacement(100000.0, None, Some([5.0, 0.0, 0.0]), Some(0.0), None);
         assert!(res.is_err(), "Should fail for both LCG and Trim specified");
 
         // Invalid: Heel provided but also TCG constrained
-        let res =
-            calc.from_displacement(100000.0, None, Some([0.0, 5.0, 0.0]), None, Some(0.0));
+        let res = calc.from_displacement(100000.0, None, Some([0.0, 5.0, 0.0]), None, Some(0.0));
         assert!(res.is_err(), "Should fail for both TCG and Heel specified");
     }
 }

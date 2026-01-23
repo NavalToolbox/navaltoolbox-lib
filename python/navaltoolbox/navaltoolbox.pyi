@@ -35,6 +35,8 @@ __all__ = [
     "StabilityCurve",
     "StabilityCalculator",
     "Tank",
+    "WindHeelingData",
+    "CompleteStabilityResult",
 ]
 
 
@@ -725,7 +727,7 @@ class StabilityCurve:
     Contains the full righting arm curve for a specific loading condition.
     
     Example:
-        >>> curve = calc.calculate_gz_curve(
+        >>> curve = calc.gz_curve(
         ...     displacement_mass=10000,
         ...     cog=(50.0, 0.0, 5.0),
         ...     heels=[0, 10, 20, 30, 40, 50, 60]
@@ -752,6 +754,73 @@ class StabilityCurve:
         ...
 
 
+
+class WindHeelingData:
+    """Wind heeling data from silhouette calculation."""
+    
+    @property
+    def emerged_area(self) -> float: ...
+    @property
+    def emerged_centroid(self) -> Tuple[float, float]: ...
+    @property
+    def wind_lever_arm(self) -> float: ...
+    @property
+    def waterline_z(self) -> float: ...
+
+
+class CompleteStabilityResult:
+    """Result of complete stability analysis."""
+    
+    @property
+    def hydrostatics(self) -> HydrostaticState:
+        """Hydrostatic state at equilibrium."""
+        ...
+    
+    @property
+    def gz_curve(self) -> StabilityCurve:
+        """GZ stability curve."""
+        ...
+    
+    @property
+    def wind_data(self) -> WindHeelingData | None:
+        """Wind heeling data (if silhouettes are defined)."""
+        ...
+    
+    @property
+    def displacement(self) -> float:
+        """Displacement mass in kg."""
+        ...
+    
+    @property
+    def cog(self) -> Tuple[float, float, float]:
+        """Center of gravity (LCG, TCG, VCG)."""
+        ...
+    
+    @property
+    def gm0(self) -> float | None:
+        """Initial GM (fluid)."""
+        ...
+    
+    @property
+    def gm0_dry(self) -> float | None:
+        """Initial GM (dry/solid)."""
+        ...
+    
+    @property
+    def max_gz(self) -> float | None:
+        """Maximum GZ value."""
+        ...
+    
+    @property
+    def heel_at_max_gz(self) -> float | None:
+        """Heel angle (degrees) at maximum GZ."""
+        ...
+    
+    def has_wind_data(self) -> bool:
+        """Returns true if wind data is available."""
+        ...
+
+
 class StabilityCalculator:
     """Calculator for stability curves (GZ).
     
@@ -762,7 +831,7 @@ class StabilityCalculator:
         >>> hull = Hull("hull.stl")
         >>> vessel = Vessel(hull)
         >>> calc = StabilityCalculator(vessel, water_density=1025.0)
-        >>> curve = calc.calculate_gz_curve(
+        >>> curve = calc.gz_curve(
         ...     displacement_mass=50000,
         ...     cog=(45.0, 0.0, 6.5),
         ...     heels=list(range(0, 91, 5))
@@ -778,7 +847,7 @@ class StabilityCalculator:
         """
         ...
     
-    def calculate_gz_curve(
+    def gz_curve(
         self,
         displacement_mass: float,
         cog: Tuple[float, float, float],
@@ -793,6 +862,50 @@ class StabilityCalculator:
         
         Returns:
             StabilityCurve with GZ values at each heel angle.
+        """
+        ...
+    
+    def kn_curve(
+        self,
+        displacements: List[float],
+        heels: List[float],
+        lcg: float = 0.0,
+        tcg: float = 0.0,
+    ) -> List[StabilityCurve]:
+        """Calculate KN curves (Righting Lever from Keel) for multiple displacements.
+        
+        This calculates stability curves assuming VCG = 0.
+        Returns one curve per displacement.
+        
+        Args:
+            displacements: List of displacements in kg.
+            heels: List of heel angles in degrees.
+            lcg: Longitudinal Center of Gravity in meters (default 0.0).
+            tcg: Transverse Center of Gravity in meters (default 0.0).
+        
+        Returns:
+            List[StabilityCurve]: One curve per displacement.
+        """
+        ...
+    
+    def complete_stability(
+        self,
+        displacement_mass: float,
+        cog: Tuple[float, float, float],
+        heels: List[float],
+    ) -> CompleteStabilityResult:
+        """Calculate complete stability analysis for a loading condition.
+        
+        Combines hydrostatic calculations, GZ curve, and wind heeling data
+        (if silhouettes are available) for a single loading condition.
+        
+        Args:
+            displacement_mass: Target displacement in kg.
+            cog: Center of gravity (lcg, tcg, vcg) tuple.
+            heels: List of heel angles for GZ curve in degrees.
+        
+        Returns:
+            CompleteStabilityResult with hydrostatics, GZ curve, and wind data.
         """
         ...
 
@@ -897,3 +1010,4 @@ class Tank:
     def free_surface_moment_l(self) -> float:
         """Returns the longitudinal free surface moment in m⁴."""
         ...
+

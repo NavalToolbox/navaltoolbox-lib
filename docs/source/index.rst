@@ -53,7 +53,7 @@ Quick Example
 
     # Calculate GZ curve
     stab = StabilityCalculator(vessel, water_density=1025.0)
-    curve = stab.calculate_gz_curve(
+    curve = stab.gz_curve(
         displacement_mass=8635000,  # kg
         cog=(71.67, 0.0, 7.555),    # LCG, TCG, VCG
         heels=[0, 10, 20, 30, 40, 50, 60]

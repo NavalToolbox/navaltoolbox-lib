@@ -110,7 +110,7 @@ mod box_barge_tests {
         // Formula valid for all these angles
         let test_angles = [5.0, 10.0, 20.0];
 
-        let curve = calc.calculate_gz_curve(displacement, cog, &test_angles);
+        let curve = calc.gz_curve(displacement, cog, &test_angles);
 
         for point in &curve.points {
             let phi_rad = point.heel.to_radians();
@@ -133,6 +133,47 @@ mod box_barge_tests {
                 error,
                 gz_exact,
                 point.value
+            );
+        }
+    }
+
+    #[test]
+    fn test_kn_curve_relation() {
+        let vessel = create_test_box();
+        let calc = StabilityCalculator::new(&vessel, 1025.0);
+
+        let displacement = 500.0 * 1025.0; // 500 m³ at 5m draft
+        let vcg = 2.0;
+        let cog = [0.0, 0.0, vcg];
+        let heels = vec![10.0, 20.0, 30.0];
+
+        // 1. Calculate KN curve (VCG=0)
+        let kn_curves = calc.kn_curve(&[displacement], 0.0, 0.0, &heels);
+        let kn_curve = &kn_curves[0];
+
+        // 2. Calculate GZ curve (VCG=2.0)
+        let gz_curve = calc.gz_curve(displacement, cog, &heels);
+
+        // Verify relation: GZ = KN - KG * sin(phi)
+        // => KN = GZ + KG * sin(phi)
+        for (kn_point, gz_point) in kn_curve.points.iter().zip(gz_curve.points.iter()) {
+            let phi_rad = kn_point.heel.to_radians();
+            let kg_sin_phi = vcg * phi_rad.sin();
+            let expected_kn = gz_point.value + kg_sin_phi;
+
+            let error = (kn_point.value - expected_kn).abs();
+
+            println!(
+                "Heel {:5.1}° | KN: {:.4} | GZ: {:.4} | KG*sin(phi): {:.4} | Err: {:.4}",
+                kn_point.heel, kn_point.value, gz_point.value, kg_sin_phi, error
+            );
+
+            assert!(
+                error < 0.01,
+                "KN mismatch at {}°. Expected {:.4}, got {:.4}",
+                kn_point.heel,
+                expected_kn,
+                kn_point.value
             );
         }
     }
@@ -571,7 +612,7 @@ mod dtmb5415_tests {
         let cog = [LCG, TCG, VCG];
         let heels: Vec<f64> = (0..=60).step_by(10).map(|x| x as f64).collect();
 
-        let curve = calc.calculate_gz_curve(DISPLACEMENT, cog, &heels);
+        let curve = calc.gz_curve(DISPLACEMENT, cog, &heels);
 
         println!("\nDTMB5415 GZ Curve:");
         println!("Heel      Calc GZ    Ref GZ");
@@ -626,7 +667,7 @@ mod dtmb5415_tests {
         let cog = [LCG, TCG, VCG];
         let heels: Vec<f64> = (0..=65).step_by(5).map(|x| x as f64).collect();
 
-        let curve = calc.calculate_gz_curve(DISPLACEMENT, cog, &heels);
+        let curve = calc.gz_curve(DISPLACEMENT, cog, &heels);
 
         // Find max GZ
         let (max_heel, max_gz) = curve
@@ -673,7 +714,7 @@ mod dtmb5415_tests {
         let cog = [LCG, TCG, VCG];
         let heels: Vec<f64> = REFERENCE_DATA.iter().map(|(h, _, _, _)| *h).collect();
 
-        let curve = calc.calculate_gz_curve(DISPLACEMENT, cog, &heels);
+        let curve = calc.gz_curve(DISPLACEMENT, cog, &heels);
 
         // Check GZ values with 5cm tolerance (as in Python tests)
         // Note: larger tolerance needed due to mesh differences
@@ -742,7 +783,7 @@ mod complete_stability_tests {
         let cog = [0.0, 0.0, 2.0]; // Low VCG
         let heels: Vec<f64> = (0..=30).step_by(10).map(|x| x as f64).collect();
 
-        let result = calc.calculate_complete_stability(displacement, cog, &heels);
+        let result = calc.complete_stability(displacement, cog, &heels);
 
         // Check hydrostatics
         assert!(
@@ -799,7 +840,7 @@ mod complete_stability_tests {
         let cog = [0.0, 0.0, 2.0];
         let heels: Vec<f64> = vec![0.0, 15.0, 30.0];
 
-        let result = calc.calculate_complete_stability(displacement, cog, &heels);
+        let result = calc.complete_stability(displacement, cog, &heels);
 
         // Check wind data is available
         assert!(

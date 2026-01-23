@@ -92,7 +92,7 @@ Calculate the stability (GZ) curve:
     heels = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60]
 
     # Calculate GZ curve
-    curve = calc.calculate_gz_curve(displacement, cog, heels)
+    curve = calc.gz_curve(displacement, cog, heels)
 
     # Print results
     for heel, gz in zip(curve.heels(), curve.values()):
@@ -119,7 +119,7 @@ Calculate hydrostatics, GZ curve, and wind data in one call:
     calc = StabilityCalculator(vessel, water_density=1025.0)
 
     # Complete stability analysis
-    result = calc.calculate_complete_stability(
+    result = calc.complete_stability(
         displacement_mass=8635000,          # kg
         cog=(71.67, 0.0, 7.555),            # LCG, TCG, VCG
         heels=[0, 10, 20, 30, 40, 50, 60]   # degrees

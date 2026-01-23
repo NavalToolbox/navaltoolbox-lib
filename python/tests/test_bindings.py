@@ -324,7 +324,7 @@ class TestDTMB5415:
 
         heels = list(self.REFERENCE_DATA.keys())
         cog = (self.LCG, self.TCG, self.VCG)
-        curve = calc.calculate_gz_curve(self.DISPLACEMENT, cog, heels)
+        curve = calc.gz_curve(self.DISPLACEMENT, cog, heels)
 
         tolerance = 0.10  # 10cm
 
@@ -363,7 +363,7 @@ class TestDTMB5415:
 
         heels = list(range(0, 65, 5))
         cog = (self.LCG, self.TCG, self.VCG)
-        curve = calc.calculate_gz_curve(self.DISPLACEMENT, cog, heels)
+        curve = calc.gz_curve(self.DISPLACEMENT, cog, heels)
 
         # Find max GZ
         gz_values = curve.values()
@@ -381,6 +381,29 @@ class TestDTMB5415:
 
         # Max GZ should be ~1.0m
         assert 0.7 < max_gz < 1.5, f"Max GZ should be ~1.0m, got {max_gz:.3f}m"
+
+    def test_kn_curve_binding(self, dtmb5415_vessel):
+        """Test KN curve binding with multi-displacement support."""
+        from navaltoolbox import StabilityCalculator
+
+        calc = StabilityCalculator(dtmb5415_vessel, 1025.0)
+        heels = [0, 10, 20]
+        
+        # Test with multiple displacements
+        displacements = [self.DISPLACEMENT, self.DISPLACEMENT * 0.9]
+        curves = calc.kn_curve(displacements, heels)
+        
+        assert len(curves) == 2, "Should return one curve per displacement"
+        
+        # Verify consistent results with GZ(VCG=0)
+        kn_curve_0 = curves[0]
+        
+        # Compare with gz_curve(VCG=0)
+        gz_curve_0 = calc.gz_curve(self.DISPLACEMENT, (self.LCG, self.TCG, 0.0), heels)
+        
+        for kn_val, gz_val in zip(kn_curve_0.values(), gz_curve_0.values()):
+            assert abs(kn_val - gz_val) < 1e-6, "KN should equal GZ(VCG=0)"
+
 
 
 class TestWallSidedFormula:
@@ -427,7 +450,7 @@ class TestWallSidedFormula:
 
         # Calculate GZ curve
         heels = [0.0, 10.0, 20.0, 30.0]
-        curve = stab_calc.calculate_gz_curve(displacement, cog, heels)
+        curve = stab_calc.gz_curve(displacement, cog, heels)
 
         # Validate against wall-sided formula
         # points() returns [(heel, draft, trim, gz), ...]

@@ -13,7 +13,7 @@ StabilityCalculator
    :param vessel: The vessel to calculate stability for
    :param water_density: Water density in kg/m³
 
-   .. py:method:: calculate_gz_curve(displacement_mass, cog, heels)
+   .. py:method:: gz_curve(displacement_mass, cog, heels)
 
       Calculates the GZ curve for a given loading condition.
 
@@ -22,7 +22,19 @@ StabilityCalculator
       :param heels: List of heel angles in degrees
       :returns: StabilityCurve object with corrected GZ values
 
-   .. py:method:: calculate_complete_stability(displacement_mass, cog, heels)
+   .. py:method:: kn_curve(displacements, heels, lcg=0.0, tcg=0.0)
+
+      Calculates KN curves (Righting Lever from Keel) for multiple displacements.
+
+      Returns one curve per displacement (cross-curves of stability).
+
+      :param displacements: List of target displacements in kg
+      :param heels: List of heel angles in degrees
+      :param lcg: Longitudinal Center of Gravity (m)
+      :param tcg: Transverse Center of Gravity (m)
+      :returns: List of StabilityCurve objects
+
+   .. py:method:: complete_stability(displacement_mass, cog, heels)
 
       Calculates complete stability analysis combining hydrostatics, GZ curve, and wind data.
 

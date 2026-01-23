@@ -1031,15 +1031,43 @@ impl PyStabilityCalculator {
     }
 
     /// Calculate the GZ curve for a given loading condition.
-    fn calculate_gz_curve(
+    fn gz_curve(
         &self,
         displacement_mass: f64,
         cog: (f64, f64, f64),
         heels: Vec<f64>,
     ) -> PyStabilityCurve {
         let calc = RustStabCalc::new(&self.vessel, self.water_density);
-        let curve = calc.calculate_gz_curve(displacement_mass, [cog.0, cog.1, cog.2], &heels);
+        let curve = calc.gz_curve(displacement_mass, [cog.0, cog.1, cog.2], &heels);
         PyStabilityCurve { inner: curve }
+    }
+
+    /// Calculate KN curves (Righting Lever from Keel) for multiple displacements.
+    ///
+    /// This is equivalent to calculating GZ curves with VCG = 0.
+    ///
+    /// Args:
+    ///     displacements: List of target displacements in kg
+    ///     lcg: Longitudinal Center of Gravity (m) (default 0.0)
+    ///     tcg: Transverse Center of Gravity (m) (default 0.0)
+    ///     heels: List of heel angles in degrees
+    ///
+    /// Returns:
+    ///     List[StabilityCurve]: One curve per displacement
+    #[pyo3(signature = (displacements, heels, lcg=0.0, tcg=0.0))]
+    fn kn_curve(
+        &self,
+        displacements: Vec<f64>,
+        heels: Vec<f64>,
+        lcg: f64,
+        tcg: f64,
+    ) -> Vec<PyStabilityCurve> {
+        let calc = RustStabCalc::new(&self.vessel, self.water_density);
+        let curves = calc.kn_curve(&displacements, lcg, tcg, &heels);
+        curves
+            .into_iter()
+            .map(|c| PyStabilityCurve { inner: c })
+            .collect()
     }
 
     /// Calculate complete stability analysis for a loading condition.
@@ -1054,7 +1082,7 @@ impl PyStabilityCalculator {
     ///
     /// Returns:
     ///     CompleteStabilityResult with hydrostatics, GZ curve, and wind data
-    fn calculate_complete_stability(
+    fn complete_stability(
         &self,
         displacement_mass: f64,
         cog: (f64, f64, f64),
@@ -1062,7 +1090,7 @@ impl PyStabilityCalculator {
     ) -> PyCompleteStabilityResult {
         let calc = RustStabCalc::new(&self.vessel, self.water_density);
         let result =
-            calc.calculate_complete_stability(displacement_mass, [cog.0, cog.1, cog.2], &heels);
+            calc.complete_stability(displacement_mass, [cog.0, cog.1, cog.2], &heels);
         result.into()
     }
 }

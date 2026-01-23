@@ -33,7 +33,7 @@ Basic GZ Calculation
     heels = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60]
 
     # Calculate GZ curve
-    curve = calc.calculate_gz_curve(displacement, cog, heels)
+    curve = calc.gz_curve(displacement, cog, heels)
 
     # Print results
     print("Heel (°)   GZ (m)")
@@ -84,7 +84,7 @@ VCG (vertical center of gravity) significantly affects stability:
 
     for vcg in vcg_values:
         cog = (71.67, 0.0, vcg)
-        curve = calc.calculate_gz_curve(displacement, cog, [0, 10, 20, 30, 40, 50])
+        curve = calc.gz_curve(displacement, cog, [0, 10, 20, 30, 40, 50])
 
         gz_vals = curve.values()
         max_gz = max(gz_vals)
@@ -167,3 +167,48 @@ Free surface effects reduce effective GM:
     # correction automatically if tanks are present in the vessel.
     # The GZ curve computed above ALREADY includes this reduction.
     # No manual adjustment of VCG is required.
+
+Cross Curves (KN)
+-----------------
+
+Cross curves of stability (KN curves) describe the geometric stability of the hull form independent of the center of gravity height. They are typically plotted as **KN vs Displacement** for fixed heel angles.
+
+.. code-block:: python
+
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    # Define range of displacements
+    # Example: 80% to 120% of design displacement
+    base_disp = 8635000.0
+    displacements = np.linspace(base_disp * 0.8, base_disp * 1.2, 5).tolist()
+
+    # Fixed heel angles for cross curves (typically every 10°)
+    heels = [10, 20, 30, 40, 50, 60]
+
+    # Calculate KN curves for all displacements at once
+    # Note: Returns a list of StabilityCurve objects, one per displacement
+    kn_curves = calc.kn_curve(displacements, heels)
+
+    # Plotting Cross Curves (KN vs Displacement)
+    plt.figure(figsize=(10, 6))
+
+    # We want to plot one line per heel angle
+    # X-axis: Displacement
+    # Y-axis: KN value
+
+    # Extract data: matrix [displacement_idx][heel_idx]
+    kn_values = [[curve.values()[h_idx] for curve in kn_curves] for h_idx in range(len(heels))]
+
+    for h_idx, heel in enumerate(heels):
+        plt.plot(displacements, kn_values[h_idx], 'o-', label=f'{heel}°')
+
+    plt.xlabel('Displacement (kg)')
+    plt.ylabel('KN (m)')
+    plt.title('Cross Curves of Stability (KN)')
+    plt.legend(title="Heel Angle")
+    plt.grid(True, alpha=0.3)
+    plt.show()
+
+.. tip::
+    The `kn_curve` method is much faster than looping over displacements manually because it can optimize geometry re-use internally.

@@ -69,7 +69,7 @@ print(f"Draft: {state_disp.draft:.3f} m")
 # Calculate GZ curve
 stab = StabilityCalculator(vessel, water_density=1025.0)
 heels = [0, 10, 20, 30, 40, 50, 60]
-curve = stab.calculate_gz_curve(
+curve = stab.gz_curve(
     displacement_mass=1000000,
     cog=(50.0, 0.0, 5.0),
     heels=heels
@@ -78,7 +78,7 @@ for heel, gz in zip(curve.heels(), curve.values()):
     print(f"Heel: {heel}°, GZ: {gz:.3f}m")
 
 # Complete stability analysis (hydrostatics + GZ + wind data)
-result = stab.calculate_complete_stability(
+result = stab.complete_stability(
     displacement_mass=1000000,
     cog=(50.0, 0.0, 5.0),
     heels=heels
@@ -107,7 +107,7 @@ println!("Volume: {} m³", state.volume);
 // Calculate GZ curve
 let stab = StabilityCalculator::new(&vessel, 1025.0);
 let heels = vec![0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0];
-let curve = stab.calculate_gz_curve(1000000.0, [50.0, 0.0, 5.0], &heels);
+let curve = stab.gz_curve(1000000.0, [50.0, 0.0, 5.0], &heels);
 for point in &curve.points {
     println!("Heel: {}°, GZ: {:.3}m", point.heel, point.value);
 }

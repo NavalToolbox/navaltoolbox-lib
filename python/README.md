@@ -93,7 +93,7 @@ displacement_mass = 8635000.0  # kg
 cog = (71.67, 0.0, 7.555)      # LCG, TCG, VCG in meters
 heels = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]
 
-curve = calc.calculate_gz_curve(displacement_mass, cog, heels)
+curve = calc.gz_curve(displacement_mass, cog, heels)
 
 # Display results
 print("Heel (°)  |  GZ (m)")
@@ -182,7 +182,7 @@ vessel.add_downflooding_opening(opening)
 # Calculate GZ curve with downflooding detection
 calc = StabilityCalculator(vessel, water_density=1025.0)
 heels = list(range(0, 95, 5))
-curve = calc.calculate_gz_curve(8635000.0, (71.67, 0.0, 7.555), heels)
+curve = calc.gz_curve(8635000.0, (71.67, 0.0, 7.555), heels)
 
 # Check for downflooding
 for point in curve.points():

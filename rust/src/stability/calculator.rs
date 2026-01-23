@@ -50,12 +50,7 @@ impl<'a> StabilityCalculator<'a> {
     /// * `heels` - List of heel angles in degrees
     ///
     /// This function uses parallel processing (Rayon) for improved performance.
-    pub fn calculate_gz_curve(
-        &self,
-        displacement_mass: f64,
-        cog: [f64; 3],
-        heels: &[f64],
-    ) -> StabilityCurve {
+    pub fn gz_curve(&self, displacement_mass: f64, cog: [f64; 3], heels: &[f64]) -> StabilityCurve {
         use rayon::prelude::*;
 
         // Pre-calculate constant geometric properties (computed once)
@@ -158,6 +153,31 @@ impl<'a> StabilityCalculator<'a> {
             .collect();
 
         StabilityCurve::new_gz(displacement_mass, cog, points)
+    }
+
+    /// Calculates KN curves (Righting Lever from Keel) for multiple displacements.
+    ///
+    /// This is equivalent to calculating GZ curves with VCG = 0.
+    /// Returns one curve per displacement, useful for cross-curves of stability.
+    ///
+    /// # Arguments
+    /// * `displacements` - List of target displacements in kg
+    /// * `lcg` - Longitudinal Center of Gravity (m)
+    /// * `tcg` - Transverse Center of Gravity (m)
+    /// * `heels` - List of heel angles in degrees
+    pub fn kn_curve(
+        &self,
+        displacements: &[f64],
+        lcg: f64,
+        tcg: f64,
+        heels: &[f64],
+    ) -> Vec<StabilityCurve> {
+        // KN is GZ calculated with VCG = 0 (Keel as reference).
+        let cog = [lcg, tcg, 0.0];
+        displacements
+            .iter()
+            .map(|&disp| self.gz_curve(disp, cog, heels))
+            .collect()
     }
 
     /// Find draft for target volume at given heel and trim.
@@ -362,7 +382,7 @@ impl<'a> StabilityCalculator<'a> {
     /// - Hydrostatic state at equilibrium (GM0, draft, trim, etc.)
     /// - GZ curve for the specified heel angles
     /// - Wind heeling data (if silhouettes exist)
-    pub fn calculate_complete_stability(
+    pub fn complete_stability(
         &self,
         displacement_mass: f64,
         cog: [f64; 3],
@@ -375,7 +395,7 @@ impl<'a> StabilityCalculator<'a> {
             .unwrap_or_default();
 
         // Calculate GZ curve
-        let gz_curve = self.calculate_gz_curve(displacement_mass, cog, heels);
+        let gz_curve = self.gz_curve(displacement_mass, cog, heels);
 
         // Calculate wind heeling data if silhouettes exist
         let wind_data = if self.vessel.has_silhouettes() {
@@ -446,7 +466,7 @@ mod tests {
         let cog = [5.0, 0.0, 2.0]; // Center of box, low VCG
         let displacement = 500.0 * 1025.0; // 500 m³ at 5m draft
 
-        let curve = calc.calculate_gz_curve(displacement, cog, &[0.0]);
+        let curve = calc.gz_curve(displacement, cog, &[0.0]);
 
         // At zero heel for symmetric hull, GZ should be ~0
         assert!(
@@ -487,10 +507,10 @@ mod tests {
         // Let's just run the dry case with the same TOTAL properties (Mass, COG) as the wet case's UPRIGHT state.
 
         let ship_cog = [0.0, 0.0, 5.0];
-        let heel = 10.0;
+        let heel: f64 = 10.0;
 
         // Calculate GZ with FSC (Wet)
-        let curve_wet = calc.calculate_gz_curve(ship_mass, ship_cog, &[heel]);
+        let curve_wet = calc.gz_curve(ship_mass, ship_cog, &[heel]);
         let gz_wet = curve_wet.points[0].value;
 
         // Calculate Dry reference
@@ -503,7 +523,7 @@ mod tests {
 
         vessel.remove_tank(0);
         let calc_dry = StabilityCalculator::new(&vessel, 1025.0);
-        let curve_dry = calc_dry.calculate_gz_curve(total_mass, total_cog, &[heel]);
+        let curve_dry = calc_dry.gz_curve(total_mass, total_cog, &[heel]);
         let gz_dry = curve_dry.points[0].value;
 
         // Theoretical Reduction GG'

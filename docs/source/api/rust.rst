@@ -33,7 +33,7 @@ Usage Example
         let heels = vec![0.0, 10.0, 20.0, 30.0, 40.0];
         let cog = [71.67, 0.0, 7.555];
 
-        let curve = calc.calculate_gz_curve(8635000.0, cog, &heels);
+        let curve = calc.gz_curve(8635000.0, cog, &heels);
 
         for point in &curve.points {
             println!("Heel {:5.1}°: GZ = {:.3}m", point.heel, point.value);
