@@ -97,7 +97,8 @@ def _render_single_plot(plot_data: Dict[str, Any], criteria: List) -> "Figure":
 
     # Create figure and axis
     fig, ax = plt.subplots(figsize=(10, 6))
-    fig.canvas.manager.set_window_title(plot_data.get("title", "Plot"))
+    if fig.canvas.manager:
+        fig.canvas.manager.set_window_title(plot_data.get("title", "Plot"))
 
     ax.set_title(plot_data.get("title", ""))
     ax.set_xlabel(plot_data.get("x_label", ""))

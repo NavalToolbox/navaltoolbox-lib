@@ -55,7 +55,6 @@ print(f"Bounds: {hull.get_bounds()}")
 vessel = Vessel(hull)
 
 # Calculate hydrostatics
-# Calculate hydrostatics
 calc = HydrostaticsCalculator(vessel, water_density=1025.0)
 
 # Option 1: At draft with VCG

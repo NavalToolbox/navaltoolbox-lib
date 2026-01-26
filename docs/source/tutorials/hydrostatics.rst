@@ -15,6 +15,9 @@ First, load a hull geometry:
     # Load hull from STL file
     hull = Hull("path/to/dtmb5415.stl")
 
+    # Alternatively, create a simple box hull for testing
+    # hull = Hull.from_box(length=50.0, breadth=10.0, depth=5.0)
+
     # Check dimensions
     bounds = hull.get_bounds()
     print(f"LOA: {bounds[1] - bounds[0]:.2f}m")

@@ -10,8 +10,21 @@ Hull
 
    A hull geometry loaded from an STL file.
 
-   :param file_path: Path to the STL file
+    :param file_path: Path to the STL file
    :type file_path: str
+
+   .. py:staticmethod:: from_box(length, breadth, depth)
+
+      Create a box hull.
+
+      :param length: Length of the box in meters
+      :type length: float
+      :param breadth: Breadth of the box in meters
+      :type breadth: float
+      :param depth: Depth of the box in meters
+      :type depth: float
+      :returns: Hull object
+      :rtype: Hull
 
    .. py:method:: get_bounds()
 
@@ -143,6 +156,23 @@ Vessel
       :type waterline_z: float
       :rtype: list[float]
 
+   .. py:method:: add_opening(opening)
+
+      Adds a downflooding opening to the vessel.
+
+      :param opening: Opening to add
+      :type opening: DownfloodingOpening
+
+   .. py:method:: num_openings()
+
+      Returns the number of downflooding openings.
+
+      :rtype: int
+
+   .. py:method:: clear_openings()
+
+      Removes all downflooding openings from the vessel.
+
 Silhouette
 ----------
 
@@ -152,17 +182,8 @@ Silhouette
    
    Used for calculating wind heeling moments per IMO 2008 IS Code (MSC.267).
 
-   :param file_path: Path to a DXF file
+   :param file_path: Path to the geometry file (DXF, VTK, VTP)
    :type file_path: str
-
-   .. py:staticmethod:: from_vtk(file_path)
-
-      Load a silhouette from a VTK file (.vtk or .vtp polyline).
-
-      :param file_path: Path to the VTK file
-      :type file_path: str
-      :returns: Silhouette object
-      :rtype: Silhouette
 
    .. py:staticmethod:: from_points(points, name)
 
@@ -301,6 +322,21 @@ DownfloodingOpening
       :type opening_type: OpeningType
       :returns: DownfloodingOpening object
       :rtype: DownfloodingOpening
+
+   .. py:staticmethod:: from_file(file_path, default_type, name=None)
+
+      Load openings from a file (DXF or VTK).
+
+      If ``name`` is provided:
+      - Single opening: sets logic name to ``name``
+      - Multiple openings: sets names to ``{name}_{i+1}``
+
+      :param file_path: Path to the geometry file (DXF, VTK, VTP)
+      :type file_path: str
+      :param default_type: Default OpeningType for loaded openings
+      :type default_type: OpeningType
+      :param name: Optional base name for loaded openings
+      :type name: str or None
 
    .. py:attribute:: name
       :type: str

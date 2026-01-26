@@ -105,7 +105,7 @@ Calculate hydrostatics, GZ curve, and wind data in one call:
 
 .. code-block:: python
 
-    from navaltoolbox import Hull, Vessel, StabilityCalculator, Silhouette
+    from navaltoolbox import Hull, Vessel, StabilityCalculator, Silhouette, DownfloodingOpening, OpeningType
 
     hull = Hull("ship.stl")
     vessel = Vessel(hull)
@@ -115,6 +115,14 @@ Calculate hydrostatics, GZ curve, and wind data in one call:
         (0, 0), (150, 0), (150, 15), (0, 15), (0, 0)
     ], "hull_profile")
     vessel.add_silhouette(silhouette)
+
+    # Add downflooding opening (e.g., air pipe, ventilator)
+    opening = DownfloodingOpening.from_point(
+        name="Vent pipe",
+        position=(75.0, 9.8, 12.5),
+        opening_type=OpeningType.vent()
+    )
+    vessel.add_opening(opening)
 
     calc = StabilityCalculator(vessel, water_density=1025.0)
 
@@ -155,6 +163,7 @@ Create and manage tanks:
         z_min=0.0, z_max=5.0,    # vertical
         fluid_density=850.0      # kg/m³ (fuel oil)
     )
+    vessel.add_tank(tank)
 
     # Set fill level
     tank.fill_percent = 75.0
@@ -182,7 +191,7 @@ Create silhouettes for wind heeling calculations:
     hull_profile = Silhouette("hull_profile.dxf")
 
     # Or load from VTK file
-    superstructure = Silhouette.from_vtk("superstructure.vtk")
+    superstructure = Silhouette("superstructure.vtk")
 
     # Or create from points (x, z coordinates)
     container = Silhouette.from_points([

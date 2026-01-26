@@ -122,16 +122,25 @@ StabilityCurve
 
    .. py:method:: points()
 
-      Returns a list of StabilityPoint with (heel, draft, trim, gz, is_flooding, flooded_openings).
+      Returns the points as a list of tuples (heel, draft, trim, gz).
+
+      :rtype: list[tuple[float, float, float, float]]
+
+   .. py:method:: get_stability_points()
+
+      Returns a list of StabilityPoint objects with detailed information.
       
-      Each point has:
+      Each StabilityPoint has:
       
       - ``heel``: Heel angle in degrees
       - ``draft``: Draft at equilibrium (m)
       - ``trim``: Trim angle in degrees
-      - ``gz``: GZ value (m)
+      - ``gz``: GZ value (m) (alias value)
+      - ``value``: GZ or KN value (m)
       - ``is_flooding``: True if any opening is submerged
       - ``flooded_openings``: List of flooded opening names
+
+      :rtype: list[StabilityPoint]
 
    .. py:attribute:: displacement
       :type: float

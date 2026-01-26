@@ -165,32 +165,54 @@ print(f"Waterplane area: {state.waterplane_area:.1f} m²")
 ```
 
 ### Downflooding Detection
-
-```python
-from navaltoolbox import Hull, Vessel, DownfloodingOpening, StabilityCalculator
-
-# Create vessel
-hull = Hull("ship.stl")
-vessel = Vessel(hull)
-
-# Add downflooding opening (e.g., air pipe, ventilator)
-opening = DownfloodingOpening.from_point(
-    name="Vent pipe",
-    x=75.0, y=9.8, z=12.5,
-    opening_type="vent"
-)
-vessel.add_downflooding_opening(opening)
-
-# Calculate GZ curve with downflooding detection
-calc = StabilityCalculator(vessel, water_density=1025.0)
-heels = list(range(0, 95, 5))
-curve = calc.gz_curve(8635000.0, (71.67, 0.0, 7.555), heels)
-
-# Check for downflooding
-for point in curve.points():
-    if point.is_flooding:
-        print(f"⚠️  Downflooding at {point.heel}° - {', '.join(point.flooded_openings)}")
-```
+ 
+ ```python
+ from navaltoolbox import Hull, Vessel, DownfloodingOpening, OpeningType, StabilityCalculator
+ 
+ # Create vessel
+ hull = Hull("ship.stl")
+ vessel = Vessel(hull)
+ 
+ # Add downflooding opening (e.g., air pipe, ventilator)
+ opening = DownfloodingOpening.from_point(
+     name="Vent pipe",
+     position=(75.0, 9.8, 12.5),
+     opening_type=OpeningType.vent()
+ )
+ vessel.add_opening(opening)
+ 
+ # Calculate GZ curve with downflooding detection
+ calc = StabilityCalculator(vessel, water_density=1025.0)
+ heels = list(range(0, 95, 5))
+ curve = calc.gz_curve(8635000.0, (71.67, 0.0, 7.555), heels)
+ 
+ # Check for downflooding
+ for point in curve.get_stability_points():
+     if point.is_flooding:
+         print(f"⚠️  Downflooding at {point.heel}° - {', '.join(point.flooded_openings)}")
+ ```
+ 
+ ### Advanced Features
+ 
+ ```python
+ from navaltoolbox import Tank, Silhouette, Vessel, Hull
+ 
+ # Load Tank from file
+ tank = Tank("fuel_tank.stl", fluid_density=850.0, name="FO_1P")
+ vessel.add_tank(tank)
+ 
+ # Create Tank from hull intersection (e.g., double bottom)
+ db_tank = Tank.from_box_hull_intersection(
+     hull,
+     x_min=20, x_max=50, y_min=-5, y_max=5, z_min=0, z_max=1.5,
+     fluid_density=1025.0, name="WB_1C"
+ )
+ vessel.add_tank(db_tank)
+ 
+ # Wind Heeling Silhouette
+ sil = Silhouette("superstructure.dxf")
+ vessel.add_silhouette(sil)
+ ```
 
 ### Scripting and Plotting
 

@@ -150,6 +150,16 @@ Free surface effects reduce effective GM:
         z_min=0, z_max=4,
         fluid_density=850.0
     )
+    
+    # Alternatively, load from file (STL/VTK):
+    # fuel_tank = Tank("fuel_tank.stl", fluid_density=850.0, name="FO_1P")
+
+    # Or create from hull intersection (e.g., double bottom):
+    # fuel_tank = Tank.from_box_hull_intersection(
+    #     hull, 
+    #     x_min=20, x_max=50, y_min=-10, y_max=10, z_min=0, z_max=1.5,
+    #     fluid_density=850.0, name="DB_1C"
+    # )
     fuel_tank.fill_percent = 50  # Partial fill = free surface
 
     vessel.add_tank(fuel_tank)
@@ -167,6 +177,63 @@ Free surface effects reduce effective GM:
     # correction automatically if tanks are present in the vessel.
     # The GZ curve computed above ALREADY includes this reduction.
     # No manual adjustment of VCG is required.
+
+Downflooding Points
+-------------------
+
+Downflooding points are critical openings (vents, hatches) through which water can enter the hull. They are used to calculate the downflooding angle (:math:`\theta_f`).
+
+.. code-block:: python
+
+    from navaltoolbox import DownfloodingOpening, OpeningType
+
+    # Create opening from a point
+    er_vent = DownfloodingOpening.from_point(
+        "ER Vent Stbd",
+        position=(60.0, 8.0, 12.0),
+        opening_type=OpeningType.vent()
+    )
+    vessel.add_opening(er_vent)
+
+    # Or load from file
+    # openings = DownfloodingOpening.from_file("openings.dxf", OpeningType.hatch())
+    # for op in openings:
+    #     vessel.add_opening(op)
+
+    # Check for flooding
+    # Access detailed point data for specific heel angles
+    points = curve.get_stability_points()
+    for pt in points:
+        if pt.is_flooding:
+            print(f"Flooding detected at {pt.heel}° through: {pt.flooded_openings}")
+            break
+
+Wind Heeling
+------------
+
+Wind heeling moments are calculated based on the lateral projected area of the vessel's superstructure (silhouette).
+
+.. code-block:: python
+
+    from navaltoolbox import Silhouette
+
+    # Load silhouette from DXF
+    # silhouette = Silhouette("superstructure.dxf")
+    
+    # Or create manually
+    silhouette = Silhouette.from_points([
+        (0, 0), (100, 0), (100, 10), (80, 20), (20, 20), (0, 10)
+    ], "Superstructure")
+    
+    vessel.add_silhouette(silhouette)
+
+    # Calculate complete stability
+    result = calc.complete_stability(displacement, cog, heels)
+    
+    if result.has_wind_data():
+        wd = result.wind_data
+        print(f"Wind Area: {wd.emerged_area:.1f} m²")
+        print(f"Wind Moment Lever: {wd.wind_lever_arm:.2f} m")
 
 Cross Curves (KN)
 -----------------
