@@ -1,4 +1,4 @@
-.PHONY: help install install-rust install-python lint test test-rust test-python docs clean \
+.PHONY: help install install-rust install-python lint lint-rust lint-python test test-rust test-python docs clean \
         docker-wheel docker-lint docker-test docker-docs docker-all
 
 # Default target
@@ -12,7 +12,9 @@ help:
 	@echo "  install         - Install everything (Rust + Python)"
 	@echo "  install-rust    - Build Rust library"
 	@echo "  install-python  - Build and install Python wheel"
-	@echo "  lint            - Lint Rust code (cargo clippy)"
+	@echo "  lint            - Lint all code (Rust + Python)"
+	@echo "  lint-rust       - Lint Rust code (cargo clippy)"
+	@echo "  lint-python     - Lint Python code (flake8)"
 	@echo "  test            - Run all tests (Rust + Python)"
 	@echo "  test-rust       - Run Rust tests only"
 	@echo "  test-python     - Run Python tests only"
@@ -46,11 +48,21 @@ install-python:
 	cd python && maturin develop --release
 	@echo "✅ Python package installed!"
 
-# Lint code
-lint:
+# Lint everything
+lint: lint-rust lint-python
+	@echo "✅ All linting complete!"
+
+# Lint Rust code
+lint-rust:
 	@echo "🔍 Linting Rust code..."
 	cd rust && cargo clippy -- -W clippy::all
-	@echo "✅ Linting complete!"
+	@echo "✅ Rust linting complete!"
+
+# Lint Python code
+lint-python:
+	@echo "🔍 Linting Python code..."
+	cd python && python3 -m flake8 . --count --statistics
+	@echo "✅ Python linting complete!"
 
 # Run all tests
 test: test-rust test-python
