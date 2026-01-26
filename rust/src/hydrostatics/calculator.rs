@@ -58,10 +58,24 @@ impl<'a> HydrostaticsCalculator<'a> {
         heel: f64,
         vcg: Option<f64>,
     ) -> Option<HydrostaticState> {
+        // Use AP/FP (defaults to bounds min/max if not set)
+        let ap = self.vessel.ap();
+        let fp = self.vessel.fp();
+        let mp_x = (ap + fp) / 2.0;
+
+        // Use bounds center for Y
         let bounds = self.vessel.get_bounds();
-        let center_x = (bounds.0 + bounds.1) / 2.0;
         let center_y = (bounds.2 + bounds.3) / 2.0;
-        let pivot = Point3::new(center_x, center_y, draft);
+        
+        // Pivot is now at MP
+        let pivot = Point3::new(mp_x, center_y, draft);
+
+        // Calculate specific drafts
+        // Trim is positive bow down -> draft increases forward
+        let tan_trim = trim.to_radians().tan();
+        let draft_mp = draft;
+        let draft_fp = draft + (fp - mp_x) * tan_trim;
+        let draft_ap = draft + (ap - mp_x) * tan_trim;
 
         let mut total_volume = 0.0;
         let mut total_moment = [0.0, 0.0, 0.0];
@@ -267,6 +281,9 @@ impl<'a> HydrostaticsCalculator<'a> {
             draft,
             trim,
             heel,
+            draft_ap,
+            draft_fp,
+            draft_mp,
             volume: total_volume,
             displacement,
             cob,
@@ -295,6 +312,49 @@ impl<'a> HydrostaticsCalculator<'a> {
                 0.0
             },
         })
+    }
+
+    /// Calculates hydrostatics from drafts at Aft and Forward Perpendiculars.
+    ///
+    /// This is a convenience method that calculates the equivalent mean draft (at MP)
+    /// and trim angle, then calls `from_draft`.
+    ///
+    /// # Arguments
+    /// * `draft_ap` - Draft at Aft Perpendicular in meters
+    /// * `draft_fp` - Draft at Forward Perpendicular in meters
+    /// * `heel` - Heel angle in degrees
+    /// * `vcg` - Optional vertical center of gravity for GM calculation
+    pub fn from_drafts(
+        &self,
+        draft_ap: f64,
+        draft_fp: f64,
+        heel: f64,
+        vcg: Option<f64>,
+    ) -> Option<HydrostaticState> {
+        let ap = self.vessel.ap();
+        let fp = self.vessel.fp();
+        let lpp = fp - ap;
+
+        if lpp.abs() < 1e-4 {
+            // Lpp is too small, assume zero trim
+            return self.from_draft(draft_ap, 0.0, heel, vcg);
+        }
+
+        // Calculate trim: positive bow down (fp draft > ap draft)
+        // tan(trim) = (T_fp - T_ap) / Lpp
+        let trim_rad = ((draft_fp - draft_ap) / lpp).atan();
+        let trim_deg = trim_rad.to_degrees();
+
+        // Calculate draft at MP (midship)
+        // T_mp = T_ap + (MP - AP) * tan(trim)
+        // MP = (AP + FP) / 2
+        // MP - AP = (FP - AP) / 2 = Lpp / 2
+        // T_mp = T_ap + (Lpp/2) * (T_fp - T_ap) / Lpp
+        // T_mp = T_ap + (T_fp - T_ap) / 2
+        // T_mp = (T_ap + T_fp) / 2
+        let draft_mp = (draft_ap + draft_fp) / 2.0;
+
+        self.from_draft(draft_mp, trim_deg, heel, vcg)
     }
 
     /// Calculate hydrostatics for a given displacement with optional constraints.
@@ -779,5 +839,31 @@ mod tests {
         // Invalid: Heel provided but also TCG constrained
         let res = calc.from_displacement(100000.0, None, Some([0.0, 5.0, 0.0]), None, Some(0.0));
         assert!(res.is_err(), "Should fail for both TCG and Heel specified");
+    }
+    #[test]
+    fn test_from_drafts() {
+        let hull = create_box_hull(100.0, 20.0, 10.0);
+        let mut vessel = Vessel::new(hull);
+        // Set AP/FP explicitly
+        vessel.set_ap(0.0);
+        vessel.set_fp(100.0);
+
+        let calc = HydrostaticsCalculator::new(&vessel, 1025.0);
+
+        // Case 1: Even Keel (Draft=5.0)
+        let state1 = calc.from_drafts(5.0, 5.0, 0.0, None).unwrap();
+        assert!((state1.draft - 5.0).abs() < 1e-6);
+        assert!((state1.draft_ap - 5.0).abs() < 1e-6);
+        assert!((state1.draft_fp - 5.0).abs() < 1e-6);
+        assert!(state1.trim.abs() < 1e-6);
+
+        // Case 2: Trimmed by stern (AP=6.0, FP=4.0)
+        // MP draft should be 5.0
+        // Trim = atan((4-6)/100) = atan(-0.02)
+        let state2 = calc.from_drafts(6.0, 4.0, 0.0, None).unwrap();
+        assert!((state2.draft_mp - 5.0).abs() < 1e-6);
+        assert!((state2.draft_ap - 6.0).abs() < 1e-6);
+        assert!((state2.draft_fp - 4.0).abs() < 1e-6);
+        assert!(state2.trim < 0.0); // Stern down is negative trim
     }
 }

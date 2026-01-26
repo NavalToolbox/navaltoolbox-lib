@@ -565,6 +565,12 @@ pub struct PyHydrostaticState {
     #[pyo3(get)]
     pub heel: f64,
     #[pyo3(get)]
+    pub draft_ap: f64,
+    #[pyo3(get)]
+    pub draft_fp: f64,
+    #[pyo3(get)]
+    pub draft_mp: f64,
+    #[pyo3(get)]
     pub volume: f64,
     #[pyo3(get)]
     pub displacement: f64,
@@ -620,6 +626,9 @@ impl From<RustHydroState> for PyHydrostaticState {
             draft: state.draft,
             trim: state.trim,
             heel: state.heel,
+            draft_ap: state.draft_ap,
+            draft_fp: state.draft_fp,
+            draft_mp: state.draft_mp,
             volume: state.volume,
             displacement: state.displacement,
             cob_internal: state.cob,
@@ -730,8 +739,8 @@ impl PyHydrostaticState {
         };
 
         format!(
-            "HydrostaticState(draft={:.3}m, volume={:.2}m³, displacement={:.0}kg, {})",
-            self.draft, self.volume, self.displacement, cog_str
+            "HydrostaticState(draft_mp={:.3}m (AP={:.3}, FP={:.3}), volume={:.2}m³, displacement={:.0}kg, {})",
+            self.draft_mp, self.draft_ap, self.draft_fp, self.volume, self.displacement, cog_str
         )
     }
 }
@@ -781,6 +790,33 @@ impl PyHydrostaticsCalculator {
         calc.from_draft(draft, trim, heel, vcg)
             .map(|s| s.into())
             .ok_or_else(|| PyValueError::new_err("No submerged volume at this draft"))
+    }
+
+    /// Calculate hydrostatics from drafts at Aft and Forward Perpendiculars.
+    ///
+    /// Args:
+    ///     draft_ap: Draft at Aft Perpendicular in meters.
+    ///     draft_fp: Draft at Forward Perpendicular in meters.
+    ///     heel: Heel angle in degrees (default 0.0).
+    ///     vcg: Optional vertical center of gravity for GM calculation.
+    ///
+    /// Returns:
+    ///     HydrostaticState with all properties
+    ///
+    /// Raises:
+    ///     ValueError: If no submerged volume at this draft.
+    #[pyo3(signature = (draft_ap, draft_fp, heel=0.0, vcg=None))]
+    fn from_drafts(
+        &self,
+        draft_ap: f64,
+        draft_fp: f64,
+        heel: f64,
+        vcg: Option<f64>,
+    ) -> PyResult<PyHydrostaticState> {
+        let calc = RustHydroCalc::new(&self.vessel, self.water_density);
+        calc.from_drafts(draft_ap, draft_fp, heel, vcg)
+            .map(|s| s.into())
+            .ok_or_else(|| PyValueError::new_err("No submerged volume at these drafts"))
     }
 
     /// Calculate hydrostatics for a given displacement with optional constraints.

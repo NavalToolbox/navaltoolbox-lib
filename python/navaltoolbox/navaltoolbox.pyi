@@ -537,12 +537,17 @@ class HydrostaticState:
     
     Contains the hydrostatic properties at a specific floating condition.
     
+    
     Attributes:
         draft: Draft at midship in meters.
         trim: Trim angle in degrees.
         heel: Heel angle in degrees.
+        draft_ap: Draft at Aft Perpendicular in meters.
+        draft_fp: Draft at Forward Perpendicular in meters.
+        draft_mp: Draft at Midship Perpendicular in meters.
         volume: Submerged volume in m³.
         displacement: Displacement mass in kg.
+
         cob: Center of buoyancy as tuple (lcb, tcb, vcb).
         cog: Center of gravity as tuple (lcg, tcg, vcg) if specified, None otherwise.
         lcb: Longitudinal center of buoyancy (X) in meters.
@@ -575,6 +580,9 @@ class HydrostaticState:
     draft: float
     trim: float
     heel: float
+    draft_ap: float
+    draft_fp: float
+    draft_mp: float
     volume: float
     displacement: float
     
@@ -699,6 +707,29 @@ class HydrostaticsCalculator:
         
         Raises:
             ValueError: If no submerged volume at this draft.
+        """
+        ...
+    
+    def from_drafts(
+        self,
+        draft_ap: float,
+        draft_fp: float,
+        heel: float = 0.0,
+        vcg: float | None = None,
+    ) -> HydrostaticState:
+        """Calculate hydrostatics from drafts at Aft and Forward Perpendiculars.
+        
+        Args:
+            draft_ap: Draft at Aft Perpendicular in meters.
+            draft_fp: Draft at Forward Perpendicular in meters.
+            heel: Heel angle in degrees (default: 0).
+            vcg: Optional vertical center of gravity in meters for GMT/GML calculation.
+        
+        Returns:
+            HydrostaticState with calculated properties.
+        
+        Raises:
+            ValueError: If no submerged volume at these drafts.
         """
         ...
     

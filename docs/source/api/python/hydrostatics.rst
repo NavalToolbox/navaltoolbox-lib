@@ -24,6 +24,17 @@ HydrostaticsCalculator
       :type vcg: float or None
       :returns: HydrostaticState with all properties
 
+   .. py:method:: from_drafts(draft_ap, draft_fp, heel=0.0, vcg=None)
+
+      Calculates hydrostatics from drafts at Aft and Forward Perpendiculars.
+
+      :param draft_ap: Draft at Aft Perpendicular (m)
+      :param draft_fp: Draft at Forward Perpendicular (m)
+      :param heel: Heel angle (degrees)
+      :param vcg: Vertical center of gravity for GM calculation (optional)
+      :type vcg: float or None
+      :returns: HydrostaticState with all properties
+
    .. py:method:: from_displacement(displacement_mass, vcg=None, cog=None, trim=None, heel=None)
 
       Calculates hydrostatics for a given displacement, finding the required draft.
@@ -48,7 +59,23 @@ HydrostaticState
    .. py:attribute:: draft
       :type: float
 
-      Draft at reference point (m).
+      Draft at Midship Section (MP) in meters.
+
+   .. py:attribute:: draft_ap
+      :type: float
+
+      Draft at Aft Perpendicular (AP) in meters.
+
+   .. py:attribute:: draft_fp
+      :type: float
+
+      Draft at Forward Perpendicular (FP) in meters.
+
+   .. py:attribute:: draft_mp
+      :type: float
+
+      Draft at Midship Perpendicular (MP) in meters (alias for draft).
+
 
    .. py:attribute:: volume
       :type: float

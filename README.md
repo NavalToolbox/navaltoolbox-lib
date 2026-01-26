@@ -67,6 +67,10 @@ print(f"GMT (wet): {state.gmt:.3f} m")
 state_disp = calc.from_displacement(512500.0)
 print(f"Draft: {state_disp.draft:.3f} m")
 
+# Option 3: From perpendicular drafts (AP/FP)
+state_drafts = calc.from_drafts(draft_ap=6.0, draft_fp=4.0)
+print(f"Trim: {state_drafts.trim:.2f}°")
+
 # Calculate GZ curve
 stab = StabilityCalculator(vessel, water_density=1025.0)
 heels = [0, 10, 20, 30, 40, 50, 60]
@@ -118,6 +122,10 @@ let vessel = Vessel::new(hull);
 let calc = HydrostaticsCalculator::new(&vessel, 1025.0);
 let state = calc.from_draft(5.0, 0.0, 0.0, None)?;
 println!("Volume: {} m³", state.volume);
+
+// Calculate from AP/FP drafts
+let state_drafts = calc.from_drafts(6.0, 4.0, 0.0, None).unwrap();
+println!("Trim: {:.2}°", state_drafts.trim);
 
 // Calculate GZ curve
 let stab = StabilityCalculator::new(&vessel, 1025.0);

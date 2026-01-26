@@ -51,6 +51,44 @@ Calculate hydrostatics at a specific draft:
     print(f"TCB: {state.tcb:.3f}m (should be ~0)")
     print(f"VCB: {state.vcb:.2f}m (KB)")
 
+    # Drafts at perpendiculars
+    print(f"Draft MP: {state.draft_mp:.3f}m")
+    print(f"Draft AP: {state.draft_ap:.3f}m")
+    print(f"Draft FP: {state.draft_fp:.3f}m")
+
+Calculating from Drafts at Perpendiculars
+-----------------------------------------
+
+You can also calculate hydrostatics by specifying drafts at the Aft Perpendicular (AP) and Forward Perpendicular (FP):
+
+.. code-block:: python
+
+    # Calculate from AP/FP drafts
+    # This automatically computes the trim and midship draft
+    state = calc.from_drafts(
+        draft_ap=6.5,
+        draft_fp=5.5,
+        heel=0.0,
+        vcg=7.5
+    )
+
+    print(f"Calculated MP Draft: {state.draft_mp:.3f}m")
+    print(f"Calculated Trim: {state.trim:.2f} degrees")
+    print(f"Displacement: {state.displacement:.0f} kg")
+
+Note on Reference System
+------------------------
+
+In NavalToolbox, the input draft for calculations corresponds to the draft at the **Midship Section (MP)**.
+The longitudinal position of MP is calculated as the average of the Aft Perpendicular (AP) and Forward Perpendicular (FP).
+If AP and FP are not explicitly set on the vessel, they default to the minimum and maximum X bounds of the geometry.
+
+When an ongoing trim is applied (positive bow down), the drafts at perpendiculars are calculated as:
+
+- **Draft MP**: Equal to the input draft at the pivot point
+- **Draft AP**: Calculated from MP draft and trim angle
+- **Draft FP**: Calculated from MP draft and trim angle
+
 Waterplane & Stability
 ----------------------
 

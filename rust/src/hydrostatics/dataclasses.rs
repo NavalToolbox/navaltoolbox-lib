@@ -26,6 +26,12 @@ pub struct HydrostaticState {
     pub trim: f64,
     /// Heel angle in degrees
     pub heel: f64,
+    /// Draft at Aft Perpendicular in meters
+    pub draft_ap: f64,
+    /// Draft at Forward Perpendicular in meters
+    pub draft_fp: f64,
+    /// Draft at Midship (MP) in meters
+    pub draft_mp: f64,
 
     /// Submerged volume in m³
     pub volume: f64,
@@ -149,6 +155,9 @@ impl Default for HydrostaticState {
             free_surface_correction_l: 0.0,
             stiffness_matrix: [0.0; 36],
             los: 0.0,
+            draft_ap: 0.0,
+            draft_fp: 0.0,
+            draft_mp: 0.0,
         }
     }
 }
