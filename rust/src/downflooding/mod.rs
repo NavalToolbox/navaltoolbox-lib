@@ -22,6 +22,12 @@
 
 use std::f64::consts::PI;
 
+mod loader;
+
+pub use loader::OpeningLoadError;
+use loader::{load_dxf_openings, load_vtk_openings};
+use std::path::Path;
+
 /// Type of opening that can cause downflooding.
 #[derive(Clone, Debug, PartialEq)]
 pub enum OpeningType {
@@ -84,9 +90,33 @@ impl DownfloodingOpening {
         }
     }
 
+    /// Load openings from a file (DXF or VTK) based on extension.
+    /// Returns a list of openings found in the file.
+    pub fn from_file(
+        path: &Path,
+        default_type: OpeningType,
+    ) -> Result<Vec<Self>, OpeningLoadError> {
+        let ext = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.to_lowercase())
+            .unwrap_or_default();
+
+        match ext.as_str() {
+            "dxf" => load_dxf_openings(path, default_type),
+            "vtk" | "vtp" | "vtu" => load_vtk_openings(path, default_type),
+            _ => Err(OpeningLoadError::UnsupportedFormat),
+        }
+    }
+
     /// Get the opening name.
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    /// Set the opening name.
+    pub fn set_name(&mut self, name: String) {
+        self.name = name;
     }
 
     /// Get the opening type.

@@ -76,6 +76,24 @@ class Hull:
         """
         ...
     
+    @staticmethod
+    def from_box(
+        length: float,
+        breadth: float,
+        depth: float,
+    ) -> "Hull":
+        """Create a box hull.
+        
+        Args:
+            length: Length of the box in meters.
+            breadth: Breadth of the box in meters.
+            depth: Depth of the box in meters.
+        
+        Returns:
+            A new Hull instance.
+        """
+        ...
+
     def num_triangles(self) -> int:
         """Returns the number of triangles in the mesh."""
         ...
@@ -248,6 +266,22 @@ class Vessel:
             Centroid coordinates (x, z) in meters.
         """
         ...
+    
+    def add_opening(self, opening: "DownfloodingOpening") -> None:
+        """Add a downflooding opening to the vessel.
+        
+        Args:
+            opening: The opening to add.
+        """
+        ...
+
+    def num_openings(self) -> int:
+        """Returns the number of downflooding openings."""
+        ...
+    
+    def clear_openings(self) -> None:
+        """Removes all downflooding openings."""
+        ...
 
 
 class Silhouette:
@@ -262,30 +296,16 @@ class Silhouette:
     """
     
     def __init__(self, file_path: str) -> None:
-        """Load a silhouette from a DXF file.
+        """Load a silhouette from a file (DXF, VTK, or VTP).
         
         Args:
-            file_path: Path to the DXF file.
+            file_path: Path to the geometry file.
         
         Raises:
             IOError: If the file cannot be read or parsed.
         """
         ...
     
-    @staticmethod
-    def from_vtk(file_path: str) -> "Silhouette":
-        """Load a silhouette from a VTK file (.vtk or .vtp polyline).
-        
-        Args:
-            file_path: Path to the VTK file.
-        
-        Returns:
-            A new Silhouette instance.
-        
-        Raises:
-            IOError: If the file cannot be read or parsed.
-        """
-        ...
     
     @staticmethod
     def from_points(points: List[Tuple[float, float]], name: str) -> "Silhouette":
@@ -441,6 +461,27 @@ class DownfloodingOpening:
         
         Returns:
             A new DownfloodingOpening instance.
+        """
+        ...
+    
+    @staticmethod
+    def from_file(file_path: str, default_type: "OpeningType", name: str | None = None) -> List["DownfloodingOpening"]:
+        """Load openings from a file (DXF or VTK).
+        
+        If name is provided:
+        - For a single opening, it sets the name.
+        - For multiple openings, it sets names as "{name}_{i+1}".
+        
+        Args:
+            file_path: Path to the file.
+            default_type: Default OpeningType for loaded openings.
+            name: Optional base name for loaded openings.
+            
+        Returns:
+            List of DownfloodingOpening instances.
+        
+        Raises:
+            IOError: If the file cannot be read or parsed.
         """
         ...
     
@@ -756,6 +797,13 @@ class StabilityCurve:
     def points(self) -> List[Tuple[float, float, float, float]]:
         """Returns the points as a list of tuples (heel, draft, trim, gz)."""
         ...
+        
+    def get_stability_points(self) -> List["StabilityPoint"]:
+        """Returns the points as a list of StabilityPoint objects.
+        
+        This allows access to detailed information like is_flooding.
+        """
+        ...
 
 
 
@@ -932,6 +980,51 @@ class Tank:
         >>> print(f"Mass: {tank.fluid_mass:.0f} kg")
     """
     
+    def __init__(
+        self,
+        file_path: str,
+        fluid_density: float = 1025.0,
+        name: str | None = None,
+    ) -> None:
+        """Create a Tank from a file (STL or VTK).
+        
+        Args:
+            file_path: Path to the geometry file.
+            fluid_density: Fluid density in kg/m³.
+            name: Optional name for the tank.
+        """
+        ...
+
+    @staticmethod
+    def from_box_hull_intersection(
+        hull: Hull,
+        x_min: float,
+        x_max: float,
+        y_min: float,
+        y_max: float,
+        z_min: float,
+        z_max: float,
+        fluid_density: float = 1025.0,
+        name: str = "HullTank",
+    ) -> "Tank":
+        """Create a Tank as the intersection of a box with a hull geometry.
+        
+        Args:
+            hull: Hull object to intersect with.
+            x_min: Minimum X coordinate in meters.
+            x_max: Maximum X coordinate in meters.
+            y_min: Minimum Y coordinate in meters.
+            y_max: Maximum Y coordinate in meters.
+            z_min: Minimum Z coordinate in meters.
+            z_max: Maximum Z coordinate in meters.
+            fluid_density: Fluid density in kg/m³.
+            name: Tank name.
+        
+        Returns:
+            A new Tank instance.
+        """
+        ...
+
     @staticmethod
     def from_box(
         name: str,
@@ -1039,6 +1132,8 @@ class CriterionResult:
         ...
     @property
     def notes(self) -> str | None: ...
+    @property
+    def plot_id(self) -> str | None: ...
 
 
 class CriteriaResult:

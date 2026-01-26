@@ -246,6 +246,26 @@ impl PyVessel {
         self.inner.get_combined_emerged_centroid(waterline_z)
     }
 
+    // =========================================================================
+    // Downflooding Opening methods
+    // =========================================================================
+
+    /// Add a downflooding opening to the vessel.
+    fn add_opening(&mut self, opening: &PyDownfloodingOpening) {
+        self.inner
+            .add_downflooding_opening(opening.inner.clone());
+    }
+
+    /// Returns the number of downflooding openings.
+    fn num_openings(&self) -> usize {
+        self.inner.num_downflooding_openings()
+    }
+
+    /// Removes all downflooding openings.
+    fn clear_openings(&mut self) {
+        self.inner.clear_downflooding_openings();
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "Vessel(hulls={}, tanks={}, silhouettes={}, lbp={:.2}m)",
@@ -271,21 +291,12 @@ pub struct PySilhouette {
 
 #[pymethods]
 impl PySilhouette {
-    /// Load a silhouette from a DXF file.
+    /// Load a silhouette from a file (DXF or VTK).
     #[new]
     fn new(file_path: &str) -> PyResult<Self> {
         let path = Path::new(file_path);
-        let silhouette = RustSilhouette::from_dxf(path)
-            .map_err(|e| PyIOError::new_err(format!("Failed to load DXF: {}", e)))?;
-        Ok(Self { inner: silhouette })
-    }
-
-    /// Load a silhouette from a VTK file (.vtk or .vtp polyline).
-    #[staticmethod]
-    fn from_vtk(file_path: &str) -> PyResult<Self> {
-        let path = Path::new(file_path);
-        let silhouette = RustSilhouette::from_vtk(path)
-            .map_err(|e| PyIOError::new_err(format!("Failed to load VTK: {}", e)))?;
+        let silhouette = RustSilhouette::from_file(path)
+            .map_err(|e| PyIOError::new_err(format!("Failed to load silhouette: {}", e)))?;
         Ok(Self { inner: silhouette })
     }
 
@@ -457,6 +468,33 @@ impl PyDownfloodingOpening {
                 opening_type.inner.clone(),
             ),
         }
+    }
+
+    /// Load openings from a file (DXF or VTK).
+    /// Returns a list of DownfloodingOpening objects.
+    #[staticmethod]
+    #[pyo3(signature = (file_path, default_type, name=None))]
+    fn from_file(
+        file_path: &str,
+        default_type: &PyOpeningType,
+        name: Option<String>,
+    ) -> PyResult<Vec<Self>> {
+        let path = Path::new(file_path);
+        let mut openings = RustDownfloodingOpening::from_file(path, default_type.inner.clone())
+            .map_err(|e| PyIOError::new_err(format!("Failed to load openings: {}", e)))?;
+
+        // If name is provided, rename openings
+        if let Some(base_name) = name {
+            if openings.len() == 1 {
+                openings[0].set_name(base_name);
+            } else {
+                for (i, opening) in openings.iter_mut().enumerate() {
+                    opening.set_name(format!("{}_{}", base_name, i + 1));
+                }
+            }
+        }
+
+        Ok(openings.into_iter().map(|o| Self { inner: o }).collect())
     }
 
     /// Returns the opening name.
@@ -847,6 +885,22 @@ impl PyStabilityCurve {
             .collect()
     }
 
+    /// Returns the points as a list of StabilityPoint objects.
+    fn get_stability_points(&self) -> Vec<PyStabilityPoint> {
+        self.inner
+            .points
+            .iter()
+            .map(|p| PyStabilityPoint {
+                heel: p.heel,
+                draft: p.draft,
+                trim: p.trim,
+                gz: p.value,
+                is_flooding: p.is_flooding,
+                flooded_openings: p.flooded_openings.clone(),
+            })
+            .collect()
+    }
+
     /// Returns the displacement in kg.
     #[getter]
     fn displacement(&self) -> f64 {
@@ -1110,6 +1164,52 @@ pub struct PyTank {
 
 #[pymethods]
 impl PyTank {
+    /// Create a Tank from a file (STL or VTK).
+    #[new]
+    #[pyo3(signature = (file_path, fluid_density=1025.0, name=None))]
+    fn new(file_path: &str, fluid_density: f64, name: Option<&str>) -> PyResult<Self> {
+        let path = Path::new(file_path);
+        let mut tank = RustTank::from_file(path, fluid_density)
+            .map_err(|e| PyValueError::new_err(format!("Failed to load tank: {}", e)))?;
+
+        if let Some(n) = name {
+            tank.set_name(n);
+        }
+        Ok(Self { inner: tank })
+    }
+
+    /// Create a Tank as the intersection of a box with a hull geometry.
+    #[staticmethod]
+    #[pyo3(signature = (hull, x_min, x_max, y_min, y_max, z_min, z_max, fluid_density=1025.0, name="HullTank"))]
+    fn from_box_hull_intersection(
+        hull: &PyHull,
+        x_min: f64,
+        x_max: f64,
+        y_min: f64,
+        y_max: f64,
+        z_min: f64,
+        z_max: f64,
+        fluid_density: f64,
+        name: &str,
+    ) -> PyResult<Self> {
+        let tank = RustTank::from_box_hull_intersection(
+            name,
+            &hull.inner,
+            x_min,
+            x_max,
+            y_min,
+            y_max,
+            z_min,
+            z_max,
+            fluid_density,
+        )
+        .map_err(|e| {
+            PyValueError::new_err(format!("Failed to create tank from intersection: {}", e))
+        })?;
+
+        Ok(Self { inner: tank })
+    }
+
     /// Create a box-shaped tank.
     #[staticmethod]
     fn from_box(
@@ -1317,12 +1417,16 @@ impl PyCriteriaContext {
 
     /// Find equilibrium angle for a given heeling arm.
     fn find_equilibrium_angle(&self, heeling_arm: f64) -> Option<f64> {
-        self.inner.find_equilibrium_angle(heeling_arm).try_cast::<f64>()
+        self.inner
+            .find_equilibrium_angle(heeling_arm)
+            .try_cast::<f64>()
     }
 
     /// Find second intercept angle for a given heeling arm.
     fn find_second_intercept(&self, heeling_arm: f64) -> Option<f64> {
-        self.inner.find_second_intercept(heeling_arm).try_cast::<f64>()
+        self.inner
+            .find_second_intercept(heeling_arm)
+            .try_cast::<f64>()
     }
 
     /// Set a parameter for the script.
