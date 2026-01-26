@@ -20,8 +20,9 @@ NavalToolbox is built as a **Rust library** (`navaltoolbox`) with optional Pytho
 - **Complete stability analysis**: Combines hydrostatics, GZ curve, and wind heeling data
 - **Tanks**: Fill level management, free surface effects
 - **Silhouettes**: Wind heeling calculations (DXF/VTK support)
-- **Scriptable Verification**: Rhai scripting engine for custom stability criteria
-- **Plotting**: Built-in plotting utilities with Matplotlib integration
+- **Verification**: Rhai scripting engine for custom stability criteria (IMO, localized rules)
+- **Visualization**: Interactive 3D visualization using Plotly (Vessel, Tanks, Opening, Hydrostatics)
+- **Plotting**: Built-in 2D plotting utilities with Matplotlib integration
 
 ## Installation
 

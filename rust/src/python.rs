@@ -116,6 +116,26 @@ impl PyHull {
             .map_err(|e| PyIOError::new_err(format!("Failed to export STL: {}", e)))
     }
 
+    /// Returns vertices as list of tuples (x, y, z).
+    fn get_vertices(&self) -> Vec<(f64, f64, f64)> {
+        self.inner
+            .mesh()
+            .vertices()
+            .iter()
+            .map(|v| (v.x, v.y, v.z))
+            .collect()
+    }
+
+    /// Returns faces as list of tuples (i, j, k).
+    fn get_faces(&self) -> Vec<(u32, u32, u32)> {
+        self.inner
+            .mesh()
+            .indices()
+            .iter()
+            .map(|idx| (idx[0], idx[1], idx[2]))
+            .collect()
+    }
+
     fn __repr__(&self) -> String {
         let bounds = self.inner.get_bounds();
         format!(
@@ -252,8 +272,7 @@ impl PyVessel {
 
     /// Add a downflooding opening to the vessel.
     fn add_opening(&mut self, opening: &PyDownfloodingOpening) {
-        self.inner
-            .add_downflooding_opening(opening.inner.clone());
+        self.inner.add_downflooding_opening(opening.inner.clone());
     }
 
     /// Returns the number of downflooding openings.
@@ -264,6 +283,46 @@ impl PyVessel {
     /// Removes all downflooding openings.
     fn clear_openings(&mut self) {
         self.inner.clear_downflooding_openings();
+    }
+
+    // =========================================================================
+    // Component Getters for Visualization
+    // =========================================================================
+
+    /// Get all hulls.
+    fn get_hulls(&self) -> Vec<PyHull> {
+        self.inner
+            .hulls()
+            .iter()
+            .map(|h| PyHull { inner: h.clone() })
+            .collect()
+    }
+
+    /// Get all tanks.
+    fn get_tanks(&self) -> Vec<PyTank> {
+        self.inner
+            .tanks()
+            .iter()
+            .map(|t| PyTank { inner: t.clone() })
+            .collect()
+    }
+
+    /// Get all silhouettes.
+    fn get_silhouettes(&self) -> Vec<PySilhouette> {
+        self.inner
+            .silhouettes()
+            .iter()
+            .map(|s| PySilhouette { inner: s.clone() })
+            .collect()
+    }
+
+    /// Get all downflooding openings.
+    fn get_openings(&self) -> Vec<PyDownfloodingOpening> {
+        self.inner
+            .downflooding_openings()
+            .iter()
+            .map(|o| PyDownfloodingOpening { inner: o.clone() })
+            .collect()
     }
 
     fn __repr__(&self) -> String {
@@ -1345,6 +1404,51 @@ impl PyTank {
             self.inner.total_volume(),
             self.inner.fill_percent()
         )
+    }
+
+    /// Returns tank container vertices [(x,y,z)].
+    fn get_vertices(&self) -> Vec<(f64, f64, f64)> {
+        self.inner
+            .mesh()
+            .vertices()
+            .iter()
+            .map(|v| (v.x, v.y, v.z))
+            .collect()
+    }
+
+    /// Returns tank container faces [(i,j,k)].
+    fn get_faces(&self) -> Vec<(u32, u32, u32)> {
+        self.inner
+            .mesh()
+            .indices()
+            .iter()
+            .map(|idx| (idx[0], idx[1], idx[2]))
+            .collect()
+    }
+
+    /// Returns fluid mesh vertices [(x,y,z)] or empty list if empty.
+    /// If heel/trim not specified, assumes 0.
+    #[pyo3(signature = (heel=0.0, trim=0.0))]
+    fn get_fluid_vertices(&self, heel: f64, trim: f64) -> Vec<(f64, f64, f64)> {
+        self.inner
+            .get_fluid_mesh_at(heel, trim)
+            .map(|m| m.vertices().iter().map(|v| (v.x, v.y, v.z)).collect())
+            .unwrap_or_default()
+    }
+
+    /// Returns fluid mesh faces [(i,j,k)] or empty list if empty.
+    /// If heel/trim not specified, assumes 0.
+    #[pyo3(signature = (heel=0.0, trim=0.0))]
+    fn get_fluid_faces(&self, heel: f64, trim: f64) -> Vec<(u32, u32, u32)> {
+        self.inner
+            .get_fluid_mesh_at(heel, trim)
+            .map(|m| {
+                m.indices()
+                    .iter()
+                    .map(|idx| (idx[0], idx[1], idx[2]))
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 }
 

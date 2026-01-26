@@ -8,5 +8,6 @@ Python API
    hydrostatics
    stability
    tanks
-   scripting
    plotting
+   visualization
+   scripting

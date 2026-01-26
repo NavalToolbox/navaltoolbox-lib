@@ -253,6 +253,70 @@ impl Tank {
         self.fill_volume() * self.fluid_density
     }
 
+    /// Returns the mesh of the fluid at the current fill level.
+    pub fn get_fluid_mesh(&self) -> Option<TriMesh> {
+        self.get_fluid_mesh_at(0.0, 0.0)
+    }
+
+    /// Returns the mesh of the fluid at a specific heel and trim.
+    pub fn get_fluid_mesh_at(&self, heel: f64, trim: f64) -> Option<TriMesh> {
+        if self.fill_level <= 1e-6 {
+            return None;
+        }
+        if self.fill_level >= 1.0 - 1e-6 {
+            return Some(self.mesh.clone());
+        }
+
+        // 1. Transform mesh to align water parallel to XY plane
+        let pivot = nalgebra::Point3::new(0.0, 0.0, 0.0);
+        let transformed_mesh = crate::mesh::transform_mesh(&self.mesh, heel, trim, pivot);
+
+        // 2. Find Z level for this volume in transformed orientation
+        let z = self.find_z_for_mesh(&transformed_mesh, self.total_volume * self.fill_level);
+
+        // 3. Clip
+        if let Some(clipped) = clip_at_waterline(&transformed_mesh, z) {
+            // 4. Inverse transform back to ship frame
+            use nalgebra::Rotation3;
+            let roll = heel.to_radians();
+            let pitch = trim.to_radians();
+            let rotation = Rotation3::from_euler_angles(roll, pitch, 0.0);
+            let pivot_pt = nalgebra::Point3::new(0.0, 0.0, 0.0);
+
+            // We need to inverse transform the result mesh.
+            // Since mesh crate doesn't have `inverse_transform_mesh`, we can reuse transform_mesh
+            // but with inverse rotation.
+            // Note: transform_mesh(mesh, roll, pitch, pivot) applies R * (v - p) + p
+            // We want R^-1 * (v - p) + p.
+            // Since R(roll, pitch) isn't just single axis rotations, we can't just pass -roll, -pitch easily
+            // if order matters. However, for small angles or standard Euler:
+            // R = Ry(pitch) * Rx(roll).
+            // R^-1 = Rx(-roll) * Ry(-pitch).
+            // Our transform_mesh might assume a specific order.
+            // A better way is to implement inverse transform or use the fact that we can just
+            // manually transform vertices here.
+
+            let inverse_rotation = rotation.inverse();
+            let new_vertices: Vec<Point3<f64>> = clipped
+                .vertices()
+                .iter()
+                .map(|v| {
+                    let p = Point3::new(v.x, v.y, v.z);
+                    pivot_pt + inverse_rotation * (p - pivot_pt)
+                })
+                .collect();
+
+            Some(TriMesh::new(new_vertices, clipped.indices().to_vec()).unwrap())
+        } else {
+            None
+        }
+    }
+
+    /// Returns the underlying TriMesh of the tank container.
+    pub fn mesh(&self) -> &TriMesh {
+        &self.mesh
+    }
+
     /// Returns the center of gravity of the fluid [x, y, z].
     pub fn center_of_gravity(&self) -> [f64; 3] {
         self.center_of_gravity_at(0.0, 0.0)

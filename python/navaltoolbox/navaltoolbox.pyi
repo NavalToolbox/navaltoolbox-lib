@@ -135,6 +135,7 @@ class Hull:
         """
         ...
     
+
     def export_stl(self, file_path: str) -> None:
         """Exports the hull to an STL file.
         
@@ -144,6 +145,14 @@ class Hull:
         Raises:
             IOError: If the file cannot be written.
         """
+        ...
+    
+    def get_vertices(self) -> List[Tuple[float, float, float]]:
+        """Returns vertices as list of tuples (x, y, z)."""
+        ...
+    
+    def get_faces(self) -> List[Tuple[int, int, int]]:
+        """Returns faces as list of tuples (i, j, k)."""
         ...
 
 
@@ -281,6 +290,38 @@ class Vessel:
     
     def clear_openings(self) -> None:
         """Removes all downflooding openings."""
+        ...
+
+    def get_hulls(self) -> List["Hull"]:
+        """Get all hulls.
+
+        Returns:
+            List of Hull objects.
+        """
+        ...
+
+    def get_tanks(self) -> List["Tank"]:
+        """Get all tanks.
+
+        Returns:
+            List of Tank objects.
+        """
+        ...
+
+    def get_silhouettes(self) -> List["Silhouette"]:
+        """Get all silhouettes.
+
+        Returns:
+            List of Silhouette objects.
+        """
+        ...
+
+    def get_openings(self) -> List["DownfloodingOpening"]:
+        """Get all downflooding openings.
+
+        Returns:
+            List of DownfloodingOpening objects.
+        """
         ...
 
 
@@ -1134,9 +1175,26 @@ class Tank:
         """Returns the transverse free surface moment in m⁴."""
         ...
     
+
     @property
     def free_surface_moment_l(self) -> float:
         """Returns the longitudinal free surface moment in m⁴."""
+        ...
+    
+    def get_vertices(self) -> List[Tuple[float, float, float]]:
+        """Returns tank container vertices [(x,y,z)]."""
+        ...
+    
+    def get_faces(self) -> List[Tuple[int, int, int]]:
+        """Returns tank container faces [(i,j,k)]."""
+        ...
+    
+    def get_fluid_vertices(self, heel: float = 0.0, trim: float = 0.0) -> List[Tuple[float, float, float]]:
+        """Returns fluid mesh vertices [(x,y,z)] or empty list."""
+        ...
+    
+    def get_fluid_faces(self, heel: float = 0.0, trim: float = 0.0) -> List[Tuple[int, int, int]]:
+        """Returns fluid mesh faces [(i,j,k)] or empty list."""
         ...
 
 

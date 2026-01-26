@@ -10,7 +10,7 @@ Hull
 
    A hull geometry loaded from an STL file.
 
-    :param file_path: Path to the STL file
+   :param file_path: Path to the STL file
    :type file_path: str
 
    .. py:staticmethod:: from_box(length, breadth, depth)
@@ -64,6 +64,20 @@ Hull
       Exports the hull to an STL file.
 
       :param file_path: Output file path
+
+   .. py:method:: get_vertices()
+
+      Returns the vertices of the hull mesh.
+
+      :returns: List of (x, y, z) tuples
+      :rtype: list[tuple[float, float, float]]
+
+   .. py:method:: get_faces()
+
+      Returns the faces (triangles) of the hull mesh.
+
+      :returns: List of (i, j, k) indices tuples
+      :rtype: list[tuple[int, int, int]]
 
 Vessel
 ------
@@ -172,6 +186,34 @@ Vessel
    .. py:method:: clear_openings()
 
       Removes all downflooding openings from the vessel.
+
+   .. py:method:: get_hulls()
+
+      Get all hulls in the vessel.
+
+      :returns: List of Hull objects
+      :rtype: list[Hull]
+
+   .. py:method:: get_tanks()
+
+      Get all tanks in the vessel.
+
+      :returns: List of Tank objects
+      :rtype: list[Tank]
+
+   .. py:method:: get_silhouettes()
+
+      Get all silhouettes in the vessel.
+
+      :returns: List of Silhouette objects
+      :rtype: list[Silhouette]
+
+   .. py:method:: get_openings()
+
+      Get all downflooding openings in the vessel.
+
+      :returns: List of DownfloodingOpening objects
+      :rtype: list[DownfloodingOpening]
 
 Silhouette
 ----------

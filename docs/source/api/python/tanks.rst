@@ -98,3 +98,41 @@ Tank
       :type: float
 
       Longitudinal free surface moment (m⁴).
+
+   **Geometry**
+
+   .. py:method:: get_vertices()
+
+      Returns the vertices of the tank shell mesh.
+
+      :returns: List of (x, y, z) tuples
+      :rtype: list[tuple[float, float, float]]
+
+   .. py:method:: get_faces()
+
+      Returns the faces (triangles) of the tank shell mesh.
+
+      :returns: List of (i, j, k) indices tuples
+      :rtype: list[tuple[int, int, int]]
+
+   .. py:method:: get_fluid_vertices(heel=0.0, trim=0.0)
+
+      Returns the vertices of the fluid mesh at specified attitude.
+
+      :param heel: Heel angle in degrees
+      :type heel: float
+      :param trim: Trim angle in degrees
+      :type trim: float
+      :returns: List of (x, y, z) tuples
+      :rtype: list[tuple[float, float, float]]
+
+   .. py:method:: get_fluid_faces(heel=0.0, trim=0.0)
+
+      Returns the faces of the fluid mesh at specified attitude.
+
+      :param heel: Heel angle in degrees
+      :type heel: float
+      :param trim: Trim angle in degrees
+      :type trim: float
+      :returns: List of (i, j, k) indices tuples
+      :rtype: list[tuple[int, int, int]]

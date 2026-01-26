@@ -66,7 +66,7 @@ impl<'a> HydrostaticsCalculator<'a> {
         // Use bounds center for Y
         let bounds = self.vessel.get_bounds();
         let center_y = (bounds.2 + bounds.3) / 2.0;
-        
+
         // Pivot is now at MP
         let pivot = Point3::new(mp_x, center_y, draft);
 
