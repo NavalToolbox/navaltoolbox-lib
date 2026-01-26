@@ -85,19 +85,20 @@ fn intersect_segment_plane_canonical(
     )
 }
 
-/// Clips a mesh at the given Z (draft) plane, returning a closed (watertight) mesh.
+/// Clips a mesh at the given Z (draft) plane, returning a closed (watertight) mesh and the waterplane area.
 /// Keeps volume below `draft`.
-pub fn clip_at_waterline(mesh: &TriMesh, draft: f64) -> Option<TriMesh> {
+pub fn clip_at_waterline(mesh: &TriMesh, draft: f64) -> (Option<TriMesh>, f64) {
     clip_by_axis_aligned_plane(mesh, Axis::Z, draft, true)
 }
 
 /// Clips a mesh by an axis-aligned plane.
+/// Returns (Clipped Mesh, Cap Area).
 pub fn clip_by_axis_aligned_plane(
     mesh: &TriMesh,
     axis: Axis,
     value: f64,
     keep_lower: bool,
-) -> Option<TriMesh> {
+) -> (Option<TriMesh>, f64) {
     let vertices = mesh.vertices();
     let indices = mesh.indices();
 
@@ -209,10 +210,11 @@ pub fn clip_by_axis_aligned_plane(
     }
 
     if new_indices.is_empty() {
-        return None;
+        return (None, 0.0);
     }
 
     // --- CAP GENERATION ---
+    let mut total_cap_area = 0.0;
     let mut adjacency: HashMap<Point3<OrderedFloat<f64>>, Point3<OrderedFloat<f64>>> =
         HashMap::new();
     for (start, end) in &cut_segments {
@@ -265,10 +267,18 @@ pub fn clip_by_axis_aligned_plane(
 
         if closed && loop_pts_2d.len() >= 3 {
             let mut flat_verts = Vec::with_capacity(loop_pts_2d.len() * 2);
-            for p in &loop_pts_2d {
-                flat_verts.push(p.x);
-                flat_verts.push(p.y);
+            // Calculate polygon area using shoelace formula
+            let mut area = 0.0;
+            let n = loop_pts_2d.len();
+            for i in 0..n {
+                let p1 = loop_pts_2d[i];
+                let p2 = loop_pts_2d[(i + 1) % n];
+                area += (p1.x * p2.y) - (p2.x * p1.y);
+
+                flat_verts.push(p1.x);
+                flat_verts.push(p1.y);
             }
+            total_cap_area += (area / 2.0).abs();
 
             let hole_indices: Vec<usize> = vec![];
             if let Ok(indices) = earcutr::earcut(&flat_verts, &hole_indices, 2) {
@@ -341,7 +351,7 @@ pub fn clip_by_axis_aligned_plane(
         }
     }
 
-    TriMesh::new(new_vertices, new_indices).ok()
+    (TriMesh::new(new_vertices, new_indices).ok(), total_cap_area)
 }
 
 #[cfg(test)]
@@ -382,11 +392,13 @@ mod tests {
     #[test]
     fn test_clip_cube_at_half_z() {
         let cube = create_unit_cube();
-        if let Some(clipped) = clip_by_axis_aligned_plane(&cube, Axis::Z, 0.5, true) {
+        let (output, area) = clip_by_axis_aligned_plane(&cube, Axis::Z, 0.5, true);
+        if let Some(clipped) = output {
             let mass_props = clipped.mass_properties(1.0);
             let volume = mass_props.mass();
             assert!((volume - 0.5).abs() < 1e-6, "Volume was {}", volume);
             assert!((mass_props.local_com.z - 0.25).abs() < 1e-6);
+            assert!((area - 1.0).abs() < 1e-6, "Waterplane Area was {}", area);
         } else {
             panic!("Clipping failed");
         }
@@ -395,7 +407,8 @@ mod tests {
     #[test]
     fn test_clip_cube_at_half_x() {
         let cube = create_unit_cube();
-        if let Some(clipped) = clip_by_axis_aligned_plane(&cube, Axis::X, 0.5, true) {
+        let (output, _area) = clip_by_axis_aligned_plane(&cube, Axis::X, 0.5, true);
+        if let Some(clipped) = output {
             let mass_props = clipped.mass_properties(1.0);
             let volume = mass_props.mass();
             assert!((volume - 0.5).abs() < 1e-6, "Volume was {}", volume);

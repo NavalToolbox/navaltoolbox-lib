@@ -131,8 +131,8 @@ mod tests {
 
         if path.exists() {
             let mesh = load_stl(&path).expect("Failed to load STL");
-            assert!(mesh.vertices().len() > 0);
-            assert!(mesh.indices().len() > 0);
+            assert!(!mesh.vertices().is_empty());
+            assert!(!mesh.indices().is_empty());
         }
     }
 }

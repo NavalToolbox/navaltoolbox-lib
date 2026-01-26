@@ -51,9 +51,15 @@ impl<'a> StabilityCalculator<'a> {
     ///
     /// This function uses parallel processing (Rayon) for improved performance.
     pub fn gz_curve(&self, displacement_mass: f64, cog: [f64; 3], heels: &[f64]) -> StabilityCurve {
+        use crate::hull::Hull;
+        use crate::vessel::Vessel;
         use rayon::prelude::*;
 
-        // Pre-calculate constant geometric properties (computed once)
+        // Configuration
+        const SIMPLIFICATION_THRESHOLD: usize = 2000;
+        const TARGET_TRIANGLES: usize = 1000;
+
+        // Pre-calculate constant geometric properties
         let bounds = self.vessel.get_bounds();
         let center_x = (bounds.0 + bounds.1) / 2.0;
         let center_y = (bounds.2 + bounds.3) / 2.0;
@@ -61,18 +67,44 @@ impl<'a> StabilityCalculator<'a> {
         let z_max = bounds.5;
 
         // Calculate total mass and volume
-        // Input displacement_mass is treated as the fixed "Ship Mass".
-        // Tank contents are added to this.
         let ship_mass = displacement_mass;
-        let ship_cog = cog; // Fixed ship center of gravity
-
+        let ship_cog = cog;
         let total_fluid_mass: f64 = self.vessel.tanks().iter().map(|t| t.fluid_mass()).sum();
-
         let total_mass = ship_mass + total_fluid_mass;
         let target_volume = total_mass / self.water_density;
 
-        // Warm start: compute upright equilibrium draft once
-        let upright_draft = self.find_draft_for_volume(
+        // Mesh Simplification Logic
+        let total_triangles: usize = self.vessel.hulls().iter().map(|h| h.num_triangles()).sum();
+
+        let simplified_vessel_storage = if total_triangles > SIMPLIFICATION_THRESHOLD {
+            let simplified_hulls: Vec<Hull> = self
+                .vessel
+                .hulls()
+                .iter()
+                .map(|h| h.to_simplified(TARGET_TRIANGLES))
+                .collect();
+            // Note: new_multi creates a vessel without tanks/openings, which is fine for equilibrium search
+            Vessel::new_multi(simplified_hulls).ok()
+        } else {
+            None
+        };
+
+        // Determine which calculator to use for the SEARCH phase.
+        // We handle the 'borrow checking' by constructing the proxy calculator inside the scope
+        // or using reference.
+        // Since we need to use it inside parallel loop, we create a reference wrapper?
+        // Actually, we can just decide inside the loop or create a struct.
+        // Simplest: pass the relevant `&Vessel` to finding functions, but those are methods on Calculator.
+        // So we create a `proxy_calc` here.
+
+        let proxy_calc = if let Some(ref v) = simplified_vessel_storage {
+            StabilityCalculator::new(v, self.water_density)
+        } else {
+            StabilityCalculator::new(self.vessel, self.water_density)
+        };
+
+        // Warm start: compute upright equilibrium using PROXY
+        let upright_draft = proxy_calc.find_draft_for_volume(
             target_volume,
             0.0,
             0.0,
@@ -83,13 +115,11 @@ impl<'a> StabilityCalculator<'a> {
             None,
         );
 
-        // Parallel computation of each heel angle with warm start
+        // Parallel processing
         let points: Vec<StabilityPoint> = heels
             .par_iter()
             .map(|&heel| {
-                // Calculate total Center of Gravity at this orientation
-                // G_total = (M_ship * G_ship + Sum(M_tank * G_tank(phi))) / M_total
-
+                // 1. Calculate Effective COG (using tanks from ORIGINAL vessel)
                 let mut total_moment_x = ship_mass * ship_cog[0];
                 let mut total_moment_y = ship_mass * ship_cog[1];
                 let mut total_moment_z = ship_mass * ship_cog[2];
@@ -98,7 +128,6 @@ impl<'a> StabilityCalculator<'a> {
                     for tank in self.vessel.tanks() {
                         let mass = tank.fluid_mass();
                         if mass > 0.0 {
-                            // Use 0.0 as initial trim for parallel (no inter-angle dependency)
                             let tank_cog = tank.center_of_gravity_at(heel, 0.0);
                             total_moment_x += mass * tank_cog[0];
                             total_moment_y += mass * tank_cog[1];
@@ -117,20 +146,33 @@ impl<'a> StabilityCalculator<'a> {
                     ship_cog
                 };
 
-                // Find equilibrium at this heel with warm start from upright draft
-                let (draft, trim, gz) = self.find_equilibrium_at_heel(
+                // 2. Find Equilibrium (using PROXY calculator)
+                // Note: We use proxy_calc which might use simplified mesh
+                let (draft, trim, _approx_gz) = proxy_calc.find_equilibrium_at_heel(
                     target_volume,
                     effective_cog,
                     heel,
-                    0.0,                 // Initial trim
-                    Some(upright_draft), // Warm start from upright draft
+                    0.0,
+                    Some(upright_draft),
                     center_x,
                     center_y,
                     z_min,
                     z_max,
                 );
 
-                // Check downflooding
+                // 3. Calculate Exact GZ (using ORIGINAL/SELF calculator)
+                // If proxy was used, the GZ returned is approx. computation on simplified mesh.
+                // We MUST recompute GZ on the full mesh for accuracy.
+                // If NO proxy was used, proxy_calc IS self, so _approx_gz IS exact.
+                // However, re-running one computation is negligible compared to the search.
+                // Optimally:
+                let gz = if simplified_vessel_storage.is_some() {
+                    self.compute_gz_at_state(draft, trim, heel, effective_cog, center_x, center_y)
+                } else {
+                    _approx_gz // Already computed on full mesh
+                };
+
+                // 4. Check Downflooding (using ORIGINAL vessel)
                 let pivot = [center_x, center_y, draft];
                 let flooded_openings = crate::downflooding::check_openings_submerged(
                     self.vessel.downflooding_openings(),
@@ -153,6 +195,53 @@ impl<'a> StabilityCalculator<'a> {
             .collect();
 
         StabilityCurve::new_gz(displacement_mass, cog, points)
+    }
+
+    /// Computes GZ at a specific state using the current (full) vessel geometry.
+    ///
+    /// Helper for refinement step after simplified search.
+    fn compute_gz_at_state(
+        &self,
+        draft: f64,
+        trim: f64,
+        heel: f64,
+        cog: [f64; 3],
+        center_x: f64, // Bounds center for pivot
+        center_y: f64,
+    ) -> f64 {
+        let pivot = Point3::new(center_x, center_y, draft);
+        let mut total_volume = 0.0;
+        let mut total_moment = [0.0f64; 3];
+
+        for hull in self.vessel.hulls() {
+            let transformed = transform_mesh(hull.mesh(), heel, trim, pivot);
+            let (clipped, _) = clip_at_waterline(&transformed, draft);
+
+            if let Some(mesh) = clipped {
+                let mass_props = mesh.mass_properties(1.0);
+                let vol = mass_props.mass();
+                let com = mass_props.local_com;
+
+                total_volume += vol;
+                total_moment[0] += vol * com.x;
+                total_moment[1] += vol * com.y;
+                total_moment[2] += vol * com.z;
+            }
+        }
+
+        if total_volume <= 0.0 {
+            return 0.0;
+        }
+
+        // TCB
+        let tcb = total_moment[1] / total_volume;
+
+        // Transform Ship COG
+        let g_ship = Point3::new(cog[0], cog[1], cog[2]);
+        let g_transformed = transform_point(g_ship, heel, trim, pivot);
+
+        // GZ = -(B_y - G_y)
+        -(tcb - g_transformed.y)
     }
 
     /// Calculates KN curves (Righting Lever from Keel) for multiple displacements.
@@ -208,15 +297,24 @@ impl<'a> StabilityCalculator<'a> {
             (z_min, z_max)
         };
 
+        // Initial guess
+        let mut mid = if let Some(init) = initial_draft {
+            init.clamp(low, high)
+        } else {
+            (low + high) / 2.0
+        };
+
         for _ in 0..max_iter {
-            let mid = (low + high) / 2.0;
             let pivot = Point3::new(center_x, center_y, mid);
 
             let mut total_volume = 0.0;
+            let mut total_aw = 0.0;
+
             for hull in self.vessel.hulls() {
                 let transformed = transform_mesh(hull.mesh(), heel, trim, pivot);
-                if let Some(clipped) = clip_at_waterline(&transformed, mid) {
-                    total_volume += clipped.mass_properties(1.0).mass();
+                if let (Some(mesh), aw) = clip_at_waterline(&transformed, mid) {
+                    total_volume += mesh.mass_properties(1.0).mass();
+                    total_aw += aw;
                 }
             }
 
@@ -226,11 +324,26 @@ impl<'a> StabilityCalculator<'a> {
                 return mid;
             }
 
+            // Update bounds (Volume is monotonic)
             if diff > 0.0 {
                 high = mid;
             } else {
                 low = mid;
             }
+
+            // Newton step: z_new = z - diff / Aw
+            // Safe Newton: if step falls in bounds, use it. Else bisection.
+            if total_aw > 1e-9 {
+                let step = diff / total_aw;
+                let z_new = mid - step;
+                if z_new > low && z_new < high {
+                    mid = z_new;
+                    continue;
+                }
+            }
+
+            // Fallback to bisection
+            mid = (low + high) / 2.0;
         }
 
         (low + high) / 2.0
@@ -275,25 +388,29 @@ impl<'a> StabilityCalculator<'a> {
 
         for _ in 0..max_trim_iter {
             // Find draft for target volume using bisection
-            // Optimized: Return volume and COB from the converged draft in one pass
+            // Start draft search with current bounds
             let mut low = draft_low;
             let mut high = draft_high;
-            let mut final_draft = (low + high) / 2.0;
+
+            // Use best_draft as initial guess if available and within bounds
+            let mut mid = best_draft.clamp(low, high);
+
+            let mut final_draft = mid;
             let mut final_volume = 0.0;
             let mut final_moment = [0.0f64; 3];
 
             for _ in 0..max_draft_iter {
-                let mid = (low + high) / 2.0;
                 let pivot = Point3::new(center_x, center_y, mid);
 
-                // Single-pass: compute volume AND center of buoyancy together
+                // Single-pass: compute volume, moment, AND waterplane area for Newton
                 let mut total_volume = 0.0;
                 let mut total_moment = [0.0f64; 3];
+                let mut total_aw = 0.0;
 
                 for hull in self.vessel.hulls() {
                     let transformed = transform_mesh(hull.mesh(), heel, trim, pivot);
-                    if let Some(clipped) = clip_at_waterline(&transformed, mid) {
-                        let mass_props = clipped.mass_properties(1.0);
+                    if let (Some(mesh), aw) = clip_at_waterline(&transformed, mid) {
+                        let mass_props = mesh.mass_properties(1.0);
                         let vol = mass_props.mass();
                         let com = mass_props.local_com;
 
@@ -301,6 +418,7 @@ impl<'a> StabilityCalculator<'a> {
                         total_moment[0] += vol * com.x;
                         total_moment[1] += vol * com.y;
                         total_moment[2] += vol * com.z;
+                        total_aw += aw;
                     }
                 }
 
@@ -315,11 +433,25 @@ impl<'a> StabilityCalculator<'a> {
                     break;
                 }
 
+                // Update Bounds
                 if diff > 0.0 {
                     high = mid;
                 } else {
                     low = mid;
                 }
+
+                // Safe Newton Step
+                if total_aw > 1e-9 {
+                    let step = diff / total_aw;
+                    let z_new = mid - step;
+                    if z_new > low && z_new < high {
+                        mid = z_new;
+                        continue;
+                    }
+                }
+
+                // Fallback Bisection
+                mid = (low + high) / 2.0;
             }
 
             // Use cached COB values from the converged draft (no recomputation!)

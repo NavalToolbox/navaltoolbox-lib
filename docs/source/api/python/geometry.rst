@@ -59,6 +59,31 @@ Hull
 
       :param factor: Scale factor
 
+   .. py:method:: scale_xyz(sx, sy, sz)
+
+      Scales the hull non-uniformly along each axis.
+
+      :param sx: Scale factor along X axis
+      :param sy: Scale factor along Y axis
+      :param sz: Scale factor along Z axis
+
+   .. py:method:: simplify(target_count)
+
+      Simplifies the hull mesh to a target number of triangles (in-place).
+
+      :param target_count: Target number of triangles
+      :type target_count: int
+
+   .. py:method:: to_simplified(target_count)
+
+      Returns a simplified copy of the hull.
+
+      :param target_count: Target number of triangles
+      :type target_count: int
+      :returns: Simplified Hull object
+      :rtype: Hull
+
+
    .. py:method:: export_stl(file_path)
 
       Exports the hull to an STL file.

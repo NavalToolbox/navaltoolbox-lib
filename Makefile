@@ -56,6 +56,7 @@ lint: lint-rust lint-python
 lint-rust:
 	@echo "🔍 Linting Rust code..."
 	cd rust && cargo clippy -- -W clippy::all
+	cd rust && cargo fmt --all -- --check
 	@echo "✅ Rust linting complete!"
 
 # Lint Python code

@@ -135,6 +135,25 @@ class Hull:
         """
         ...
     
+    def simplify(self, target_count: int) -> None:
+        """Simplifies the hull mesh to a target number of triangles.
+        
+        Args:
+            target_count: Target number of triangles for the simplified mesh.
+        """
+        ...
+    
+    def to_simplified(self, target_count: int) -> "Hull":
+        """Returns a simplified copy of the hull.
+        
+        Args:
+            target_count: Target number of triangles for the simplified mesh.
+        
+        Returns:
+            A new simplified Hull instance.
+        """
+        ...
+    
 
     def export_stl(self, file_path: str) -> None:
         """Exports the hull to an STL file.

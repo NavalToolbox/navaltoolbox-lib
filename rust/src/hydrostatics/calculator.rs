@@ -106,7 +106,7 @@ impl<'a> HydrostaticsCalculator<'a> {
             let bounds = get_bounds(&transformed);
 
             // Clip at waterline
-            if let Some(clipped) = clip_at_waterline(&transformed, draft) {
+            if let Some(clipped) = clip_at_waterline(&transformed, draft).0 {
                 let mass_props = clipped.mass_properties(1.0);
                 let vol = mass_props.mass();
                 let cob = mass_props.local_com;
@@ -783,7 +783,7 @@ mod tests {
 
         // Clipped slice at X=5.0, Draft=5.0
         // Expect 10 (width) * 5 (draft) = 50 m²
-        if let Some(clipped) = crate::mesh::clip_at_waterline(mesh, 5.0) {
+        if let Some(clipped) = crate::mesh::clip_at_waterline(mesh, 5.0).0 {
             println!("Clipped Vertices: {:?}", clipped.vertices());
             println!("Clipped Indices: {:?}", clipped.indices());
 

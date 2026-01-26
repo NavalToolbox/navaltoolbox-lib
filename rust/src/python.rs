@@ -108,6 +108,24 @@ impl PyHull {
         self.inner.scale_xyz(sx, sy, sz);
     }
 
+    /// Simplifies the hull mesh to a target number of triangles.
+    ///
+    /// Args:
+    ///     target_count: Target number of triangles for the simplified mesh.
+    fn simplify(&mut self, target_count: usize) {
+        self.inner.simplify(target_count);
+    }
+
+    /// Returns a simplified copy of the hull.
+    ///
+    /// Args:
+    ///     target_count: Target number of triangles for the simplified mesh.
+    fn to_simplified(&self, target_count: usize) -> Self {
+        Self {
+            inner: self.inner.to_simplified(target_count),
+        }
+    }
+
     /// Exports the hull to an STL file.
     fn export_stl(&self, file_path: &str) -> PyResult<()> {
         let path = Path::new(file_path);
@@ -600,9 +618,9 @@ impl PyDownfloodingOpening {
             OpeningGeometry::Contour(_) => "Contour",
         };
         format!(
-            "DownfloodingOpening(name='{}', type={}, geometry={}, points={})",
+            "DownfloodingOpening(name='{}', type={:?}, geometry={}, points={})",
             self.inner.name(),
-            format!("{:?}", self.inner.opening_type()),
+            self.inner.opening_type(),
             geometry,
             pts.len()
         )
@@ -838,6 +856,7 @@ impl PyHydrostaticsCalculator {
     /// Returns:
     ///     HydrostaticState with all properties
     #[pyo3(signature = (draft, trim=0.0, heel=0.0, vcg=None), name = "from_draft")]
+    #[allow(clippy::wrong_self_convention)]
     fn from_draft(
         &self,
         draft: f64,
@@ -865,6 +884,7 @@ impl PyHydrostaticsCalculator {
     /// Raises:
     ///     ValueError: If no submerged volume at this draft.
     #[pyo3(signature = (draft_ap, draft_fp, heel=0.0, vcg=None))]
+    #[allow(clippy::wrong_self_convention)]
     fn from_drafts(
         &self,
         draft_ap: f64,
@@ -907,6 +927,7 @@ impl PyHydrostaticsCalculator {
     ///     >>> # With trim constraint
     ///     >>> state = calc.from_displacement(8635000.0, vcg=7.5, trim=2.0)
     #[pyo3(signature = (displacement_mass, vcg=None, cog=None, trim=None, heel=None), name = "from_displacement")]
+    #[allow(clippy::wrong_self_convention)]
     fn from_displacement(
         &self,
         displacement_mass: f64,
@@ -922,7 +943,7 @@ impl PyHydrostaticsCalculator {
 
         calc.from_displacement(displacement_mass, vcg, cog_array, trim, heel)
             .map(|s| s.into())
-            .map_err(|e| PyValueError::new_err(e))
+            .map_err(PyValueError::new_err)
     }
 
     /// Returns the water density.\n    #[getter]
@@ -1276,6 +1297,7 @@ impl PyTank {
     /// Create a Tank as the intersection of a box with a hull geometry.
     #[staticmethod]
     #[pyo3(signature = (hull, x_min, x_max, y_min, y_max, z_min, z_max, fluid_density=1025.0, name="HullTank"))]
+    #[allow(clippy::too_many_arguments)]
     fn from_box_hull_intersection(
         hull: &PyHull,
         x_min: f64,
@@ -1307,6 +1329,7 @@ impl PyTank {
 
     /// Create a box-shaped tank.
     #[staticmethod]
+    #[allow(clippy::too_many_arguments)]
     fn from_box(
         name: &str,
         x_min: f64,

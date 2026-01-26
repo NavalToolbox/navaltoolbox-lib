@@ -274,11 +274,107 @@ impl Hull {
 
     /// Simplifies the hull mesh by reducing the number of triangles.
     ///
-    /// Note: This is a placeholder - parry3d doesn't have built-in decimation.
-    /// In a full implementation, you'd use a mesh simplification library.
-    pub fn simplify(&mut self, _target_reduction: f64) {
-        // TODO: Implement mesh decimation if needed
-        // For now, this is a no-op since parry3d doesn't have built-in decimation
+    /// # Arguments
+    /// * `target_count` - Target number of triangles
+    pub fn simplify(&mut self, target_count: usize) {
+        if target_count >= self.num_triangles() {
+            return;
+        }
+
+        let vertices = self.mesh.vertices();
+        let indices = self.mesh.indices();
+
+        // 1. Flatten vertices for meshopt (f32)
+        // meshopt uses f32. We need to convert.
+        let vertices_f32: Vec<f32> = vertices
+            .iter()
+            .flat_map(|v| vec![v.x as f32, v.y as f32, v.z as f32])
+            .collect();
+
+        // 2. Flatten indices
+        let indices_u32: Vec<u32> = indices
+            .iter()
+            .flat_map(|tri| vec![tri[0], tri[1], tri[2]])
+            .collect();
+
+        // 3. Simplify
+        // Target index count = target_triangles * 3
+        let target_index_count = target_count * 3;
+        let target_error = 1e-3; // Initial error tolerance
+
+        // meshopt::simplify requires VertexDataAdapter with &[u8]
+        // Stride is in bytes for f32 (3 * 4 = 12)
+        let vertices_bytes = unsafe {
+            std::slice::from_raw_parts(
+                vertices_f32.as_ptr() as *const u8,
+                vertices_f32.len() * std::mem::size_of::<f32>(),
+            )
+        };
+
+        let vertex_data = meshopt::VertexDataAdapter::new(vertices_bytes, 12, 0)
+            .expect("Failed to create vertex data adapter");
+
+        let simplified_indices = meshopt::simplify(
+            &indices_u32,
+            &vertex_data,
+            target_index_count,
+            target_error as f32,                  // meshopt uses f32
+            meshopt::SimplifyOptions::LockBorder, // Lock borders to avoid gaps between hulls? Or just default?
+            None,                                 // result_error
+        );
+
+        // 4. Reconstruct mesh
+        // Re-indexing is needed because simplify returns indices into original vertex buffer.
+        // We want to compact the vertex buffer to remove unused vertices.
+
+        let mut new_vertices = Vec::new();
+        let mut new_indices = Vec::new();
+        let mut vertex_map = std::collections::HashMap::new();
+
+        for i in (0..simplified_indices.len()).step_by(3) {
+            let idx0 = simplified_indices[i];
+            let idx1 = simplified_indices[i + 1];
+            let idx2 = simplified_indices[i + 2];
+
+            let v0 = vertices[idx0 as usize];
+            let v1 = vertices[idx1 as usize];
+            let v2 = vertices[idx2 as usize];
+
+            let map_vertex = |v: Point3<f64>,
+                              list: &mut Vec<Point3<f64>>,
+                              map: &mut std::collections::HashMap<u32, u32>,
+                              original_idx: u32|
+             -> u32 {
+                if let Some(&new_idx) = map.get(&original_idx) {
+                    new_idx
+                } else {
+                    let new_idx = list.len() as u32;
+                    list.push(v);
+                    map.insert(original_idx, new_idx);
+                    new_idx
+                }
+            };
+
+            let n0 = map_vertex(v0, &mut new_vertices, &mut vertex_map, idx0);
+            let n1 = map_vertex(v1, &mut new_vertices, &mut vertex_map, idx1);
+            let n2 = map_vertex(v2, &mut new_vertices, &mut vertex_map, idx2);
+
+            new_indices.push([n0, n1, n2]);
+        }
+
+        // Update mesh
+        if let Ok(new_mesh) = TriMesh::new(new_vertices, new_indices) {
+            self.mesh = new_mesh;
+        } else {
+            eprintln!("Failed to construct simplified mesh");
+        }
+    }
+
+    /// Returns a simplified copy of the hull.
+    pub fn to_simplified(&self, target_count: usize) -> Self {
+        let mut clone = self.clone();
+        clone.simplify(target_count);
+        clone
     }
 
     /// Exports the hull to an STL file.

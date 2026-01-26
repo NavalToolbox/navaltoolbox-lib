@@ -133,22 +133,22 @@ impl Tank {
         // Note: The order should not strictly matter for the final result,
         // but checking for emptiness earlier is better.
 
-        mesh = clip_by_axis_aligned_plane(&mesh, Axis::X, x_min, false)
+        mesh = clip_by_axis_aligned_plane(&mesh, Axis::X, x_min, false).0
             .ok_or_else(|| format!("Tank '{}': No geometry remaining after X_min ({:.2}) clip. Box is fully aft of hull?", name, x_min))?;
 
-        mesh = clip_by_axis_aligned_plane(&mesh, Axis::X, x_max, true)
+        mesh = clip_by_axis_aligned_plane(&mesh, Axis::X, x_max, true).0
             .ok_or_else(|| format!("Tank '{}': No geometry remaining after X_max ({:.2}) clip. Box is fully fwd of hull?", name, x_max))?;
 
-        mesh = clip_by_axis_aligned_plane(&mesh, Axis::Y, y_min, false)
+        mesh = clip_by_axis_aligned_plane(&mesh, Axis::Y, y_min, false).0
             .ok_or_else(|| format!("Tank '{}': No geometry remaining after Y_min ({:.2}) clip. Box is fully stbd of hull?", name, y_min))?;
 
-        mesh = clip_by_axis_aligned_plane(&mesh, Axis::Y, y_max, true)
+        mesh = clip_by_axis_aligned_plane(&mesh, Axis::Y, y_max, true).0
             .ok_or_else(|| format!("Tank '{}': No geometry remaining after Y_max ({:.2}) clip. Box is fully port of hull?", name, y_max))?;
 
-        mesh = clip_by_axis_aligned_plane(&mesh, Axis::Z, z_min, false)
+        mesh = clip_by_axis_aligned_plane(&mesh, Axis::Z, z_min, false).0
             .ok_or_else(|| format!("Tank '{}': No geometry remaining after Z_min ({:.2}) clip. Box is fully below hull?", name, z_min))?;
 
-        mesh = clip_by_axis_aligned_plane(&mesh, Axis::Z, z_max, true)
+        mesh = clip_by_axis_aligned_plane(&mesh, Axis::Z, z_max, true).0
             .ok_or_else(|| format!("Tank '{}': No geometry remaining after Z_max ({:.2}) clip. Box is fully above hull?", name, z_max))?;
 
         let mass_props = mesh.mass_properties(1.0);
@@ -275,7 +275,7 @@ impl Tank {
         let z = self.find_z_for_mesh(&transformed_mesh, self.total_volume * self.fill_level);
 
         // 3. Clip
-        if let Some(clipped) = clip_at_waterline(&transformed_mesh, z) {
+        if let Some(clipped) = clip_at_waterline(&transformed_mesh, z).0 {
             // 4. Inverse transform back to ship frame
             use nalgebra::Rotation3;
             let roll = heel.to_radians();
@@ -336,7 +336,7 @@ impl Tank {
         let z = self.find_z_for_mesh(&transformed_mesh, self.total_volume * self.fill_level);
 
         // 3. Calculate centroid in transformed frame
-        let transformed_cog = if let Some(clipped) = clip_at_waterline(&transformed_mesh, z) {
+        let transformed_cog = if let Some(clipped) = clip_at_waterline(&transformed_mesh, z).0 {
             let mass_props = clipped.mass_properties(1.0);
             let com = mass_props.local_com;
             nalgebra::Point3::new(com.x, com.y, com.z)
@@ -376,7 +376,7 @@ impl Tank {
         for _ in 0..max_iter {
             let mid = (low + high) / 2.0;
 
-            let volume = if let Some(clipped) = clip_at_waterline(mesh, mid) {
+            let volume = if let Some(clipped) = clip_at_waterline(mesh, mid).0 {
                 clipped.mass_properties(1.0).mass().abs()
             } else {
                 0.0
