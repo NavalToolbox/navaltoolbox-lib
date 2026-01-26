@@ -21,8 +21,10 @@
 
 use nalgebra::Point3;
 use parry3d_f64::shape::{Shape, TriMesh};
+use std::path::Path;
 
-use crate::mesh::clip_at_waterline;
+use crate::hull::Hull;
+use crate::mesh::{clip_at_waterline, clip_by_axis_aligned_plane, load_stl, load_vtk, Axis};
 
 /// Represents a tank with fluid management capabilities.
 #[derive(Clone)]
@@ -67,6 +69,96 @@ impl Tank {
             water_density: 1025.0,
             bounds,
         }
+    }
+
+    /// Creates a Tank from a file (STL or VTK).
+    pub fn from_file<P: AsRef<Path>>(path: P, fluid_density: f64) -> Result<Self, String> {
+        let path = path.as_ref();
+        if !path.exists() {
+            return Err(format!("File not found: {}", path.display()));
+        }
+
+        let ext = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.to_lowercase())
+            .unwrap_or_default();
+
+        let mesh = match ext.as_str() {
+            "stl" => load_stl(path).map_err(|e| format!("Failed to load STL: {}", e))?,
+            "vtk" | "vtp" | "vtu" => {
+                load_vtk(path).map_err(|e| format!("Failed to load VTK: {}", e))?
+            }
+            _ => return Err(format!("Unsupported file format: {}", ext)),
+        };
+
+        if mesh.vertices().is_empty() {
+            return Err("Loaded mesh has no vertices".to_string());
+        }
+
+        let name = path.file_stem().and_then(|s| s.to_str()).unwrap_or("Tank");
+
+        Ok(Self::new(name, mesh, fluid_density))
+    }
+
+    /// Creates a Tank as the intersection of a box with a hull geometry.
+    ///
+    /// # Arguments
+    /// * `name` - Tank name
+    /// * `hull` - Hull to intersect with
+    /// * `x_min`, `x_max` - Longitudinal bounds
+    /// * `y_min`, `y_max` - Transverse bounds
+    /// * `z_min`, `z_max` - Vertical bounds
+    /// * `fluid_density` - Fluid density (kg/m³)
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_box_hull_intersection(
+        name: &str,
+        hull: &Hull,
+        x_min: f64,
+        x_max: f64,
+        y_min: f64,
+        y_max: f64,
+        z_min: f64,
+        z_max: f64,
+        fluid_density: f64,
+    ) -> Result<Self, String> {
+        let mut mesh = hull.mesh().clone();
+
+        // Check for invalid bounds
+        if x_min >= x_max || y_min >= y_max || z_min >= z_max {
+            return Err("Invalid box dimensions: min must be less than max".to_string());
+        }
+
+        // Apply clips sequentially
+        // Note: The order should not strictly matter for the final result,
+        // but checking for emptiness earlier is better.
+
+        mesh = clip_by_axis_aligned_plane(&mesh, Axis::X, x_min, false)
+            .ok_or_else(|| format!("Tank '{}': No geometry remaining after X_min ({:.2}) clip. Box is fully aft of hull?", name, x_min))?;
+
+        mesh = clip_by_axis_aligned_plane(&mesh, Axis::X, x_max, true)
+            .ok_or_else(|| format!("Tank '{}': No geometry remaining after X_max ({:.2}) clip. Box is fully fwd of hull?", name, x_max))?;
+
+        mesh = clip_by_axis_aligned_plane(&mesh, Axis::Y, y_min, false)
+            .ok_or_else(|| format!("Tank '{}': No geometry remaining after Y_min ({:.2}) clip. Box is fully stbd of hull?", name, y_min))?;
+
+        mesh = clip_by_axis_aligned_plane(&mesh, Axis::Y, y_max, true)
+            .ok_or_else(|| format!("Tank '{}': No geometry remaining after Y_max ({:.2}) clip. Box is fully port of hull?", name, y_max))?;
+
+        mesh = clip_by_axis_aligned_plane(&mesh, Axis::Z, z_min, false)
+            .ok_or_else(|| format!("Tank '{}': No geometry remaining after Z_min ({:.2}) clip. Box is fully below hull?", name, z_min))?;
+
+        mesh = clip_by_axis_aligned_plane(&mesh, Axis::Z, z_max, true)
+            .ok_or_else(|| format!("Tank '{}': No geometry remaining after Z_max ({:.2}) clip. Box is fully above hull?", name, z_max))?;
+
+        let mass_props = mesh.mass_properties(1.0);
+        let volume = mass_props.mass().abs();
+
+        if volume < 1e-6 {
+            return Err(format!("Tank '{}': Intersection resulted in near-zero volume ({:.2e} m³). Check that box overlaps hull interior.", name, volume));
+        }
+
+        Ok(Self::new(name, mesh, fluid_density))
     }
 
     /// Creates a box-shaped tank from min/max coordinates.
@@ -114,6 +206,11 @@ impl Tank {
     /// Returns the tank name.
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    /// Sets the tank name.
+    pub fn set_name(&mut self, name: &str) {
+        self.name = name.to_string();
     }
 
     /// Returns the total volume in m³.
@@ -168,7 +265,6 @@ impl Tank {
         }
 
         // 1. Transform mesh to align water parallel to XY plane
-        // We use a dummy pivot (0,0,0) because we only care about orientation for Z-level finding
         let pivot = nalgebra::Point3::new(0.0, 0.0, 0.0);
         let transformed_mesh = crate::mesh::transform_mesh(&self.mesh, heel, trim, pivot);
 
@@ -188,31 +284,11 @@ impl Tank {
         };
 
         // 4. Inverse transform back to ship frame
-        // Inverse of Rotation(h, t) around P is Rotation(-h, -t) around rotated P?
-        // Actually, transform_point(p, h, t, pivot) does: Rot * (p - pivot) + pivot
-        // Inverse: p = Rot_inv * (p' - pivot) + pivot
-        // Here pivot is 0.
-        // We need an inverse transform function or manual calculation.
-        // Since `transform_point` is:
-        // let rotation = Rotation3::from_euler_angles(roll, pitch, 0.0);
-        // let rotated = rotation * (point - pivot) + pivot;
-
-        // Inverse:
-        // rotated - pivot = R * (point - pivot)
-        // R_inv * (rotated - pivot) = point - pivot
-        // point = R_inv * (rotated - pivot) + pivot
-
-        // Heel is rotation around X (roll), Trim is rotation around Y (pitch).
-        // Note: transform_mesh applies Roll then Pitch? Need to check implementation.
-        // Assuming typical extrinsic Euler or similar.
-
         use nalgebra::Rotation3;
         let roll = heel.to_radians();
         let pitch = trim.to_radians();
-        // The rotation matrix used in transform_mesh (Rotation3::from_euler_angles) depends on convention.
-        // Rust nalgebra `from_euler_angles(roll, pitch, yaw)` is usually XYZ or ZYX?
-        // Let's rely on creating the same rotation matrix and transposing it (inverse).
 
+        // Rotation used in transform_mesh matches:
         let rotation = Rotation3::from_euler_angles(roll, pitch, 0.0);
         let inverse_rotation = rotation.inverse();
 
@@ -263,7 +339,8 @@ impl Tank {
             return 0.0;
         }
 
-        // Simplified: use box approximation
+        // Simplified: use box approximation of bounding box at fill level
+        // TODO: Implement exact waterplane inertia calculation
         let length = self.bounds.1 - self.bounds.0;
         let breadth = self.bounds.3 - self.bounds.2;
 
@@ -331,5 +408,40 @@ mod tests {
         assert!((tank.fill_level() - 0.5).abs() < 1e-6);
         assert!((tank.fill_volume() - 50.0).abs() < 0.1);
         assert!((tank.fluid_mass() - 50000.0).abs() < 100.0);
+    }
+
+    #[test]
+    fn test_from_box_hull_intersection() {
+        use crate::hull::Hull;
+        // Create a large box hull: L=20, B=10, D=10
+        // Bounds: X[0,20], Y[-5,5], Z[0,10]
+        let hull = Hull::from_box(20.0, 10.0, 10.0);
+
+        // Intersect with smaller box inside: X[5,15], Y[-2,2], Z[0,5]
+        // Expected Volume: 10 * 4 * 5 = 200
+        let tank = Tank::from_box_hull_intersection(
+            "InnerTank",
+            &hull,
+            5.0,
+            15.0,
+            -2.0,
+            2.0,
+            0.0,
+            5.0,
+            1025.0,
+        )
+        .expect("Intersection failed");
+
+        assert!(
+            (tank.total_volume() - 200.0).abs() < 1e-3,
+            "Volume was {}",
+            tank.total_volume()
+        );
+
+        // Test non-intersecting (Outside Hull)
+        let res = Tank::from_box_hull_intersection(
+            "Outside", &hull, 30.0, 40.0, 0.0, 1.0, 0.0, 1.0, 1025.0,
+        );
+        assert!(res.is_err());
     }
 }

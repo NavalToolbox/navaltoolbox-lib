@@ -219,17 +219,18 @@ impl CriteriaContext {
         // No, GZ must equal HA.
         // Stable equilibrium: GZ curve intersects HA curve from below (slope of GZ > slope of HA).
         // Since HA is constant, we look for GZ(phi) crossing HA from below.
-        
+
         for i in 0..values.len() - 1 {
             let v1 = values[i];
             let v2 = values[i + 1];
 
             // Check if we cross the heeling arm line
-            if (v1 <= heeling_arm && v2 >= heeling_arm) || (v1 >= heeling_arm && v2 <= heeling_arm) {
+            if (v1 <= heeling_arm && v2 >= heeling_arm) || (v1 >= heeling_arm && v2 <= heeling_arm)
+            {
                 // Linear interpolation
                 let t = (heeling_arm - v1) / (v2 - v1);
                 let angle = heels[i] + t * (heels[i + 1] - heels[i]);
-                
+
                 // Only return "stable" equilibrium? Or first one?
                 // Typically the first positive intercept is the equilibrium.
                 if angle >= 0.0 {
@@ -248,23 +249,24 @@ impl CriteriaContext {
         let values = self.result.gz_curve.values();
 
         if heels.is_empty() {
-             return Dynamic::UNIT;
+            return Dynamic::UNIT;
         }
 
         // We want the SECOND positive intercept.
         // Or specifically where GZ CROSSES HA from ABOVE. (Unstable)
-        
+
         let mut intercept_count = 0;
-        
+
         for i in 0..values.len() - 1 {
             let v1 = values[i];
             let v2 = values[i + 1];
 
-           if (v1 <= heeling_arm && v2 >= heeling_arm) || (v1 >= heeling_arm && v2 <= heeling_arm) {
+            if (v1 <= heeling_arm && v2 >= heeling_arm) || (v1 >= heeling_arm && v2 <= heeling_arm)
+            {
                 // Linear interpolation
                 let t = (heeling_arm - v1) / (v2 - v1);
                 let angle = heels[i] + t * (heels[i + 1] - heels[i]);
-                
+
                 if angle >= 0.0 {
                     intercept_count += 1;
                     // If this is the crossing from ABOVE (unstable), it's likely the second one
@@ -273,13 +275,13 @@ impl CriteriaContext {
                     if intercept_count == 2 {
                         return Dynamic::from(angle);
                     }
-                    
+
                     // Also check if we passed peak GZ and go down?
                     // The standard definition usually implies the geometric 2nd intercept.
                 }
             }
         }
-        
+
         Dynamic::UNIT
     }
 

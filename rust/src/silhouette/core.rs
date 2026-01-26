@@ -56,6 +56,21 @@ impl Silhouette {
         Ok(Self { points, name })
     }
 
+    /// Load a silhouette from a file (DXF or VTK) based on extension.
+    pub fn from_file(path: &Path) -> Result<Self, SilhouetteLoadError> {
+        let ext = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.to_lowercase())
+            .unwrap_or_default();
+
+        match ext.as_str() {
+            "dxf" => Self::from_dxf(path),
+            "vtk" | "vtp" | "vtu" => Self::from_vtk(path),
+            _ => Err(SilhouetteLoadError::UnsupportedFormat),
+        }
+    }
+
     /// Get the silhouette name.
     pub fn name(&self) -> &str {
         &self.name

@@ -302,7 +302,7 @@ impl ScriptEngine {
             .get("status")
             .and_then(|v| v.clone().into_string().ok())
             .unwrap_or_else(|| "N/A".to_string());
-        
+
         let status = match status_str.to_uppercase().as_str() {
             "PASS" => CriteriaStatus::Pass,
             "FAIL" => CriteriaStatus::Fail,
