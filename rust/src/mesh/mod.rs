@@ -23,6 +23,6 @@ mod clipper;
 mod loader;
 mod transform;
 
-pub use clipper::clip_at_waterline;
+pub use clipper::{clip_at_waterline, clip_by_axis_aligned_plane, Axis};
 pub use loader::{load_stl, load_vtk};
 pub use transform::{get_bounds, transform_mesh, transform_point};

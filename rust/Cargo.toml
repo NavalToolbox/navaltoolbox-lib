@@ -59,6 +59,7 @@ python = ["dep:pyo3"]
 [dev-dependencies]
 # For testing
 approx = "0.5"
+tempfile = "3.10"
 
 [profile.release]
 opt-level = 3
