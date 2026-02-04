@@ -1,6 +1,6 @@
 [package]
 name = "navaltoolbox"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 description = "High-performance naval architecture library for hydrostatics, stability, and tank calculations"
 authors = ["Antoine ANCEAU"]
@@ -23,8 +23,6 @@ parry3d-f64 = "0.18"
 nalgebra = "0.33"
 # STL file loading
 stl_io = "0.8"
-# VTK file loading (optional, for later)
-# vtkio = "0.6"
 # Fast polygon triangulation for waterline caps
 earcutr = "0.4"
 # Ordered floats for HashMap keys
