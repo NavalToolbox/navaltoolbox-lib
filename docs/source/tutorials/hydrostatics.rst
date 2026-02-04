@@ -148,6 +148,78 @@ Hydrostatics change with heel angle:
         state = calc.from_draft(6.15, 0.0, heel, 7.555)
         print(f"Heel {heel:2d}°: Vol={state.volume:.1f}m³, VCB={state.vcb:.2f}m")
 
+Working with Appendages
+-----------------------
+
+Appendages (rudders, keels, bulbs) can be added to the vessel to improve calculation accuracy. They contribute to volume, buoyancy, and wetted surface area.
+
+.. code-block:: python
+
+    from navaltoolbox import Appendage
+
+    # Create appendages
+    rudder = Appendage.from_point("rudder", center=(50.0, 0.0, -2.0), volume=0.5)
+    keel = Appendage.from_box("keel", xmin=40, xmax=60, ymin=-0.5, ymax=0.5, zmin=-3, zmax=0)
+    
+    # Or load from file
+    # bulb = Appendage.from_file("bulb", "bulb.stl")
+
+    # Add to vessel
+    vessel.add_appendage(rudder)
+    vessel.add_appendage(keel)
+
+    # Calculate hydrostatics (appendages are automatically included)
+    state_with_app = calc.from_draft(6.15)
+    print(f"Volume with appendages: {state_with_app.volume:.2f} m³")
+    print(f"Appendage volume: {vessel.get_total_appendage_volume():.2f} m³")
+
+Advanced Hydrostatics
+---------------------
+
+NavalToolbox provides advanced hydrostatic properties like the **Sectional Area Curve (SAC)** and **Freeboard** calculations.
+
+**Sectional Area Curve (SAC)**
+
+The SAC is computed automatically and available in the hydrostatic state:
+
+.. code-block:: python
+
+    # Get SAC data (list of (x, area) tuples)
+    sac = state.sectional_areas
+
+    # Print first few points
+    for x, area in sac[:5]:
+        print(f"X: {x:.2f}m, Area: {area:.2f}m²")
+
+    # You can easily plot this curve using matplotlib
+
+**Freeboard Calculation**
+
+To calculate freeboard, you must first define a **Deck Edge** (Livet):
+
+.. code-block:: python
+
+    from navaltoolbox import DeckEdge, DeckEdgeSide
+
+    # Define deck edge points (e.g., simplified rectangular deck)
+    deck_points = [
+        (0, 5, 10),   # Aft Port
+        (100, 5, 12), # Fwd Port
+        (100, -5, 12),# Fwd Stbd
+        (0, -5, 10)   # Aft Stbd
+    ]
+    
+    # Create and add deck edge
+    deck = DeckEdge.from_points("MainDeck", deck_points, DeckEdgeSide.both())
+    vessel.add_deck_edge(deck)
+
+    # Check freeboard at current state
+    if state.freeboard is not None:
+        print(f"Minimum Freeboard: {state.freeboard:.3f} m")
+    else:
+        print("Freeboard not available (no deck edge defined)")
+
+
 Fresh vs Salt Water
 -------------------
 

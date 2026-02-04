@@ -240,6 +240,83 @@ Vessel
       :returns: List of DownfloodingOpening objects
       :rtype: list[DownfloodingOpening]
 
+   .. py:method:: add_appendage(appendage)
+
+      Add an appendage to the vessel.
+
+      :param appendage: Appendage to add
+      :type appendage: Appendage
+
+   .. py:method:: num_appendages()
+
+      Returns the number of appendages.
+
+      :rtype: int
+
+   .. py:method:: clear_appendages()
+
+      Removes all appendages.
+
+   .. py:method:: get_appendages()
+
+      Get all appendages.
+
+      :rtype: list[Appendage]
+
+   .. py:method:: get_total_appendage_volume()
+
+      Returns the total appendage volume in m³.
+
+      :rtype: float
+
+   .. py:method:: get_total_appendage_wetted_surface()
+
+      Returns the total appendage wetted surface in m².
+
+      :rtype: float
+
+   .. py:method:: add_deck_edge(deck_edge)
+
+      Add a deck edge to the vessel.
+
+      :param deck_edge: Deck edge to add
+      :type deck_edge: DeckEdge
+
+   .. py:method:: num_deck_edges()
+
+      Returns the number of deck edges.
+
+      :rtype: int
+
+   .. py:method:: has_deck_edges()
+
+      Returns true if any deck edges are defined.
+
+      :rtype: bool
+
+   .. py:method:: clear_deck_edges()
+
+      Removes all deck edges.
+
+   .. py:method:: get_deck_edges()
+
+      Get all deck edges.
+
+      :rtype: list[DeckEdge]
+
+   .. py:method:: get_min_freeboard(heel, trim, waterline_z)
+
+      Calculate minimum freeboard across all deck edges.
+
+      :param heel: Heel angle in degrees
+      :type heel: float
+      :param trim: Trim angle in degrees
+      :type trim: float
+      :param waterline_z: Waterline Z coordinate
+      :type waterline_z: float
+      :returns: Minimum freeboard distance in meters, or None if no deck edges
+      :rtype: float or None
+
 Silhouette
 ----------
 
@@ -447,3 +524,201 @@ DownfloodingOpening
       :param waterline_z: Waterline Z coordinate
       :type waterline_z: float
       :rtype: bool
+
+Appendage
+---------
+
+.. py:class:: Appendage
+
+   An appendage (additional volume element) attached to the vessel.
+   
+   Appendages represent volume contributions from items like keels, rudders,
+   bulbous bows, etc. that are not part of the main hull geometry.
+
+   .. py:staticmethod:: from_point(name, center, volume)
+
+      Create an appendage from a point (fixed volume at position).
+
+      :param name: Appendage name
+      :type name: str
+      :param center: (x, y, z) center position
+      :type center: tuple[float, float, float]
+      :param volume: Volume in m³
+      :type volume: float
+      :returns: Appendage object
+      :rtype: Appendage
+
+   .. py:staticmethod:: from_file(name, file_path)
+
+      Create an appendage from an STL or VTK file.
+
+      :param name: Appendage name
+      :type name: str
+      :param file_path: Path to the geometry file
+      :type file_path: str
+      :returns: Appendage object
+      :rtype: Appendage
+
+   .. py:staticmethod:: from_box(name, xmin, xmax, ymin, ymax, zmin, zmax)
+
+      Create an appendage from a box (parallelepiped).
+
+      :param name: Appendage name
+      :type name: str
+      :param xmin: Minimum X coordinate
+      :param xmax: Maximum X coordinate
+      :param ymin: Minimum Y coordinate
+      :param ymax: Maximum Y coordinate
+      :param zmin: Minimum Z coordinate
+      :param zmax: Maximum Z coordinate
+      :returns: Appendage object
+      :rtype: Appendage
+
+   .. py:staticmethod:: from_cube(name, center, volume)
+
+      Create an appendage from a cube (center and volume).
+
+      :param name: Appendage name
+      :type name: str
+      :param center: (x, y, z) center position
+      :type center: tuple[float, float, float]
+      :param volume: Volume in m³
+      :type volume: float
+      :returns: Appendage object
+      :rtype: Appendage
+
+   .. py:staticmethod:: from_sphere(name, center, volume)
+
+      Create an appendage from a sphere (center and volume).
+
+      :param name: Appendage name
+      :type name: str
+      :param center: (x, y, z) center position
+      :type center: tuple[float, float, float]
+      :param volume: Volume in m³
+      :type volume: float
+      :returns: Appendage object
+      :rtype: Appendage
+
+   .. py:attribute:: name
+      :type: str
+
+      The appendage name.
+
+   .. py:attribute:: volume
+      :type: float
+
+      Volume in m³.
+
+   .. py:attribute:: center
+      :type: tuple[float, float, float]
+
+      Center of volume (x, y, z) in meters.
+
+   .. py:attribute:: wetted_surface
+      :type: float or None
+
+      Wetted surface area in m², or None if not set.
+
+   .. py:attribute:: bounds
+      :type: tuple[float, float, float, float, float, float] or None
+      
+      Returns bounds (xmin, xmax, ymin, ymax, zmin, zmax) or None if not applicable (Point).
+
+   .. py:method:: geometry_type()
+
+      Returns the geometry type (Point, Mesh, Box, etc.).
+
+      :rtype: str
+
+   .. py:method:: get_mesh_data()
+
+      Returns mesh data (vertices, faces) if geometry is a mesh.
+
+      :returns: Tuple of (vertices, faces), or None if not a mesh
+      :rtype: tuple[list[tuple[float, float, float]], list[tuple[int, int, int]]] or None
+
+DeckEdge
+--------
+
+.. py:class:: DeckEdgeSide
+
+   Side of the deck edge (Port, Starboard, or Both).
+
+   .. py:staticmethod:: port()
+
+      Port side.
+
+   .. py:staticmethod:: starboard()
+
+      Starboard side.
+
+   .. py:staticmethod:: both()
+
+      Both sides (mirrored).
+
+.. py:class:: DeckEdge
+
+   A deck edge contour (livet) for freeboard calculation.
+
+   .. py:staticmethod:: from_points(name, points, side)
+
+      Create a deck edge from a list of 3D points.
+
+      :param name: Deck edge name
+      :type name: str
+      :param points: List of (x, y, z) points
+      :type points: list[tuple[float, float, float]]
+      :param side: Side of the deck edge
+      :type side: DeckEdgeSide
+      :returns: DeckEdge object
+      :rtype: DeckEdge
+
+   .. py:staticmethod:: from_file(name, file_path)
+
+      Load a deck edge from a DXF or VTK file.
+
+      :param name: Deck edge name
+      :type name: str
+      :param file_path: Path to the geometry file
+      :type file_path: str
+      :returns: DeckEdge object
+      :rtype: DeckEdge
+
+   .. py:attribute:: name
+      :type: str
+
+      The deck edge name.
+
+   .. py:method:: num_points()
+
+      Returns the number of points.
+
+      :rtype: int
+
+   .. py:method:: get_points()
+
+      Returns points as list of (x, y, z) tuples.
+
+      :rtype: list[tuple[float, float, float]]
+
+   .. py:method:: get_side()
+
+      Returns the side as a string.
+
+      :rtype: str
+
+   .. py:method:: get_freeboard(heel, trim, pivot, waterline_z)
+
+      Calculate freeboard at given conditions.
+
+      :param heel: Heel angle in degrees
+      :type heel: float
+      :param trim: Trim angle in degrees
+      :type trim: float
+      :param pivot: Rotation pivot (x, y, z)
+      :type pivot: tuple[float, float, float]
+      :param waterline_z: Waterline Z coordinate
+      :type waterline_z: float
+      :returns: Minimum freeboard distance in meters
+      :rtype: float

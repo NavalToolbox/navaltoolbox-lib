@@ -51,6 +51,14 @@ To make the visualization interesting, let's add some tanks, a silhouette (super
     )
     vessel.add_opening(opening)
 
+    # Add Appendages
+    # rudder = Appendage.from_point("Rudder", (100, 0, -2), 1.5)
+    # vessel.add_appendage(rudder)
+
+    # Add Deck Edges (Livet)
+    # deck = DeckEdge.from_points("Main Deck", [...], DeckEdgeSide.both())
+    # vessel.add_deck_edge(deck)
+
 General Arrangement Plot
 ------------------------
 
