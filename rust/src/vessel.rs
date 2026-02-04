@@ -19,6 +19,8 @@
 //!
 //! Provides the Vessel container for hull geometries, tanks, and vessel-level properties.
 
+use crate::appendage::Appendage;
+use crate::deckedge::DeckEdge;
 use crate::downflooding::DownfloodingOpening;
 use crate::hull::Hull;
 use crate::silhouette::Silhouette;
@@ -36,6 +38,10 @@ pub struct Vessel {
     hulls: Vec<Hull>,
     /// List of tanks
     tanks: Vec<Tank>,
+    /// List of appendages
+    appendages: Vec<Appendage>,
+    /// Deck edges for freeboard calculation
+    deck_edges: Vec<DeckEdge>,
     /// Aft Perpendicular position (None = auto from bounds)
     ap: Option<f64>,
     /// Forward Perpendicular position (None = auto from bounds)
@@ -52,6 +58,8 @@ impl Vessel {
         Self {
             hulls: vec![hull],
             tanks: Vec::new(),
+            appendages: Vec::new(),
+            deck_edges: Vec::new(),
             ap: None,
             fp: None,
             silhouettes: Vec::new(),
@@ -67,6 +75,8 @@ impl Vessel {
         Ok(Self {
             hulls,
             tanks: Vec::new(),
+            appendages: Vec::new(),
+            deck_edges: Vec::new(),
             ap: None,
             fp: None,
             silhouettes: Vec::new(),
@@ -79,6 +89,8 @@ impl Vessel {
         Self {
             hulls: vec![hull],
             tanks: Vec::new(),
+            appendages: Vec::new(),
+            deck_edges: Vec::new(),
             ap: Some(ap),
             fp: Some(fp),
             silhouettes: Vec::new(),
@@ -329,6 +341,153 @@ impl Vessel {
         }
 
         [cx / total_area, cz / total_area]
+    }
+
+    // =========================================================================
+    // Appendage Management
+    // =========================================================================
+
+    /// Adds an appendage to the vessel.
+    pub fn add_appendage(&mut self, appendage: Appendage) {
+        self.appendages.push(appendage);
+    }
+
+    /// Returns a reference to all appendages.
+    pub fn appendages(&self) -> &[Appendage] {
+        &self.appendages
+    }
+
+    /// Returns a mutable reference to the appendages.
+    pub fn appendages_mut(&mut self) -> &mut Vec<Appendage> {
+        &mut self.appendages
+    }
+
+    /// Returns the number of appendages.
+    pub fn num_appendages(&self) -> usize {
+        self.appendages.len()
+    }
+
+    /// Removes an appendage by index.
+    pub fn delete_appendage(&mut self, index: usize) -> Option<Appendage> {
+        if index < self.appendages.len() {
+            Some(self.appendages.remove(index))
+        } else {
+            None
+        }
+    }
+
+    /// Removes an appendage by name. Returns the removed appendage if found.
+    pub fn delete_appendage_by_name(&mut self, name: &str) -> Option<Appendage> {
+        if let Some(idx) = self.appendages.iter().position(|a| a.name() == name) {
+            Some(self.appendages.remove(idx))
+        } else {
+            None
+        }
+    }
+
+    /// Finds an appendage by its name.
+    pub fn get_appendage_by_name(&self, name: &str) -> Option<&Appendage> {
+        self.appendages.iter().find(|a| a.name() == name)
+    }
+
+    /// Finds an appendage by its name (mutable).
+    pub fn get_appendage_by_name_mut(&mut self, name: &str) -> Option<&mut Appendage> {
+        self.appendages.iter_mut().find(|a| a.name() == name)
+    }
+
+    /// Calculates the total volume of all appendages.
+    pub fn get_total_appendage_volume(&self) -> f64 {
+        self.appendages.iter().map(|a| a.volume()).sum()
+    }
+
+    /// Calculates the total wetted surface of all appendages (if specified).
+    pub fn get_total_appendage_wetted_surface(&self) -> f64 {
+        self.appendages
+            .iter()
+            .filter_map(|a| a.wetted_surface())
+            .sum()
+    }
+
+    /// Removes all appendages.
+    pub fn clear_appendages(&mut self) {
+        self.appendages.clear();
+    }
+
+    // =========================================================================
+    // Deck Edge Management
+    // =========================================================================
+
+    /// Adds a deck edge to the vessel.
+    pub fn add_deck_edge(&mut self, deck_edge: DeckEdge) {
+        self.deck_edges.push(deck_edge);
+    }
+
+    /// Returns a reference to all deck edges.
+    pub fn deck_edges(&self) -> &[DeckEdge] {
+        &self.deck_edges
+    }
+
+    /// Returns a mutable reference to the deck edges.
+    pub fn deck_edges_mut(&mut self) -> &mut Vec<DeckEdge> {
+        &mut self.deck_edges
+    }
+
+    /// Returns the number of deck edges.
+    pub fn num_deck_edges(&self) -> usize {
+        self.deck_edges.len()
+    }
+
+    /// Returns true if any deck edges are defined.
+    pub fn has_deck_edges(&self) -> bool {
+        !self.deck_edges.is_empty()
+    }
+
+    /// Removes a deck edge by index.
+    pub fn delete_deck_edge(&mut self, index: usize) -> Option<DeckEdge> {
+        if index < self.deck_edges.len() {
+            Some(self.deck_edges.remove(index))
+        } else {
+            None
+        }
+    }
+
+    /// Finds a deck edge by its name.
+    pub fn get_deck_edge_by_name(&self, name: &str) -> Option<&DeckEdge> {
+        self.deck_edges.iter().find(|d| d.name() == name)
+    }
+
+    /// Removes all deck edges.
+    pub fn clear_deck_edges(&mut self) {
+        self.deck_edges.clear();
+    }
+
+    /// Calculates the minimum freeboard across all deck edges.
+    ///
+    /// # Arguments
+    /// * `heel` - Heel angle in degrees
+    /// * `trim` - Trim angle in degrees
+    /// * `waterline_z` - Waterline Z coordinate
+    ///
+    /// # Returns
+    /// Minimum freeboard in meters, or None if no deck edges defined
+    pub fn get_min_freeboard(&self, heel: f64, trim: f64, waterline_z: f64) -> Option<f64> {
+        if self.deck_edges.is_empty() {
+            return None;
+        }
+
+        let bounds = self.get_bounds();
+        let pivot = [
+            (self.ap() + self.fp()) / 2.0,
+            (bounds.2 + bounds.3) / 2.0,
+            waterline_z,
+        ];
+
+        Some(
+            self.deck_edges
+                .iter()
+                .map(|de| de.get_freeboard(heel, trim, pivot, waterline_z))
+                .fold(f64::INFINITY, f64::min),
+        )
     }
 
     // =========================================================================

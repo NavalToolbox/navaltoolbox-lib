@@ -27,6 +27,9 @@ __all__ = [
     "Hull",
     "Vessel",
     "Silhouette",
+    "Appendage",
+    "DeckEdge",
+    "DeckEdgeSide",
     "OpeningType",
     "DownfloodingOpening",
     "HydrostaticState",
@@ -342,6 +345,58 @@ class Vessel:
             List of DownfloodingOpening objects.
         """
         ...
+    
+    # Appendage methods
+    
+    def add_appendage(self, appendage: "Appendage") -> None:
+        """Add an appendage to the vessel."""
+        ...
+        
+    def num_appendages(self) -> int:
+        """Returns the number of appendages."""
+        ...
+        
+    def clear_appendages(self) -> None:
+        """Removes all appendages."""
+        ...
+        
+    def get_appendages(self) -> List["Appendage"]:
+        """Get all appendages."""
+        ...
+        
+    def get_total_appendage_volume(self) -> float:
+        """Returns the total appendage volume in m³."""
+        ...
+        
+    def get_total_appendage_wetted_surface(self) -> float:
+        """Returns the total appendage wetted surface in m²."""
+        ...
+        
+    # Deck Edge methods
+    
+    def add_deck_edge(self, deck_edge: "DeckEdge") -> None:
+        """Add a deck edge to the vessel."""
+        ...
+        
+    def num_deck_edges(self) -> int:
+        """Returns the number of deck edges."""
+        ...
+        
+    def has_deck_edges(self) -> bool:
+        """Returns true if any deck edges are defined."""
+        ...
+        
+    def clear_deck_edges(self) -> None:
+        """Removes all deck edges."""
+        ...
+        
+    def get_deck_edges(self) -> List["DeckEdge"]:
+        """Get all deck edges."""
+        ...
+        
+    def get_min_freeboard(self, heel: float, trim: float, waterline_z: float) -> float | None:
+        """Calculate minimum freeboard across all deck edges."""
+        ...
 
 
 class Silhouette:
@@ -423,6 +478,137 @@ class Silhouette:
         Args:
             waterline_z: Waterline height in meters.
         """
+        ...
+
+
+
+class Appendage:
+    """An appendage (additional volume element) attached to the vessel.
+    
+    Appendages represent volume contributions from items like keels, rudders,
+    bulbous bows, etc. that are not part of the main hull geometry.
+    """
+    
+    @staticmethod
+    def from_point(name: str, center: Tuple[float, float, float], volume: float) -> "Appendage":
+        """Create an appendage from a point (fixed volume at position)."""
+        ...
+        
+    @staticmethod
+    def from_file(name: str, file_path: str) -> "Appendage":
+        """Create an appendage from an STL or VTK file."""
+        ...
+        
+    @staticmethod
+    def from_box(name: str, xmin: float, xmax: float, ymin: float, ymax: float, zmin: float, zmax: float) -> "Appendage":
+        """Create an appendage from a box (parallelepiped)."""
+        ...
+        
+    @staticmethod
+    def from_cube(name: str, center: Tuple[float, float, float], volume: float) -> "Appendage":
+        """Create an appendage from a cube (center and volume)."""
+        ...
+        
+    @staticmethod
+    def from_sphere(name: str, center: Tuple[float, float, float], volume: float) -> "Appendage":
+        """Create an appendage from a sphere (center and volume)."""
+        ...
+    
+    @property
+    def name(self) -> str:
+        """The appendage name."""
+        ...
+    
+    @name.setter
+    def name(self, value: str) -> None:
+        ...
+        
+    @property
+    def volume(self) -> float:
+        """Volume in m³."""
+        ...
+        
+    @property
+    def center(self) -> Tuple[float, float, float]:
+        """Center of volume (x, y, z) in meters."""
+        ...
+        
+    @property
+    def wetted_surface(self) -> float | None:
+        """Wetted surface area in m², or None if not set."""
+        ...
+        
+    @wetted_surface.setter
+    def wetted_surface(self, value: float | None) -> None:
+        ...
+        
+    def geometry_type(self) -> str:
+        """Returns the geometry type (Point, Mesh, Box, etc.)."""
+        ...
+    
+    def get_mesh_data(self) -> Tuple[List[Tuple[float, float, float]], List[Tuple[int, int, int]]] | None:
+        """Returns mesh data (vertices, faces) if geometry is a mesh.
+        
+        Returns:
+            Tuple of (vertices, faces), or None if not a mesh.
+        """
+        ...
+    
+    @property
+    def bounds(self) -> Tuple[float, float, float, float, float, float] | None:
+        """Returns bounds (xmin, xmax, ymin, ymax, zmin, zmax)."""
+        ...
+
+
+class DeckEdgeSide:
+    """Side of the deck edge (Port, Starboard, or Both)."""
+    
+    @staticmethod
+    def port() -> "DeckEdgeSide": ...
+    
+    @staticmethod
+    def starboard() -> "DeckEdgeSide": ...
+    
+    @staticmethod
+    def both() -> "DeckEdgeSide": ...
+
+
+class DeckEdge:
+    """A deck edge contour (livet) for freeboard calculation."""
+    
+    @staticmethod
+    def from_points(name: str, points: List[Tuple[float, float, float]], side: DeckEdgeSide) -> "DeckEdge":
+        """Create a deck edge from a list of 3D points."""
+        ...
+        
+    @staticmethod
+    def from_file(name: str, file_path: str) -> "DeckEdge":
+        """Load a deck edge from a DXF or VTK file."""
+        ...
+    
+    @property
+    def name(self) -> str:
+        """The deck edge name."""
+        ...
+    
+    @name.setter
+    def name(self, value: str) -> None:
+        ...
+        
+    def num_points(self) -> int:
+        """Returns the number of points."""
+        ...
+        
+    def get_points(self) -> List[Tuple[float, float, float]]:
+        """Returns points as list of (x, y, z) tuples."""
+        ...
+        
+    def get_side(self) -> str:
+        """Returns the side as a string."""
+        ...
+        
+    def get_freeboard(self, heel: float, trim: float, pivot: Tuple[float, float, float], waterline_z: float) -> float:
+        """Calculate freeboard at given conditions."""
         ...
 
 
@@ -635,6 +821,8 @@ class HydrostaticState:
         free_surface_correction_t: Transverse FSC in meters.
         free_surface_correction_l: Longitudinal FSC in meters.
         stiffness_matrix: 6x6 hydrostatic stiffness matrix (flattened).
+        sectional_areas: List of (x, area) pairs representing the sectional area curve.
+        freeboard: Minimum freeboard in meters, or None.
     """
     
     draft: float
@@ -645,6 +833,9 @@ class HydrostaticState:
     draft_mp: float
     volume: float
     displacement: float
+    
+    sectional_areas: List[Tuple[float, float]]
+    freeboard: float | None
     
     @property
     def cob(self) -> Tuple[float, float, float]:
@@ -753,6 +944,7 @@ class HydrostaticsCalculator:
         trim: float = 0.0,
         heel: float = 0.0,
         vcg: float | None = None,
+        num_stations: int | None = None,
     ) -> HydrostaticState:
         """Calculate hydrostatics at a given draft, trim, and heel.
         

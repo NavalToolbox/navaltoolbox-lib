@@ -45,6 +45,8 @@
 //! from the use of this software. Users are advised to independently verify critical calculations
 //! and to use this software as a tool to support, not replace, professional engineering judgment.
 
+pub mod appendage;
+pub mod deckedge;
 pub mod downflooding;
 pub mod hull;
 pub mod hydrostatics;
@@ -56,6 +58,8 @@ pub mod tanks;
 pub mod vessel;
 
 // Re-export main types
+pub use appendage::{Appendage, AppendageGeometry, AppendageLoadError};
+pub use deckedge::{DeckEdge, DeckEdgeLoadError, DeckEdgeSide};
 pub use downflooding::{DownfloodingOpening, OpeningGeometry, OpeningType};
 pub use hull::Hull;
 pub use hydrostatics::{HydrostaticState, HydrostaticsCalculator};

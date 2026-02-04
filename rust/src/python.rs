@@ -23,6 +23,8 @@
 use pyo3::exceptions::{PyIOError, PyValueError};
 use pyo3::prelude::*;
 
+use crate::appendage::{Appendage as RustAppendage, AppendageGeometry};
+use crate::deckedge::{DeckEdge as RustDeckEdge, DeckEdgeSide as RustDeckEdgeSide};
 use crate::hull::Hull as RustHull;
 use crate::hydrostatics::{
     HydrostaticState as RustHydroState, HydrostaticsCalculator as RustHydroCalc,
@@ -343,12 +345,90 @@ impl PyVessel {
             .collect()
     }
 
+    // =========================================================================
+    // Appendage methods
+    // =========================================================================
+
+    /// Add an appendage to the vessel.
+    fn add_appendage(&mut self, appendage: &PyAppendage) {
+        self.inner.add_appendage(appendage.inner.clone());
+    }
+
+    /// Returns the number of appendages.
+    fn num_appendages(&self) -> usize {
+        self.inner.num_appendages()
+    }
+
+    /// Removes all appendages.
+    fn clear_appendages(&mut self) {
+        self.inner.clear_appendages();
+    }
+
+    /// Get all appendages.
+    fn get_appendages(&self) -> Vec<PyAppendage> {
+        self.inner
+            .appendages()
+            .iter()
+            .map(|a| PyAppendage { inner: a.clone() })
+            .collect()
+    }
+
+    /// Returns the total appendage volume in m³.
+    fn get_total_appendage_volume(&self) -> f64 {
+        self.inner.get_total_appendage_volume()
+    }
+
+    /// Returns the total appendage wetted surface in m².
+    fn get_total_appendage_wetted_surface(&self) -> f64 {
+        self.inner.get_total_appendage_wetted_surface()
+    }
+
+    // =========================================================================
+    // Deck Edge methods
+    // =========================================================================
+
+    /// Add a deck edge to the vessel.
+    fn add_deck_edge(&mut self, deck_edge: &PyDeckEdge) {
+        self.inner.add_deck_edge(deck_edge.inner.clone());
+    }
+
+    /// Returns the number of deck edges.
+    fn num_deck_edges(&self) -> usize {
+        self.inner.num_deck_edges()
+    }
+
+    /// Returns true if any deck edges are defined.
+    fn has_deck_edges(&self) -> bool {
+        self.inner.has_deck_edges()
+    }
+
+    /// Removes all deck edges.
+    fn clear_deck_edges(&mut self) {
+        self.inner.clear_deck_edges();
+    }
+
+    /// Get all deck edges.
+    fn get_deck_edges(&self) -> Vec<PyDeckEdge> {
+        self.inner
+            .deck_edges()
+            .iter()
+            .map(|d| PyDeckEdge { inner: d.clone() })
+            .collect()
+    }
+
+    /// Calculate minimum freeboard across all deck edges.
+    fn get_min_freeboard(&self, heel: f64, trim: f64, waterline_z: f64) -> Option<f64> {
+        self.inner.get_min_freeboard(heel, trim, waterline_z)
+    }
+
     fn __repr__(&self) -> String {
         format!(
-            "Vessel(hulls={}, tanks={}, silhouettes={}, lbp={:.2}m)",
+            "Vessel(hulls={}, tanks={}, silhouettes={}, appendages={}, deck_edges={}, lbp={:.2}m)",
             self.inner.hulls().len(),
             self.inner.tanks().len(),
             self.inner.num_silhouettes(),
+            self.inner.num_appendages(),
+            self.inner.num_deck_edges(),
             self.inner.lbp()
         )
     }
@@ -442,6 +522,305 @@ impl PySilhouette {
             self.inner.name(),
             self.inner.num_points(),
             self.inner.get_area()
+        )
+    }
+}
+
+// ============================================================================
+// Appendage Python Wrapper
+// ============================================================================
+
+/// An appendage (additional volume element) attached to the vessel.
+#[pyclass(name = "Appendage")]
+pub struct PyAppendage {
+    pub(crate) inner: RustAppendage,
+}
+
+#[pymethods]
+impl PyAppendage {
+    /// Create an appendage from a point (fixed volume at position).
+    #[staticmethod]
+    fn from_point(name: &str, center: (f64, f64, f64), volume: f64) -> Self {
+        Self {
+            inner: RustAppendage::from_point(name, [center.0, center.1, center.2], volume),
+        }
+    }
+
+    /// Create an appendage from an STL or VTK file.
+    #[staticmethod]
+    fn from_file(name: &str, file_path: &str) -> PyResult<Self> {
+        let path = Path::new(file_path);
+        let appendage = RustAppendage::from_file(name, path)
+            .map_err(|e| PyIOError::new_err(format!("Failed to load appendage: {}", e)))?;
+        Ok(Self { inner: appendage })
+    }
+
+    /// Create an appendage from a box (parallelepiped).
+    #[staticmethod]
+    fn from_box(
+        name: &str,
+        xmin: f64,
+        xmax: f64,
+        ymin: f64,
+        ymax: f64,
+        zmin: f64,
+        zmax: f64,
+    ) -> Self {
+        Self {
+            inner: RustAppendage::from_box(name, (xmin, xmax, ymin, ymax, zmin, zmax)),
+        }
+    }
+
+    /// Create an appendage from a cube (center and volume).
+    #[staticmethod]
+    fn from_cube(name: &str, center: (f64, f64, f64), volume: f64) -> Self {
+        Self {
+            inner: RustAppendage::from_cube(name, [center.0, center.1, center.2], volume),
+        }
+    }
+
+    /// Create an appendage from a sphere (center and volume).
+    #[staticmethod]
+    fn from_sphere(name: &str, center: (f64, f64, f64), volume: f64) -> Self {
+        Self {
+            inner: RustAppendage::from_sphere(name, [center.0, center.1, center.2], volume),
+        }
+    }
+
+    /// Returns the appendage name.
+    #[getter]
+    fn name(&self) -> &str {
+        self.inner.name()
+    }
+
+    /// Sets the appendage name.
+    #[setter]
+    fn set_name(&mut self, name: &str) {
+        self.inner.set_name(name);
+    }
+
+    /// Returns the volume in m³.
+    #[getter]
+    fn volume(&self) -> f64 {
+        self.inner.volume()
+    }
+
+    /// Returns the center of volume as (x, y, z).
+    #[getter]
+    fn center(&self) -> (f64, f64, f64) {
+        let c = self.inner.center();
+        (c[0], c[1], c[2])
+    }
+
+    /// Returns the wetted surface if set.
+    #[getter]
+    fn wetted_surface(&self) -> Option<f64> {
+        self.inner.wetted_surface()
+    }
+
+    /// Sets the wetted surface.
+    #[setter]
+    fn set_wetted_surface(&mut self, surface: Option<f64>) {
+        self.inner.set_wetted_surface(surface);
+    }
+
+
+    /// Returns the geometry type as a string.
+    fn geometry_type(&self) -> &str {
+        match self.inner.geometry() {
+            AppendageGeometry::Point { .. } => "Point",
+            AppendageGeometry::Mesh(_) => "Mesh",
+            AppendageGeometry::Box { .. } => "Box",
+            AppendageGeometry::Sphere { .. } => "Sphere",
+            AppendageGeometry::Cube { .. } => "Cube",
+        }
+    }
+
+    /// Returns mesh data (vertices, faces) if geometry is a mesh.
+    fn get_mesh_data(&self) -> Option<(Vec<(f64, f64, f64)>, Vec<(usize, usize, usize)>)> {
+        if let AppendageGeometry::Mesh(mesh) = self.inner.geometry() {
+            let vertices: Vec<(f64, f64, f64)> = mesh
+                .vertices()
+                .iter()
+                .map(|p| (p.x, p.y, p.z))
+                .collect();
+            let faces: Vec<(usize, usize, usize)> = mesh
+                .indices()
+                .iter()
+                .map(|tri| (tri[0] as usize, tri[1] as usize, tri[2] as usize))
+                .collect();
+            Some((vertices, faces))
+        } else {
+            None
+        }
+    }
+
+    /// Returns bounds (xmin, xmax, ymin, ymax, zmin, zmax).
+    #[getter]
+    fn bounds(&self) -> Option<(f64, f64, f64, f64, f64, f64)> {
+        match self.inner.geometry() {
+            AppendageGeometry::Box { bounds } => Some(*bounds),
+            AppendageGeometry::Cube { center, volume } => {
+                let s = volume.cbrt();
+                Some((
+                    center[0] - s / 2.0,
+                    center[0] + s / 2.0,
+                    center[1] - s / 2.0,
+                    center[1] + s / 2.0,
+                    center[2] - s / 2.0,
+                    center[2] + s / 2.0,
+                ))
+            }
+            AppendageGeometry::Sphere { center, volume } => {
+                let r = (volume * 3.0 / (4.0 * std::f64::consts::PI)).cbrt();
+                Some((
+                    center[0] - r,
+                    center[0] + r,
+                    center[1] - r,
+                    center[1] + r,
+                    center[2] - r,
+                    center[2] + r,
+                ))
+            }
+            AppendageGeometry::Mesh(mesh) => {
+                let aabb = mesh.aabb(&parry3d_f64::math::Isometry::identity());
+                Some((
+                    aabb.mins.x,
+                    aabb.maxs.x,
+                    aabb.mins.y,
+                    aabb.maxs.y,
+                    aabb.mins.z,
+                    aabb.maxs.z,
+                ))
+            }
+            AppendageGeometry::Point { .. } => None,
+        }
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "Appendage(name='{}', type={}, volume={:.3}m³)",
+            self.inner.name(),
+            self.geometry_type(),
+            self.inner.volume()
+        )
+    }
+}
+
+// ============================================================================
+// DeckEdge Python Wrapper
+// ============================================================================
+
+/// Side of the deck edge.
+#[pyclass(name = "DeckEdgeSide")]
+#[derive(Clone)]
+pub struct PyDeckEdgeSide {
+    inner: RustDeckEdgeSide,
+}
+
+#[pymethods]
+impl PyDeckEdgeSide {
+    #[staticmethod]
+    fn port() -> Self {
+        Self {
+            inner: RustDeckEdgeSide::Port,
+        }
+    }
+
+    #[staticmethod]
+    fn starboard() -> Self {
+        Self {
+            inner: RustDeckEdgeSide::Starboard,
+        }
+    }
+
+    #[staticmethod]
+    fn both() -> Self {
+        Self {
+            inner: RustDeckEdgeSide::Both,
+        }
+    }
+
+    fn __repr__(&self) -> String {
+        format!("{:?}", self.inner)
+    }
+}
+
+/// A deck edge contour (livet) for freeboard calculation.
+#[pyclass(name = "DeckEdge")]
+pub struct PyDeckEdge {
+    pub(crate) inner: RustDeckEdge,
+}
+
+#[pymethods]
+impl PyDeckEdge {
+    /// Create a deck edge from a list of 3D points.
+    #[staticmethod]
+    fn from_points(name: &str, points: Vec<(f64, f64, f64)>, side: &PyDeckEdgeSide) -> Self {
+        let pts: Vec<[f64; 3]> = points.iter().map(|(x, y, z)| [*x, *y, *z]).collect();
+        Self {
+            inner: RustDeckEdge::new(name, pts, side.inner.clone()),
+        }
+    }
+
+    /// Load a deck edge from a DXF or VTK file.
+    #[staticmethod]
+    fn from_file(name: &str, file_path: &str) -> PyResult<Self> {
+        let path = Path::new(file_path);
+        let deck_edge = RustDeckEdge::from_file(name, path)
+            .map_err(|e| PyIOError::new_err(format!("Failed to load deck edge: {}", e)))?;
+        Ok(Self { inner: deck_edge })
+    }
+
+    /// Returns the deck edge name.
+    #[getter]
+    fn name(&self) -> &str {
+        self.inner.name()
+    }
+
+    /// Sets the deck edge name.
+    #[setter]
+    fn set_name(&mut self, name: &str) {
+        self.inner.set_name(name);
+    }
+
+    /// Returns the number of points.
+    fn num_points(&self) -> usize {
+        self.inner.points().len()
+    }
+
+    /// Returns all points as [(x, y, z), ...].
+    fn get_points(&self) -> Vec<(f64, f64, f64)> {
+        self.inner
+            .points()
+            .iter()
+            .map(|p| (p[0], p[1], p[2]))
+            .collect()
+    }
+
+    /// Returns the side of the deck edge.
+    fn get_side(&self) -> String {
+        format!("{:?}", self.inner.side())
+    }
+
+    /// Calculate freeboard at given conditions.
+    fn get_freeboard(
+        &self,
+        heel: f64,
+        trim: f64,
+        pivot: (f64, f64, f64),
+        waterline_z: f64,
+    ) -> f64 {
+        self.inner
+            .get_freeboard(heel, trim, [pivot.0, pivot.1, pivot.2], waterline_z)
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "DeckEdge(name='{}', points={}, side={:?})",
+            self.inner.name(),
+            self.inner.points().len(),
+            self.inner.side()
         )
     }
 }
@@ -695,6 +1074,10 @@ pub struct PyHydrostaticState {
     pub free_surface_correction_l: f64,
     #[pyo3(get)]
     pub stiffness_matrix: Vec<f64>,
+    #[pyo3(get)]
+    pub sectional_areas: Vec<(f64, f64)>,
+    #[pyo3(get)]
+    pub freeboard: Option<f64>,
 }
 
 impl From<RustHydroState> for PyHydrostaticState {
@@ -729,6 +1112,8 @@ impl From<RustHydroState> for PyHydrostaticState {
             free_surface_correction_t: state.free_surface_correction_t,
             free_surface_correction_l: state.free_surface_correction_l,
             stiffness_matrix: state.stiffness_matrix.to_vec(),
+            sectional_areas: state.sectional_areas,
+            freeboard: state.freeboard,
         }
     }
 }
@@ -852,10 +1237,11 @@ impl PyHydrostaticsCalculator {
     ///     trim: Trim angle in degrees (default 0.0)
     ///     heel: Heel angle in degrees (default 0.0)
     ///     vcg: Optional vertical center of gravity for GMT/GML calculation
+    ///     num_stations: Optional number of stations for sectional area curve (default 21)
     ///
     /// Returns:
     ///     HydrostaticState with all properties
-    #[pyo3(signature = (draft, trim=0.0, heel=0.0, vcg=None), name = "from_draft")]
+    #[pyo3(signature = (draft, trim=0.0, heel=0.0, vcg=None, num_stations=None), name = "from_draft")]
     #[allow(clippy::wrong_self_convention)]
     fn from_draft(
         &self,
@@ -863,9 +1249,10 @@ impl PyHydrostaticsCalculator {
         trim: f64,
         heel: f64,
         vcg: Option<f64>,
+        num_stations: Option<usize>,
     ) -> PyResult<PyHydrostaticState> {
         let calc = RustHydroCalc::new(&self.vessel, self.water_density);
-        calc.from_draft(draft, trim, heel, vcg)
+        calc.from_draft_with_stations(draft, trim, heel, vcg, num_stations)
             .map(|s| s.into())
             .ok_or_else(|| PyValueError::new_err("No submerged volume at this draft"))
     }
@@ -1700,6 +2087,9 @@ fn navaltoolbox(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyHull>()?;
     m.add_class::<PyVessel>()?;
     m.add_class::<PySilhouette>()?;
+    m.add_class::<PyAppendage>()?;
+    m.add_class::<PyDeckEdgeSide>()?;
+    m.add_class::<PyDeckEdge>()?;
     m.add_class::<PyOpeningType>()?;
     m.add_class::<PyDownfloodingOpening>()?;
     m.add_class::<PyHydrostaticState>()?;

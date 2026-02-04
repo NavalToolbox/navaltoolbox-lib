@@ -92,6 +92,12 @@ pub struct HydrostaticState {
 
     /// Length overall submerged in meters
     pub los: f64,
+
+    /// Sectional area curve: (x_position, area) pairs from AP to FP
+    pub sectional_areas: Vec<(f64, f64)>,
+
+    /// Freeboard at deck edge (min distance from waterline to deck) in meters
+    pub freeboard: Option<f64>,
 }
 
 impl HydrostaticState {
@@ -158,6 +164,8 @@ impl Default for HydrostaticState {
             draft_ap: 0.0,
             draft_fp: 0.0,
             draft_mp: 0.0,
+            sectional_areas: Vec::new(),
+            freeboard: None,
         }
     }
 }
