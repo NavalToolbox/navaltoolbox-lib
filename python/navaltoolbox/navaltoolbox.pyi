@@ -545,6 +545,19 @@ class Appendage:
     def geometry_type(self) -> str:
         """Returns the geometry type (Point, Mesh, Box, etc.)."""
         ...
+    
+    def get_mesh_data(self) -> Tuple[List[Tuple[float, float, float]], List[Tuple[int, int, int]]] | None:
+        """Returns mesh data (vertices, faces) if geometry is a mesh.
+        
+        Returns:
+            Tuple of (vertices, faces), or None if not a mesh.
+        """
+        ...
+    
+    @property
+    def bounds(self) -> Tuple[float, float, float, float, float, float] | None:
+        """Returns bounds (xmin, xmax, ymin, ymax, zmin, zmax)."""
+        ...
 
 
 class DeckEdgeSide:

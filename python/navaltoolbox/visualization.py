@@ -24,8 +24,11 @@ def plot_vessel_3d(
     show_tanks: bool = True,
     show_silhouettes: bool = True,
     show_openings: bool = True,
+    show_appendages: bool = True,
+    show_deck_edges: bool = True,
     opacity_hull: float = 0.5,
     opacity_tank: float = 0.3,
+    opacity_appendage: float = 0.5,
     title: str = "Vessel Visualization",
     enable_opacity_slider: bool = True,
     show_axes: bool = True,
@@ -39,8 +42,11 @@ def plot_vessel_3d(
         show_tanks: Whether to show tank meshes.
         show_silhouettes: Whether to show silhouette profiles.
         show_openings: Whether to show downflooding openings.
+        show_appendages: Whether to show appendages.
+        show_deck_edges: Whether to show deck edges.
         opacity_hull: Opacity for hull meshes (0.0 to 1.0).
         opacity_tank: Opacity for tank meshes (0.0 to 1.0).
+        opacity_appendage: Opacity for appendage meshes (0.0 to 1.0).
         title: Title of the plot.
         enable_opacity_slider: Whether to add a slider to control hull opacity.
         show_axes: Whether to show axes, grid, and background.
@@ -180,6 +186,40 @@ def plot_vessel_3d(
                     marker=dict(size=4, color="red"),
                     line=dict(color="red", width=2),
                     name=f"Opening: {opening.name}",
+                )
+            )
+    
+    # 5. Appendages
+    if show_appendages:
+        for app in vessel.get_appendages():
+            _add_appendage_trace(fig, app, opacity_appendage)
+
+    # 6. Deck Edges
+    if show_deck_edges:
+        for edge in vessel.get_deck_edges():
+            points = edge.get_points()
+            if not points:
+                continue
+            
+            x, y, z = zip(*points)
+            side = edge.get_side()
+            
+            # Determine color based on side
+            color = "orange" # Default/Both
+            if "Port" in side:
+                color = "red"
+            elif "Starboard" in side:
+                color = "green"
+                
+            fig.add_trace(
+                go.Scatter3d(
+                    x=x,
+                    y=y,
+                    z=z,
+                    mode="lines+markers",
+                    line=dict(color=color, width=4),
+                    marker=dict(size=3, color=color),
+                    name=f"Deck Edge: {edge.name} ({side})",
                 )
             )
 
@@ -326,8 +366,11 @@ def plot_hydrostatic_condition(
     show_tanks: bool = True,
     show_silhouettes: bool = True,
     show_openings: bool = True,
+    show_appendages: bool = True,
+    show_deck_edges: bool = True,
     opacity_hull: float = 0.5,
     opacity_tank: float = 0.3,
+    opacity_appendage: float = 0.5,
     title: str = "Hydrostatic Condition",
     enable_opacity_slider: bool = True,
     cog: Optional[Tuple[float, float, float]] = None,
@@ -348,8 +391,11 @@ def plot_hydrostatic_condition(
         show_tanks: Whether to show tank meshes.
         show_silhouettes: Whether to show silhouette profiles.
         show_openings: Whether to show downflooding openings.
+        show_appendages: Whether to show appendages.
+        show_deck_edges: Whether to show deck edges.
         opacity_hull: Opacity for hull meshes (0.0 to 1.0).
         opacity_tank: Opacity for tank meshes (0.0 to 1.0).
+        opacity_appendage: Opacity for appendage meshes (0.0 to 1.0).
         title: Title of the plot.
         enable_opacity_slider: Whether to add a slider to control hull opacity.
         cog: Optional Center of Gravity (x, y, z) to display.
@@ -599,7 +645,100 @@ def plot_hydrostatic_condition(
                 )
             )
 
-    # 5. Reference Points
+    # 5. Appendages
+    if show_appendages:
+        for app in vessel.get_appendages():
+            geo_type = app.geometry_type()
+            
+            if geo_type == "Mesh":
+                mesh_data = app.get_mesh_data()
+                if mesh_data:
+                    verts, faces = mesh_data
+                    if verts and faces:
+                        t_verts = transform_points(verts)
+                        x, y, z = t_verts[:, 0], t_verts[:, 1], t_verts[:, 2]
+                        i_idx, j_idx, k_idx = zip(*faces)
+                        
+                        fig.add_trace(
+                            go.Mesh3d(
+                                x=x, y=y, z=z, i=i_idx, j=j_idx, k=k_idx,
+                                color="darkkhaki",
+                                opacity=opacity_appendage,
+                                name=f"{app.name} (Appendage)",
+                                showscale=False,
+                                flatshading=True,
+                            )
+                        )
+            elif geo_type == "Box" or geo_type == "Cube":
+                bounds = app.bounds
+                if bounds:
+                    xmin, xmax, ymin, ymax, zmin, zmax = bounds
+                    # Create a box mesh
+                    box_verts = [
+                        (xmin, ymin, zmin), (xmax, ymin, zmin), (xmax, ymax, zmin), (xmin, ymax, zmin),
+                        (xmin, ymin, zmax), (xmax, ymin, zmax), (xmax, ymax, zmax), (xmin, ymax, zmax)
+                    ]
+                    t_verts = transform_points(box_verts)
+                    x, y, z = t_verts[:, 0], t_verts[:, 1], t_verts[:, 2]
+                    
+                    i = [7, 0, 0, 0, 4, 4, 6, 6, 4, 0, 3, 2]
+                    j = [3, 4, 1, 2, 5, 6, 5, 2, 0, 1, 6, 3]
+                    k = [0, 7, 2, 3, 6, 7, 1, 1, 5, 5, 7, 6]
+                    
+                    fig.add_trace(
+                        go.Mesh3d(
+                            x=x, y=y, z=z, i=i, j=j, k=k,
+                            color="goldenrod",
+                            opacity=opacity_appendage,
+                            name=f"{app.name} (Appendage)",
+                            showscale=False,
+                        )
+                    )
+            elif geo_type == "Sphere" or geo_type == "Point":
+                center = app.center
+                volume = app.volume
+                t_center = transform_points([center])[0]
+                
+                fig.add_trace(
+                    go.Scatter3d(
+                        x=[t_center[0]],
+                        y=[t_center[1]],
+                        z=[t_center[2]],
+                        mode="markers",
+                        marker=dict(size=10, color="goldenrod", symbol="circle"),
+                        name=f"{app.name} (Appendage)",
+                        text=f"Vol: {volume:.3f}m³",
+                    )
+                )
+
+    # 6. Deck Edges
+    if show_deck_edges:
+        for edge in vessel.get_deck_edges():
+            points = edge.get_points()
+            if not points:
+                continue
+            
+            t_points = transform_points(points)
+            x, y, z = t_points[:, 0], t_points[:, 1], t_points[:, 2]
+            side = edge.get_side()
+            
+            color = "orange"
+            if "Port" in side:
+                color = "red"
+            elif "Starboard" in side:
+                color = "green"
+            
+            fig.add_trace(
+                go.Scatter3d(
+                    x=x, y=y, z=z,
+                    mode="lines+markers",
+                    line=dict(color=color, width=4),
+                    marker=dict(size=3, color=color),
+                    name=f"Deck Edge: {edge.name} ({side})",
+                )
+            )
+
+    # 7. Reference Points
     ap_pt = transform_points([(vessel.ap, 0, 0)])[0]
     fp_pt = transform_points([(vessel.fp, 0, 0)])[0]
 
@@ -615,7 +754,7 @@ def plot_hydrostatic_condition(
         )
     )
 
-    # 6. Center of Gravity
+    # 8. Center of Gravity
     if cog:
         cog_pt = transform_points([cog])[0]
         fig.add_trace(
@@ -801,25 +940,92 @@ def _add_hull_trace(fig: go.Figure, hull: Hull, name: str, opacity: float):
     if hasattr(hull, "get_vertices") and hasattr(hull, "get_faces"):
         verts = hull.get_vertices()
         faces = hull.get_faces()
+        if verts and faces:
+            x, y, z = zip(*verts)
+            i_idx, j_idx, k_idx = zip(*faces)
 
-        if not verts or not faces:
-            return
+            fig.add_trace(
+                go.Mesh3d(
+                    x=x,
+                    y=y,
+                    z=z,
+                    i=i_idx,
+                    j=j_idx,
+                    k=k_idx,
+                    color="gray",
+                    opacity=opacity,
+                    name=name,
+                    showscale=False,
+                    flatshading=True,
+                )
+            )
 
-        x, y, z = zip(*verts)
-        i, j, k = zip(*faces)
 
+def _add_appendage_trace(fig: go.Figure, app: Any, opacity: float):
+    """Helper to add appendage to figure."""
+    geo_type = app.geometry_type()
+    
+    if geo_type == "Mesh":
+        mesh_data = app.get_mesh_data()
+        if mesh_data:
+            verts, faces = mesh_data
+            if verts and faces:
+                x, y, z = zip(*verts)
+                i_idx, j_idx, k_idx = zip(*faces)
+                
+                fig.add_trace(
+                    go.Mesh3d(
+                        x=x,
+                        y=y,
+                        z=z,
+                        i=i_idx,
+                        j=j_idx,
+                        k=k_idx,
+                        color="darkkhaki",
+                        opacity=opacity,
+                        name=f"{app.name} (Appendage)",
+                        showscale=False,
+                        flatshading=True,
+                    )
+                )
+    elif geo_type == "Box" or geo_type == "Cube":
+        bounds = app.bounds
+        if bounds:
+            xmin, xmax, ymin, ymax, zmin, zmax = bounds
+            
+            # Create a box mesh
+            x = [xmin, xmin, xmax, xmax, xmin, xmin, xmax, xmax]
+            y = [ymin, ymax, ymax, ymin, ymin, ymax, ymax, ymin]
+            z = [zmin, zmin, zmin, zmin, zmax, zmax, zmax, zmax]
+            
+            i = [7, 0, 0, 0, 4, 4, 6, 6, 4, 0, 3, 2]
+            j = [3, 4, 1, 2, 5, 6, 5, 2, 0, 1, 6, 3]
+            k = [0, 7, 2, 3, 6, 7, 1, 1, 5, 5, 7, 6]
+            
+            fig.add_trace(
+                go.Mesh3d(
+                    x=x, y=y, z=z, i=i, j=j, k=k,
+                    color="goldenrod",
+                    opacity=opacity,
+                    name=f"{app.name} (Appendage)",
+                    showscale=False,
+                )
+            )
+    elif geo_type == "Sphere" or geo_type == "Point":
+        # Draw as a marker or simple sphere if we want
+        center = app.center
+        volume = app.volume
+        
+        # Simple marker for now
         fig.add_trace(
-            go.Mesh3d(
-                x=x,
-                y=y,
-                z=z,
-                i=i,
-                j=j,
-                k=k,
-                color="gray",
-                opacity=opacity,
-                name=name,
-                showscale=False,
-                flatshading=True,
+            go.Scatter3d(
+                x=[center[0]],
+                y=[center[1]],
+                z=[center[2]],
+                mode="markers",
+                marker=dict(size=10, color="goldenrod", symbol="circle"),
+                name=f"{app.name} (Appendage)",
+                text=f"Vol: {volume:.3f}m³",
             )
         )
+

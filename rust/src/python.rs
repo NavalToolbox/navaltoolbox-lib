@@ -624,6 +624,7 @@ impl PyAppendage {
         self.inner.set_wetted_surface(surface);
     }
 
+
     /// Returns the geometry type as a string.
     fn geometry_type(&self) -> &str {
         match self.inner.geometry() {
@@ -632,6 +633,67 @@ impl PyAppendage {
             AppendageGeometry::Box { .. } => "Box",
             AppendageGeometry::Sphere { .. } => "Sphere",
             AppendageGeometry::Cube { .. } => "Cube",
+        }
+    }
+
+    /// Returns mesh data (vertices, faces) if geometry is a mesh.
+    fn get_mesh_data(&self) -> Option<(Vec<(f64, f64, f64)>, Vec<(usize, usize, usize)>)> {
+        if let AppendageGeometry::Mesh(mesh) = self.inner.geometry() {
+            let vertices: Vec<(f64, f64, f64)> = mesh
+                .vertices()
+                .iter()
+                .map(|p| (p.x, p.y, p.z))
+                .collect();
+            let faces: Vec<(usize, usize, usize)> = mesh
+                .indices()
+                .iter()
+                .map(|tri| (tri[0] as usize, tri[1] as usize, tri[2] as usize))
+                .collect();
+            Some((vertices, faces))
+        } else {
+            None
+        }
+    }
+
+    /// Returns bounds (xmin, xmax, ymin, ymax, zmin, zmax).
+    #[getter]
+    fn bounds(&self) -> Option<(f64, f64, f64, f64, f64, f64)> {
+        match self.inner.geometry() {
+            AppendageGeometry::Box { bounds } => Some(*bounds),
+            AppendageGeometry::Cube { center, volume } => {
+                let s = volume.cbrt();
+                Some((
+                    center[0] - s / 2.0,
+                    center[0] + s / 2.0,
+                    center[1] - s / 2.0,
+                    center[1] + s / 2.0,
+                    center[2] - s / 2.0,
+                    center[2] + s / 2.0,
+                ))
+            }
+            AppendageGeometry::Sphere { center, volume } => {
+                let r = (volume * 3.0 / (4.0 * std::f64::consts::PI)).cbrt();
+                Some((
+                    center[0] - r,
+                    center[0] + r,
+                    center[1] - r,
+                    center[1] + r,
+                    center[2] - r,
+                    center[2] + r,
+                ))
+            }
+            AppendageGeometry::Mesh(mesh) => {
+                let aabb = mesh.aabb(&parry3d_f64::math::Isometry::identity());
+                Some((
+                    aabb.mins.x,
+                    aabb.maxs.x,
+                    aabb.mins.y,
+                    aabb.maxs.y,
+                    aabb.mins.z,
+                    aabb.maxs.z,
+                ))
+            }
+            AppendageGeometry::Point { .. } => None,
         }
     }
 
@@ -1049,7 +1111,6 @@ impl From<RustHydroState> for PyHydrostaticState {
             cp: state.cp,
             free_surface_correction_t: state.free_surface_correction_t,
             free_surface_correction_l: state.free_surface_correction_l,
-            free_surface_correction_l: state.free_surface_correction_l,
             stiffness_matrix: state.stiffness_matrix.to_vec(),
             sectional_areas: state.sectional_areas,
             freeboard: state.freeboard,
@@ -1191,7 +1252,7 @@ impl PyHydrostaticsCalculator {
         num_stations: Option<usize>,
     ) -> PyResult<PyHydrostaticState> {
         let calc = RustHydroCalc::new(&self.vessel, self.water_density);
-        calc.from_draft(draft, trim, heel, vcg, num_stations)
+        calc.from_draft_with_stations(draft, trim, heel, vcg, num_stations)
             .map(|s| s.into())
             .ok_or_else(|| PyValueError::new_err("No submerged volume at this draft"))
     }

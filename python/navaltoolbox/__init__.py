@@ -58,6 +58,9 @@ from .navaltoolbox import (
     CriteriaResult,
     CriteriaContext,
     ScriptEngine,
+    Appendage,
+    DeckEdge,
+    DeckEdgeSide,
 )
 
 __all__ = [
@@ -77,4 +80,7 @@ __all__ = [
     "CriteriaResult",
     "CriteriaContext",
     "ScriptEngine",
+    "Appendage",
+    "DeckEdge",
+    "DeckEdgeSide",
 ]
