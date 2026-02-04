@@ -624,7 +624,6 @@ impl PyAppendage {
         self.inner.set_wetted_surface(surface);
     }
 
-
     /// Returns the geometry type as a string.
     fn geometry_type(&self) -> &str {
         match self.inner.geometry() {
@@ -640,11 +639,8 @@ impl PyAppendage {
     #[allow(clippy::type_complexity)]
     fn get_mesh_data(&self) -> Option<(Vec<(f64, f64, f64)>, Vec<(usize, usize, usize)>)> {
         if let AppendageGeometry::Mesh(mesh) = self.inner.geometry() {
-            let vertices: Vec<(f64, f64, f64)> = mesh
-                .vertices()
-                .iter()
-                .map(|p| (p.x, p.y, p.z))
-                .collect();
+            let vertices: Vec<(f64, f64, f64)> =
+                mesh.vertices().iter().map(|p| (p.x, p.y, p.z)).collect();
             let faces: Vec<(usize, usize, usize)> = mesh
                 .indices()
                 .iter()
@@ -805,13 +801,7 @@ impl PyDeckEdge {
     }
 
     /// Calculate freeboard at given conditions.
-    fn get_freeboard(
-        &self,
-        heel: f64,
-        trim: f64,
-        pivot: (f64, f64, f64),
-        waterline_z: f64,
-    ) -> f64 {
+    fn get_freeboard(&self, heel: f64, trim: f64, pivot: (f64, f64, f64), waterline_z: f64) -> f64 {
         self.inner
             .get_freeboard(heel, trim, [pivot.0, pivot.1, pivot.2], waterline_z)
     }

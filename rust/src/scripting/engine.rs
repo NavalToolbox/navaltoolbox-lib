@@ -62,18 +62,24 @@ impl ScriptEngine {
             .register_type_with_name::<CriteriaContext>("CriteriaContext")
             // GZ curve methods
             .register_fn("get_heels", |ctx: &mut CriteriaContext| ctx.get_heels())
-            .register_fn("get_gz_values", |ctx: &mut CriteriaContext| ctx.get_gz_values())
-            .register_fn("area_under_curve", |ctx: &mut CriteriaContext, from: f64, to: f64| ctx.area_under_curve(from, to))
-            .register_fn("gz_at_angle", |ctx: &mut CriteriaContext, angle: f64| ctx.gz_at_angle(angle))
+            .register_fn("get_gz_values", |ctx: &mut CriteriaContext| {
+                ctx.get_gz_values()
+            })
+            .register_fn(
+                "area_under_curve",
+                |ctx: &mut CriteriaContext, from: f64, to: f64| ctx.area_under_curve(from, to),
+            )
+            .register_fn("gz_at_angle", |ctx: &mut CriteriaContext, angle: f64| {
+                ctx.gz_at_angle(angle)
+            })
             .register_fn("find_max_gz", |ctx: &mut CriteriaContext| ctx.find_max_gz())
             .register_fn(
                 "find_angle_of_vanishing_stability",
                 |ctx: &mut CriteriaContext| ctx.find_angle_of_vanishing_stability(),
             )
-            .register_fn(
-                "get_first_flooding_angle",
-                |ctx: &mut CriteriaContext| ctx.get_first_flooding_angle(),
-            )
+            .register_fn("get_first_flooding_angle", |ctx: &mut CriteriaContext| {
+                ctx.get_first_flooding_angle()
+            })
             .register_fn(
                 "find_equilibrium_angle",
                 |ctx: &mut CriteriaContext, arm: f64| ctx.find_equilibrium_angle(arm),
@@ -82,13 +88,18 @@ impl ScriptEngine {
                 "find_second_intercept",
                 |ctx: &mut CriteriaContext, arm: f64| ctx.find_second_intercept(arm),
             )
-            .register_fn("get_limiting_angle", |ctx: &mut CriteriaContext, default: f64| ctx.get_limiting_angle(default))
+            .register_fn(
+                "get_limiting_angle",
+                |ctx: &mut CriteriaContext, default: f64| ctx.get_limiting_angle(default),
+            )
             // Hydrostatic properties
             .register_fn("get_gm0", |ctx: &mut CriteriaContext| ctx.get_gm0())
             .register_fn("get_gm0_dry", |ctx: &mut CriteriaContext| ctx.get_gm0_dry())
             .register_fn("get_draft", |ctx: &mut CriteriaContext| ctx.get_draft())
             .register_fn("get_trim", |ctx: &mut CriteriaContext| ctx.get_trim())
-            .register_fn("get_displacement", |ctx: &mut CriteriaContext| ctx.get_displacement())
+            .register_fn("get_displacement", |ctx: &mut CriteriaContext| {
+                ctx.get_displacement()
+            })
             .register_fn("get_cog", |ctx: &mut CriteriaContext| ctx.get_cog())
             // Form coefficients
             .register_fn("get_cb", |ctx: &mut CriteriaContext| ctx.get_cb())
@@ -98,22 +109,35 @@ impl ScriptEngine {
             .register_fn("get_bwl", |ctx: &mut CriteriaContext| ctx.get_bwl())
             .register_fn("get_vcb", |ctx: &mut CriteriaContext| ctx.get_vcb())
             // Wind data
-            .register_fn("has_wind_data", |ctx: &mut CriteriaContext| ctx.has_wind_data())
-            .register_fn("get_emerged_area", |ctx: &mut CriteriaContext| ctx.get_emerged_area())
-            .register_fn("get_wind_lever_arm", |ctx: &mut CriteriaContext| ctx.get_wind_lever_arm())
+            .register_fn("has_wind_data", |ctx: &mut CriteriaContext| {
+                ctx.has_wind_data()
+            })
+            .register_fn("get_emerged_area", |ctx: &mut CriteriaContext| {
+                ctx.get_emerged_area()
+            })
+            .register_fn("get_wind_lever_arm", |ctx: &mut CriteriaContext| {
+                ctx.get_wind_lever_arm()
+            })
             .register_fn(
                 "calculate_wind_heeling_lever",
-                |ctx: &mut CriteriaContext, pressure: f64| ctx.calculate_wind_heeling_lever(pressure),
+                |ctx: &mut CriteriaContext, pressure: f64| {
+                    ctx.calculate_wind_heeling_lever(pressure)
+                },
             )
             // External parameters
-            .register_fn("get_param", |ctx: &mut CriteriaContext, key: &str| ctx.get_param(key))
-            .register_fn("has_param", |ctx: &mut CriteriaContext, key: &str| ctx.has_param(key))
+            .register_fn("get_param", |ctx: &mut CriteriaContext, key: &str| {
+                ctx.get_param(key)
+            })
+            .register_fn("has_param", |ctx: &mut CriteriaContext, key: &str| {
+                ctx.has_param(key)
+            })
             // Metadata
-            .register_fn("get_vessel_name", |ctx: &mut CriteriaContext| ctx.get_vessel_name())
-            .register_fn(
-                "get_loading_condition",
-                |ctx: &mut CriteriaContext| ctx.get_loading_condition(),
-            );
+            .register_fn("get_vessel_name", |ctx: &mut CriteriaContext| {
+                ctx.get_vessel_name()
+            })
+            .register_fn("get_loading_condition", |ctx: &mut CriteriaContext| {
+                ctx.get_loading_condition()
+            });
 
         // Register helper functions
         engine.register_fn("criterion", Self::create_criterion);
@@ -481,15 +505,16 @@ mod tests {
 
     #[test]
     fn test_criteria_context_methods() {
+        use crate::hydrostatics::HydrostaticState;
         use crate::stability::CompleteStabilityResult;
         use crate::stability::StabilityCurve;
-        use crate::hydrostatics::HydrostaticState;
-        
+
         let engine = ScriptEngine::new();
-        
+
         // Create dummy context
         let hydro = HydrostaticState {
-            draft: 5.0, ..Default::default()
+            draft: 5.0,
+            ..Default::default()
         };
         let curve = StabilityCurve {
             curve_type: "GZ".to_string(),
@@ -504,9 +529,9 @@ mod tests {
             displacement: 1000.0,
             cog: [0.0, 0.0, 0.0],
         };
-        
+
         let ctx = CriteriaContext::new(result, "Test".into(), "Load".into());
-        
+
         let script = r#"
             fn check(ctx) {
                 let d = ctx.get_draft();
@@ -514,15 +539,18 @@ mod tests {
                 d
             }
         "#;
-        
+
         // This runs the script which calls methods on ctx
         let ast = engine.compile(script).unwrap();
         // Manually run check function to bypass map_to_criteria_result expecting specific return struct
         let mut scope = rhai::Scope::new();
         let ctx_clone = ctx.clone();
         scope.push("ctx", ctx);
-        let res: f64 = engine.engine.call_fn(&mut scope, &ast, "check", (ctx_clone,)).unwrap();
-        
+        let res: f64 = engine
+            .engine
+            .call_fn(&mut scope, &ast, "check", (ctx_clone,))
+            .unwrap();
+
         assert_eq!(res, 5.0);
     }
 }
