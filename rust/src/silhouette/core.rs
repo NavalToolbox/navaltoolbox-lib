@@ -76,6 +76,11 @@ impl Silhouette {
         &self.name
     }
 
+    /// Set the silhouette name.
+    pub fn set_name(&mut self, name: &str) {
+        self.name = name.to_string();
+    }
+
     /// Get the points defining the silhouette.
     pub fn points(&self) -> &[[f64; 3]] {
         &self.points
