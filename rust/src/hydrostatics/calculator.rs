@@ -51,12 +51,32 @@ impl<'a> HydrostaticsCalculator<'a> {
     /// * `trim` - Trim angle in degrees (positive = bow down)
     /// * `heel` - Heel angle in degrees (positive = starboard down)
     /// * `vcg` - Optional vertical center of gravity for GM calculation
+    /// * `num_stations` - Number of stations for sectional area curve (default: 21)
     pub fn from_draft(
         &self,
         draft: f64,
         trim: f64,
         heel: f64,
         vcg: Option<f64>,
+    ) -> Option<HydrostaticState> {
+        self.from_draft_with_stations(draft, trim, heel, vcg, None)
+    }
+
+    /// Calculates hydrostatics with configurable number of stations for sectional area curve.
+    ///
+    /// # Arguments
+    /// * `draft` - Draft at the reference point in meters
+    /// * `trim` - Trim angle in degrees (positive = bow down)
+    /// * `heel` - Heel angle in degrees (positive = starboard down)
+    /// * `vcg` - Optional vertical center of gravity for GM calculation
+    /// * `num_stations` - Number of stations for sectional area curve (default: 21)
+    pub fn from_draft_with_stations(
+        &self,
+        draft: f64,
+        trim: f64,
+        heel: f64,
+        vcg: Option<f64>,
+        num_stations: Option<usize>,
     ) -> Option<HydrostaticState> {
         // Use AP/FP (defaults to bounds min/max if not set)
         let ap = self.vessel.ap();
@@ -311,6 +331,8 @@ impl<'a> HydrostaticsCalculator<'a> {
             } else {
                 0.0
             },
+            sectional_areas: self.calculate_sectional_areas(draft, trim, heel, num_stations),
+            freeboard: self.vessel.get_min_freeboard(heel, trim, draft),
         })
     }
 
@@ -480,6 +502,61 @@ impl<'a> HydrostaticsCalculator<'a> {
     /// Returns the water density.
     pub fn water_density(&self) -> f64 {
         self.water_density
+    }
+
+    /// Calculates sectional area curve at evenly spaced stations between AP and FP.
+    ///
+    /// # Arguments
+    /// * `draft` - Draft at the reference point in meters
+    /// * `trim` - Trim angle in degrees
+    /// * `heel` - Heel angle in degrees
+    /// * `num_stations` - Number of stations (default: 21)
+    ///
+    /// # Returns
+    /// Vec of (x_position, area) tuples from AP to FP
+    fn calculate_sectional_areas(
+        &self,
+        draft: f64,
+        trim: f64,
+        heel: f64,
+        num_stations: Option<usize>,
+    ) -> Vec<(f64, f64)> {
+        let n = num_stations.unwrap_or(21).max(2);
+        let ap = self.vessel.ap();
+        let fp = self.vessel.fp();
+        let lbp = fp - ap;
+
+        if lbp <= 0.0 {
+            return Vec::new();
+        }
+
+        // Calculate pivot and transform
+        let mp_x = (ap + fp) / 2.0;
+        let bounds = self.vessel.get_bounds();
+        let center_y = (bounds.2 + bounds.3) / 2.0;
+        let pivot = Point3::new(mp_x, center_y, draft);
+
+        // Combine clipped meshes from all hulls
+        let mut clipped_meshes = Vec::new();
+        for hull in self.vessel.hulls() {
+            let transformed = transform_mesh(hull.mesh(), heel, trim, pivot);
+            if let Some(clipped) = clip_at_waterline(&transformed, draft).0 {
+                clipped_meshes.push(clipped);
+            }
+        }
+
+        // Calculate area at each station
+        let mut areas = Vec::with_capacity(n);
+        for i in 0..n {
+            let x = ap + (i as f64) * lbp / ((n - 1) as f64);
+            let mut total_area = 0.0;
+            for mesh in &clipped_meshes {
+                total_area += calculate_section_area(mesh, x);
+            }
+            areas.push((x, total_area));
+        }
+
+        areas
     }
 }
 
