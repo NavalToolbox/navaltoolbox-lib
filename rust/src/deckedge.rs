@@ -221,11 +221,7 @@ impl DeckEdge {
             match &entity.specific {
                 DxfEntityType::Polyline(polyline) => {
                     for vertex in polyline.vertices() {
-                        points.push([
-                            vertex.location.x,
-                            vertex.location.y,
-                            vertex.location.z,
-                        ]);
+                        points.push([vertex.location.x, vertex.location.y, vertex.location.z]);
                     }
                 }
                 DxfEntityType::LwPolyline(lwpoly) => {
@@ -298,11 +294,7 @@ mod tests {
 
     #[test]
     fn test_deck_edge_creation() {
-        let points = vec![
-            [0.0, 5.0, 10.0],
-            [50.0, 5.0, 10.0],
-            [100.0, 5.0, 10.0],
-        ];
+        let points = vec![[0.0, 5.0, 10.0], [50.0, 5.0, 10.0], [100.0, 5.0, 10.0]];
         let edge = DeckEdge::new("main_deck", points.clone(), DeckEdgeSide::Starboard);
 
         assert_eq!(edge.name(), "main_deck");
@@ -312,11 +304,7 @@ mod tests {
 
     #[test]
     fn test_freeboard_level() {
-        let points = vec![
-            [0.0, 5.0, 10.0],
-            [50.0, 5.0, 10.0],
-            [100.0, 5.0, 10.0],
-        ];
+        let points = vec![[0.0, 5.0, 10.0], [50.0, 5.0, 10.0], [100.0, 5.0, 10.0]];
         let edge = DeckEdge::new("deck", points, DeckEdgeSide::Starboard);
 
         // At level, min Z should be 10.0
@@ -331,7 +319,7 @@ mod tests {
     #[test]
     fn test_freeboard_heeled() {
         let points = vec![
-            [50.0, 5.0, 10.0],  // Starboard point at Y=5
+            [50.0, 5.0, 10.0], // Starboard point at Y=5
         ];
         let edge = DeckEdge::new("deck", points, DeckEdgeSide::Starboard);
 

@@ -41,10 +41,7 @@ pub enum AppendageLoadError {
 #[derive(Clone, Debug)]
 pub enum AppendageGeometry {
     /// Point appendage with fixed volume at a position
-    Point {
-        center: [f64; 3],
-        volume: f64,
-    },
+    Point { center: [f64; 3], volume: f64 },
     /// Mesh appendage loaded from STL/VTK
     Mesh(Box<TriMesh>),
     /// Box appendage defined by bounds
@@ -52,15 +49,9 @@ pub enum AppendageGeometry {
         bounds: (f64, f64, f64, f64, f64, f64), // xmin, xmax, ymin, ymax, zmin, zmax
     },
     /// Sphere appendage defined by center and volume
-    Sphere {
-        center: [f64; 3],
-        volume: f64,
-    },
+    Sphere { center: [f64; 3], volume: f64 },
     /// Cube appendage defined by center and volume
-    Cube {
-        center: [f64; 3],
-        volume: f64,
-    },
+    Cube { center: [f64; 3], volume: f64 },
 }
 
 /// An appendage element attached to the vessel.
@@ -107,7 +98,13 @@ impl Appendage {
                 let indices: Vec<[u32; 3]> = stl
                     .faces
                     .iter()
-                    .map(|f| [f.vertices[0] as u32, f.vertices[1] as u32, f.vertices[2] as u32])
+                    .map(|f| {
+                        [
+                            f.vertices[0] as u32,
+                            f.vertices[1] as u32,
+                            f.vertices[2] as u32,
+                        ]
+                    })
                     .collect();
 
                 TriMesh::new(vertices, indices)
@@ -264,9 +261,7 @@ impl Appendage {
     fn vtk_to_mesh(vtk: &vtkio::Vtk) -> Result<TriMesh, AppendageLoadError> {
         use vtkio::model::{DataSet, Piece};
 
-        fn extract_mesh_inner(
-            data: &DataSet,
-        ) -> Result<TriMesh, AppendageLoadError> {
+        fn extract_mesh_inner(data: &DataSet) -> Result<TriMesh, AppendageLoadError> {
             match data {
                 DataSet::PolyData { pieces, .. } => {
                     for piece in pieces {
