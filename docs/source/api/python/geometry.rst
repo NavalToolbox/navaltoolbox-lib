@@ -240,6 +240,83 @@ Vessel
       :returns: List of DownfloodingOpening objects
       :rtype: list[DownfloodingOpening]
 
+   .. py:method:: add_appendage(appendage)
+
+      Add an appendage to the vessel.
+
+      :param appendage: Appendage to add
+      :type appendage: Appendage
+
+   .. py:method:: num_appendages()
+
+      Returns the number of appendages.
+
+      :rtype: int
+
+   .. py:method:: clear_appendages()
+
+      Removes all appendages.
+
+   .. py:method:: get_appendages()
+
+      Get all appendages.
+
+      :rtype: list[Appendage]
+
+   .. py:method:: get_total_appendage_volume()
+
+      Returns the total appendage volume in m³.
+
+      :rtype: float
+
+   .. py:method:: get_total_appendage_wetted_surface()
+
+      Returns the total appendage wetted surface in m².
+
+      :rtype: float
+
+   .. py:method:: add_deck_edge(deck_edge)
+
+      Add a deck edge to the vessel.
+
+      :param deck_edge: Deck edge to add
+      :type deck_edge: DeckEdge
+
+   .. py:method:: num_deck_edges()
+
+      Returns the number of deck edges.
+
+      :rtype: int
+
+   .. py:method:: has_deck_edges()
+
+      Returns true if any deck edges are defined.
+
+      :rtype: bool
+
+   .. py:method:: clear_deck_edges()
+
+      Removes all deck edges.
+
+   .. py:method:: get_deck_edges()
+
+      Get all deck edges.
+
+      :rtype: list[DeckEdge]
+
+   .. py:method:: get_min_freeboard(heel, trim, waterline_z)
+
+      Calculate minimum freeboard across all deck edges.
+
+      :param heel: Heel angle in degrees
+      :type heel: float
+      :param trim: Trim angle in degrees
+      :type trim: float
+      :param waterline_z: Waterline Z coordinate
+      :type waterline_z: float
+      :returns: Minimum freeboard distance in meters, or None if no deck edges
+      :rtype: float or None
+
 Silhouette
 ----------
 
