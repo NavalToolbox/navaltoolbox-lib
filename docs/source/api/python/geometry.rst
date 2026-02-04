@@ -560,3 +560,88 @@ Appendage
 
       :returns: Tuple of (vertices, faces), or None if not a mesh
       :rtype: tuple[list[tuple[float, float, float]], list[tuple[int, int, int]]] or None
+
+DeckEdge
+--------
+
+.. py:class:: DeckEdgeSide
+
+   Side of the deck edge (Port, Starboard, or Both).
+
+   .. py:staticmethod:: port()
+
+      Port side.
+
+   .. py:staticmethod:: starboard()
+
+      Starboard side.
+
+   .. py:staticmethod:: both()
+
+      Both sides (mirrored).
+
+.. py:class:: DeckEdge
+
+   A deck edge contour (livet) for freeboard calculation.
+
+   .. py:staticmethod:: from_points(name, points, side)
+
+      Create a deck edge from a list of 3D points.
+
+      :param name: Deck edge name
+      :type name: str
+      :param points: List of (x, y, z) points
+      :type points: list[tuple[float, float, float]]
+      :param side: Side of the deck edge
+      :type side: DeckEdgeSide
+      :returns: DeckEdge object
+      :rtype: DeckEdge
+
+   .. py:staticmethod:: from_file(name, file_path)
+
+      Load a deck edge from a DXF or VTK file.
+
+      :param name: Deck edge name
+      :type name: str
+      :param file_path: Path to the geometry file
+      :type file_path: str
+      :returns: DeckEdge object
+      :rtype: DeckEdge
+
+   .. py:attribute:: name
+      :type: str
+
+      The deck edge name.
+
+   .. py:method:: num_points()
+
+      Returns the number of points.
+
+      :rtype: int
+
+   .. py:method:: get_points()
+
+      Returns points as list of (x, y, z) tuples.
+
+      :rtype: list[tuple[float, float, float]]
+
+   .. py:method:: get_side()
+
+      Returns the side as a string.
+
+      :rtype: str
+
+   .. py:method:: get_freeboard(heel, trim, pivot, waterline_z)
+
+      Calculate freeboard at given conditions.
+
+      :param heel: Heel angle in degrees
+      :type heel: float
+      :param trim: Trim angle in degrees
+      :type trim: float
+      :param pivot: Rotation pivot (x, y, z)
+      :type pivot: tuple[float, float, float]
+      :param waterline_z: Waterline Z coordinate
+      :type waterline_z: float
+      :returns: Minimum freeboard distance in meters
+      :rtype: float
