@@ -618,7 +618,7 @@ mod dtmb5415_tests {
         println!("Heel      Calc GZ    Ref GZ");
         println!("----------------------------");
 
-        for (_i, point) in curve.points.iter().enumerate() {
+        for point in curve.points.iter() {
             let ref_gz = REFERENCE_DATA
                 .iter()
                 .find(|(h, _, _, _)| (*h - point.heel).abs() < 1.0)
@@ -685,7 +685,7 @@ mod dtmb5415_tests {
         // Reference: max GZ ≈ 1.08m at ~38°
         // Allow max to be between 35° and 45°
         assert!(
-            max_heel >= 30.0 && max_heel <= 50.0,
+            (30.0..=50.0).contains(&max_heel),
             "Max GZ should occur around 35-45°, got {:.1}°",
             max_heel
         );
