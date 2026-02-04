@@ -447,3 +447,116 @@ DownfloodingOpening
       :param waterline_z: Waterline Z coordinate
       :type waterline_z: float
       :rtype: bool
+
+Appendage
+---------
+
+.. py:class:: Appendage
+
+   An appendage (additional volume element) attached to the vessel.
+   
+   Appendages represent volume contributions from items like keels, rudders,
+   bulbous bows, etc. that are not part of the main hull geometry.
+
+   .. py:staticmethod:: from_point(name, center, volume)
+
+      Create an appendage from a point (fixed volume at position).
+
+      :param name: Appendage name
+      :type name: str
+      :param center: (x, y, z) center position
+      :type center: tuple[float, float, float]
+      :param volume: Volume in m³
+      :type volume: float
+      :returns: Appendage object
+      :rtype: Appendage
+
+   .. py:staticmethod:: from_file(name, file_path)
+
+      Create an appendage from an STL or VTK file.
+
+      :param name: Appendage name
+      :type name: str
+      :param file_path: Path to the geometry file
+      :type file_path: str
+      :returns: Appendage object
+      :rtype: Appendage
+
+   .. py:staticmethod:: from_box(name, xmin, xmax, ymin, ymax, zmin, zmax)
+
+      Create an appendage from a box (parallelepiped).
+
+      :param name: Appendage name
+      :type name: str
+      :param xmin: Minimum X coordinate
+      :param xmax: Maximum X coordinate
+      :param ymin: Minimum Y coordinate
+      :param ymax: Maximum Y coordinate
+      :param zmin: Minimum Z coordinate
+      :param zmax: Maximum Z coordinate
+      :returns: Appendage object
+      :rtype: Appendage
+
+   .. py:staticmethod:: from_cube(name, center, volume)
+
+      Create an appendage from a cube (center and volume).
+
+      :param name: Appendage name
+      :type name: str
+      :param center: (x, y, z) center position
+      :type center: tuple[float, float, float]
+      :param volume: Volume in m³
+      :type volume: float
+      :returns: Appendage object
+      :rtype: Appendage
+
+   .. py:staticmethod:: from_sphere(name, center, volume)
+
+      Create an appendage from a sphere (center and volume).
+
+      :param name: Appendage name
+      :type name: str
+      :param center: (x, y, z) center position
+      :type center: tuple[float, float, float]
+      :param volume: Volume in m³
+      :type volume: float
+      :returns: Appendage object
+      :rtype: Appendage
+
+   .. py:attribute:: name
+      :type: str
+
+      The appendage name.
+
+   .. py:attribute:: volume
+      :type: float
+
+      Volume in m³.
+
+   .. py:attribute:: center
+      :type: tuple[float, float, float]
+
+      Center of volume (x, y, z) in meters.
+
+   .. py:attribute:: wetted_surface
+      :type: float or None
+
+      Wetted surface area in m², or None if not set.
+
+   .. py:attribute:: bounds
+      :type: tuple[float, float, float, float, float, float] or None
+      
+      Returns bounds (xmin, xmax, ymin, ymax, zmin, zmax) or None if not applicable (Point).
+
+   .. py:method:: geometry_type()
+
+      Returns the geometry type (Point, Mesh, Box, etc.).
+
+      :rtype: str
+
+   .. py:method:: get_mesh_data()
+
+      Returns mesh data (vertices, faces) if geometry is a mesh.
+
+      :returns: Tuple of (vertices, faces), or None if not a mesh
+      :rtype: tuple[list[tuple[float, float, float]], list[tuple[int, int, int]]] or None
