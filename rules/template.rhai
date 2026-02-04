@@ -12,15 +12,13 @@
 //
 // ============================================================================
 
-// === YOUR THRESHOLD VALUES ===
-const MY_AREA_MIN = 0.055;       // m·rad
-const MY_GZ_MIN = 0.20;          // m
-const MY_GM_MIN = 0.15;          // m
-
-
-
 // === MAIN CHECK FUNCTION ===
 fn check(ctx) {
+    // === YOUR THRESHOLD VALUES ===
+    const MY_AREA_MIN = 0.055;       // m·rad
+    const MY_GZ_MIN = 0.20;          // m
+    const MY_GM_MIN = 0.15;          // m
+
     let results = [];
     
     // -----------------------------------------------------------------
@@ -91,16 +89,6 @@ fn check(ctx) {
         if r.status == "FAIL" { fail_count += 1; }
     }
     
-    #{
-        regulation_name: "My Custom Criteria",
-        regulation_reference: "CUSTOM-001",
-        vessel_name: ctx.get_vessel_name(),
-        loading_condition: ctx.get_loading_condition(),
-        displacement: ctx.get_displacement(),
-        cog: ctx.get_cog(),
-        criteria: results,
-        overall_pass: fail_count == 0,
-        notes: "",
     // -----------------------------------------------------------------
     // Example: Optional Plot
     // -----------------------------------------------------------------

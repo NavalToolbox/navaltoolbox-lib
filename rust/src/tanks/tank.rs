@@ -208,6 +208,11 @@ impl Tank {
         &self.name
     }
 
+    /// Returns the bounding box of the tank (xmin, xmax, ymin, ymax, zmin, zmax).
+    pub fn get_bounds(&self) -> (f64, f64, f64, f64, f64, f64) {
+        self.bounds
+    }
+
     /// Sets the tank name.
     pub fn set_name(&mut self, name: &str) {
         self.name = name.to_string();
@@ -241,6 +246,11 @@ impl Tank {
     /// Returns the fluid density in kg/m³.
     pub fn fluid_density(&self) -> f64 {
         self.fluid_density
+    }
+
+    /// Sets the fluid density in kg/m³.
+    pub fn set_fluid_density(&mut self, density: f64) {
+        self.fluid_density = density;
     }
 
     /// Returns the filled volume in m³.

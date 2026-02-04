@@ -20,18 +20,21 @@
 // ============================================================================
 
 // Threshold values
-const AREA_0_30_MIN = 0.055;      // m·rad
-const AREA_0_40_MIN = 0.090;      // m·rad
-const AREA_30_40_MIN = 0.030;     // m·rad
-const GZ_AT_30_MIN = 0.200;       // m
-const GZ_MAX_ANGLE_MIN = 25.0;    // degrees
-const GZ_MAX_ANGLE_PREF = 30.0;   // degrees (preferred)
-const GM0_MIN = 0.15;             // m
+// Threshold values moved inside check()
+
 
 
 
 // Main check function - called by ScriptEngine
 fn check(ctx) {
+    // Threshold values
+    const AREA_0_30_MIN = 0.055;      // m·rad
+    const AREA_0_40_MIN = 0.090;      // m·rad
+    const AREA_30_40_MIN = 0.030;     // m·rad
+    const GZ_AT_30_MIN = 0.200;       // m
+    const GZ_MAX_ANGLE_MIN = 25.0;    // degrees
+    const GZ_MAX_ANGLE_PREF = 30.0;   // degrees (preferred)
+    const GM0_MIN = 0.15;             // m
     let results = [];
     
     // Get limiting angle (40° or flooding angle, whichever is smaller)
@@ -54,7 +57,7 @@ fn check(ctx) {
     // ========================================================================
     let to_angle = if limiting_angle < 40.0 { limiting_angle } else { 40.0 };
     let area_0_40 = ctx.area_under_curve(0.0, to_angle);
-    let mut crit_0_40 = criterion(
+    let crit_0_40 = criterion(
         "Area 0-" + to_angle + "°",
         "Area under curve up to " + to_angle + "° or θf",
         AREA_0_40_MIN,
@@ -71,7 +74,7 @@ fn check(ctx) {
     // ========================================================================
     if to_angle > 30.0 {
         let area_30_40 = ctx.area_under_curve(30.0, to_angle);
-        let mut crit_30_40 = criterion(
+        let crit_30_40 = criterion(
             "Area 30-" + to_angle + "°",
             "Area from 30° to " + to_angle + "°",
             AREA_30_40_MIN,
@@ -118,7 +121,7 @@ fn check(ctx) {
     // ========================================================================
     let max_angle = max_gz_info.angle;
     let max_value = max_gz_info.value;
-    let mut crit_angle = criterion(
+    let crit_angle = criterion(
         "GZ max angle",
         "Angle of maximum GZ (= " + max_value + " m)",
         GZ_MAX_ANGLE_MIN,
@@ -159,6 +162,8 @@ fn check(ctx) {
     // ========================================================================
     // Build final result
     // ========================================================================
+    // Build GZ curve plot data
+    let plot_id = "gz_curve";
     let pass_count = 0;
     let fail_count = 0;
     for r in results {
@@ -168,8 +173,7 @@ fn check(ctx) {
         r.plot_id = plot_id;
     }
     
-    // Build GZ curve plot data
-    let plot_id = "gz_curve";
+    
     let plot = #{
         id: plot_id,
         title: "GZ Curve - IMO A.749",

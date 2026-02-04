@@ -124,6 +124,11 @@ impl DownfloodingOpening {
         &self.opening_type
     }
 
+    /// Set the opening type.
+    pub fn set_type(&mut self, opening_type: OpeningType) {
+        self.opening_type = opening_type;
+    }
+
     /// Check if the opening is active.
     pub fn is_active(&self) -> bool {
         self.active
