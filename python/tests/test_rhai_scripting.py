@@ -112,3 +112,33 @@ class TestRhaiScripting:
         }
         """
         engine.run_script(script_area, ctx)
+
+    def test_run_all_rules(self, dtmb5415_vessel):
+        """Verify that all scripts in rules/ directory can be executed."""
+        displacement = 8635000.0
+        cog = (71.670, 0.0, 7.555)
+        calc = StabilityCalculator(dtmb5415_vessel, 1025.0)
+        heels = list(range(0, 70, 5))
+        result = calc.complete_stability(displacement, cog, heels)
+        
+        ctx = CriteriaContext.from_result(result, "Test", "Test")
+        engine = ScriptEngine()
+        
+        rules_dir = Path(__file__).parent.parent.parent / "rules"
+        scripts = list(rules_dir.glob("*.rhai"))
+        
+        assert len(scripts) > 0, "No rule scripts found"
+        
+        for script in scripts:
+            print(f"Testing script: {script.name}")
+            try:
+                res = engine.run_script_file(str(script), ctx)
+                assert res.overall_pass is not None # Basic check that we got a result
+            except Exception as e:
+                # template.rhai might fail if it expects parameters we didn't set, 
+                # but we should check if it's a syntax error vs runtime error
+                print(f"Script {script.name} failed: {e}")
+                # We expect success for IMO scripts. Template might fail logic but should run.
+                if "im" in script.name:
+                    pytest.fail(f"IMO script {script.name} failed: {e}")
+

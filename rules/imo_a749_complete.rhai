@@ -136,7 +136,10 @@ fn calculate_roll_angle(ctx) {
     return phi1;
 }
 
-let results = [];
+
+// Main check function
+fn check(ctx) {
+    let results = [];
 
 // =============================================================================
 // 1. General Intact Stability Criteria (Section 3.1)
@@ -220,21 +223,28 @@ if has_wind {
         let c_res = criterion("3.2.2.2 Weather", "Area b >= Area a", area_a, area_b, "m.rad");
         
         let calc_note = if roll_calculated { "(Calculated)" } else { "(User)" };
-        c_res.notes = `Roll=${roll_deg.toFixed(1)}° ${calc_note}, lw1=${lw1.toFixed(3)}m, phi0=${phi0.toFixed(1)}°`;
+        c_res.notes = "Roll=" + roll_deg.toFixed(1) + "° " + calc_note;
+        c_res.notes += ", lw1=" + lw1.toFixed(3) + "m";
+        c_res.notes += ", phi0=" + phi0.toFixed(1) + "°";
         results.push(c_res);
         
         // Plots... (Simplified for template)
         c_res.plot_id = "weather_plot";
         
+        let elements = [];
+        let heels = ctx.get_heels();
+        let gz_vals = ctx.get_gz_values();
+        elements.push(#{ type: "Curve", name: "GZ", x: heels, y: gz_vals });
+        
+        elements.push(#{ type: "HorizontalLine", name: "lw1", y: lw1, color: "green", style: "dashed" });
+        elements.push(#{ type: "HorizontalLine", name: "lw2", y: lw2, color: "red" });
+        
+        elements.push(#{ type: "VerticalLine", name: "phi1", x: phi1, y_max: lw2, style: "dotted" });
+        elements.push(#{ type: "VerticalLine", name: "phi2", x: phi2, y_max: lw2, style: "dotted" });
+
         let weather_plot = #{
             id: "weather_plot", title: "Weather Criterion", x_label: "Heel", y_label: "Lever",
-            elements: [
-                #{ type: "Curve", name: "GZ", x: ctx.get_heels(), y: ctx.get_gz_values() },
-                #{ type: "HorizontalLine", name: "lw1", y: lw1, color: "green", style: "dashed" },
-                #{ type: "HorizontalLine", name: "lw2", y: lw2, color: "red" },
-                 #{ type: "VerticalLine", name: "phi1", x: phi1, y_max: lw2, style: "dotted" },
-                 #{ type: "VerticalLine", name: "phi2", x: phi2, y_max: lw2, style: "dotted" }
-            ]
+            elements: elements
         };
         
         // Return result
@@ -257,4 +267,5 @@ if has_wind {
 } else {
     // No wind data
     #{ regulation_name: "IMO A.749", criteria: results, notes: "No wind data" }
+}
 }

@@ -48,63 +48,65 @@ Scripts are written in Rhai. You have access to the ``ctx`` object which provide
 
     // Custom criterion script
     
-    // 1. Get data
-    let area_30 = ctx.area_under_curve(0.0, 30.0);
-    let gz_30 = ctx.gz_at_angle(30.0);
-    
-    let results = [];
-    
-    // 2. Define criteria
-    results.push(criterion(
-        "Area 0-30",
-        "Minimum area under GZ curve up to 30 deg",
-        0.055,      // Required
-        area_30,    // Actual
-        "m.rad"     // Unit
-    ));
-    
-    results.push(criterion(
-        "GZ at 30",
-        "Minimum GZ at 30 deg",
-        0.20,
-        gz_30,
-        "m"
-    ));
-    
-    // 3. Define Plot (Optional)
-    let plot = #{
-        id: "main_plot",
-        title: "GZ Curve",
-        x_label: "Heel (deg)",
-        y_label: "GZ (m)",
-        elements: [
-            #{
-                type: "Curve",
-                name: "GZ",
-                x: ctx.get_heels(),
-                y: ctx.get_gz_values(),
-                color: "blue"
-            }
-        ]
-    };
-    
-    // Link criteria to plot
-    for r in results { r.plot_id = "main_plot"; }
-    
-    // 4. Return result map
-    let fail_count = 0;
-    for r in results { if r.status == "FAIL" { fail_count += 1; } }
-    
-    #{
-        regulation_name: "My Custom Rules",
-        regulation_reference: "CUSTOM-01",
-        vessel_name: ctx.get_vessel_name(),
-        loading_condition: ctx.get_loading_condition(),
-        displacement: ctx.get_displacement(),
-        overall_pass: fail_count == 0,
-        criteria: results,
-        plots: [plot],
-        notes: ""
+    fn check(ctx) {
+        // 1. Get data
+        let area_30 = ctx.area_under_curve(0.0, 30.0);
+        let gz_30 = ctx.gz_at_angle(30.0);
+        
+        let results = [];
+        
+        // 2. Define criteria
+        results.push(criterion(
+            "Area 0-30",
+            "Minimum area under GZ curve up to 30 deg",
+            0.055,      // Required
+            area_30,    // Actual
+            "m.rad"     // Unit
+        ));
+        
+        results.push(criterion(
+            "GZ at 30",
+            "Minimum GZ at 30 deg",
+            0.20,
+            gz_30,
+            "m"
+        ));
+        
+        // 3. Define Plot (Optional)
+        let plot = #{
+            id: "main_plot",
+            title: "GZ Curve",
+            x_label: "Heel (deg)",
+            y_label: "GZ (m)",
+            elements: [
+                #{
+                    type: "Curve",
+                    name: "GZ",
+                    x: ctx.get_heels(),
+                    y: ctx.get_gz_values(),
+                    color: "blue"
+                }
+            ]
+        };
+        
+        // Link criteria to plot
+        for r in results { r.plot_id = "main_plot"; }
+        
+        // 4. Return result map
+        let fail_count = 0;
+        for r in results { if r.status == "FAIL" { fail_count += 1; } }
+        
+        #{
+            regulation_name: "My Custom Rules",
+            regulation_reference: "CUSTOM-01",
+            vessel_name: ctx.get_vessel_name(),
+            loading_condition: ctx.get_loading_condition(),
+            displacement: ctx.get_displacement(),
+            overall_pass: fail_count == 0,
+            criteria: results,
+            plots: [plot],
+            notes: ""
+        }
     }
 
 Plotting Results
