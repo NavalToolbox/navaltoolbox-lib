@@ -1274,7 +1274,53 @@ class CriteriaResult:
 
 
 class CriteriaContext:
-    """Context for Rhai scripts, wrapping stability results."""
+    """Context for Rhai scripts, wrapping stability results.
+    
+    This context provides access to stability data within Rhai scripts.
+    The following methods are available when writing Rhai scripts:
+    
+    **GZ Curve Methods:**
+    - `get_heels()` -> list of heel angles
+    - `get_gz_values()` -> list of GZ values
+    - `area_under_curve(from, to)` -> area in m·rad
+    - `gz_at_angle(angle)` -> GZ value at angle
+    - `find_max_gz()` -> map with `angle` and `value`
+    - `find_angle_of_vanishing_stability()` -> angle or ()
+    - `get_first_flooding_angle()` -> angle or ()
+    - `find_equilibrium_angle(heeling_arm)` -> angle or ()
+    - `find_second_intercept(heeling_arm)` -> angle or ()
+    - `get_limiting_angle(default)` -> limiting angle
+    
+    **Hydrostatic Properties:**
+    - `get_gm0()` -> initial GM in meters
+    - `get_gm0_dry()` -> GM without FSC
+    - `get_draft()` -> draft in meters
+    - `get_trim()` -> trim angle in degrees
+    - `get_displacement()` -> displacement in kg
+    - `get_cog()` -> [x, y, z] center of gravity
+    
+    **Form Coefficients:**
+    - `get_cb()` -> block coefficient
+    - `get_cm()` -> midship coefficient  
+    - `get_cp()` -> prismatic coefficient
+    - `get_lwl()` -> waterline length
+    - `get_bwl()` -> waterline breadth
+    - `get_vcb()` -> vertical center of buoyancy
+    
+    **Wind Data:**
+    - `has_wind_data()` -> bool
+    - `get_emerged_area()` -> area in m²
+    - `get_wind_lever_arm()` -> arm in meters
+    - `calculate_wind_heeling_lever(pressure)` -> lever at given pressure
+    
+    **Parameters:**
+    - `get_param(key)` -> value or ()
+    - `has_param(key)` -> bool
+    
+    **Metadata:**
+    - `get_vessel_name()` -> string
+    - `get_loading_condition()` -> string
+    """
     
     @staticmethod
     def from_result(
