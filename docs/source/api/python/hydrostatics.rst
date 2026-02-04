@@ -221,3 +221,15 @@ HydrostaticState
       :type: list[float]
 
       6x6 Hydrostatic Stiffness Matrix (flattened row-major).
+
+   **Advanced Properties**
+
+   .. py:attribute:: sectional_areas
+      :type: list[tuple[float, float]]
+
+      Sectional Area Curve as list of (x, area) pairs.
+
+   .. py:attribute:: freeboard
+      :type: float or None
+
+      Minimum freeboard in meters, or None if no deck edges defined.
