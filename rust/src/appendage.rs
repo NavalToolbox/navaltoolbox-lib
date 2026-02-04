@@ -46,7 +46,7 @@ pub enum AppendageGeometry {
         volume: f64,
     },
     /// Mesh appendage loaded from STL/VTK
-    Mesh(TriMesh),
+    Mesh(Box<TriMesh>),
     /// Box appendage defined by bounds
     Box {
         bounds: (f64, f64, f64, f64, f64, f64), // xmin, xmax, ymin, ymax, zmin, zmax
@@ -127,7 +127,7 @@ impl Appendage {
 
         Ok(Self {
             name: name.to_string(),
-            geometry: AppendageGeometry::Mesh(mesh),
+            geometry: AppendageGeometry::Mesh(Box::new(mesh)),
             wetted_surface: None,
         })
     }
@@ -362,7 +362,7 @@ impl Appendage {
                                 connectivity[start as usize + 2] as u32,
                             ]);
                         }
-                        start = end as u64;
+                        start = end;
                     }
                 }
             }

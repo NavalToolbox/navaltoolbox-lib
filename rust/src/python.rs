@@ -637,6 +637,7 @@ impl PyAppendage {
     }
 
     /// Returns mesh data (vertices, faces) if geometry is a mesh.
+    #[allow(clippy::type_complexity)]
     fn get_mesh_data(&self) -> Option<(Vec<(f64, f64, f64)>, Vec<(usize, usize, usize)>)> {
         if let AppendageGeometry::Mesh(mesh) = self.inner.geometry() {
             let vertices: Vec<(f64, f64, f64)> = mesh
