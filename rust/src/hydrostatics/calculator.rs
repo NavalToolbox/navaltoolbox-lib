@@ -22,7 +22,7 @@
 use super::HydrostaticState;
 use crate::mesh::{clip_at_waterline, get_bounds, transform_mesh};
 use crate::vessel::Vessel;
-use nalgebra::Point3;
+use nalgebra::{Point3, Rotation3, Vector3};
 use parry3d_f64::shape::Shape;
 
 /// Calculator for hydrostatic properties.
@@ -438,65 +438,138 @@ impl<'a> HydrostaticsCalculator<'a> {
         let z_max = bounds.5;
 
         let tolerance = target_volume * 1e-4;
-        let max_iter = 50;
 
-        let mut low = z_min;
-        let mut high = z_max;
+        // Default trim and heel to 0.0 if not specified
+        let mut fixed_trim = trim.unwrap_or(0.0);
+        let mut fixed_heel = heel.unwrap_or(0.0);
 
-        // Default trim and heel to 0.0
-        let fixed_trim = trim.unwrap_or(0.0);
-        let fixed_heel = heel.unwrap_or(0.0);
+        // Determine if we need to solve for equilibrium
+        // We solve if angles are NOT fixed AND COG is provided
+        let solve_trim = trim.is_none() && cog.is_some();
+        let solve_heel = heel.is_none() && cog.is_some();
+        let max_equi_iter = if solve_trim || solve_heel { 20 } else { 1 };
 
-        // Determine VCG: COG takes precedence over vcg parameter
-        let effective_vcg = if let Some(full_cog) = cog {
-            Some(full_cog[2])
-        } else {
-            vcg
-        };
+        let mut final_state = None;
 
-        // Bisection search for draft
-        for _ in 0..max_iter {
-            let mid = (low + high) / 2.0;
+        for iter in 0..max_equi_iter {
+            // Determine VCG: COG takes precedence over vcg parameter
+            let effective_vcg = if let Some(full_cog) = cog {
+                Some(full_cog[2])
+            } else {
+                vcg
+            };
 
-            if let Some(state) = self.from_draft(mid, fixed_trim, fixed_heel, effective_vcg) {
-                let diff = state.volume - target_volume;
+            let mut low = z_min;
+            let mut high = z_max;
+            let mut found_draft = None;
 
-                if diff.abs() < tolerance {
-                    // Found the draft! Set COG in result:
-                    // - If full COG was provided, use it
-                    // - Otherwise, don't store a fake COG (only VCG was for GM calc)
-                    let final_cog = cog;
+            // Inner loop: Find draft for current heel/trim
+            for _ in 0..50 {
+                let mid = (low + high) / 2.0;
 
-                    return Ok(HydrostaticState {
-                        cog: final_cog,
-                        ..state
-                    });
-                }
+                if let Some(state) = self.from_draft(mid, fixed_trim, fixed_heel, effective_vcg) {
+                    let diff = state.volume - target_volume;
 
-                if diff > 0.0 {
-                    high = mid;
+                    if diff.abs() < tolerance {
+                        found_draft = Some(state);
+                        break;
+                    }
+
+                    if diff > 0.0 {
+                        high = mid;
+                    } else {
+                        low = mid;
+                    }
                 } else {
                     low = mid;
                 }
-            } else {
-                low = mid;
+            }
+
+            // If we failed to find a valid draft even once, try best estimate
+            if found_draft.is_none() {
+                let draft = (low + high) / 2.0;
+                found_draft = self.from_draft(draft, fixed_trim, fixed_heel, effective_vcg);
+            }
+
+            match found_draft {
+                Some(state) => {
+                    // Check for equilibrium convergence
+                    if !solve_trim && !solve_heel {
+                        final_state = Some(state);
+                        break;
+                    }
+
+                    // Transformation logic to find GZ components
+                    // We need to rotate the difference vector (COG - COB) to the global frame
+                    // GZ_transverse = (COG_global.y - COB_global.y)
+                    // GZ_longitudinal = (COG_global.x - COB_global.x)
+
+                    let cog_ship = Vector3::from(cog.unwrap());
+                    let cob_ship = Vector3::new(state.lcb(), state.tcb(), state.vcb());
+                    let diff_ship = cog_ship - cob_ship;
+
+                    // Rotation matches transform_mesh logic
+                    let heel_rad = fixed_heel.to_radians();
+                    let trim_rad = fixed_trim.to_radians();
+                    let rot_x = Rotation3::from_axis_angle(&Vector3::x_axis(), heel_rad);
+                    let rot_y = Rotation3::from_axis_angle(&Vector3::y_axis(), trim_rad);
+                    let rotation = rot_y * rot_x;
+
+                    let diff_global = rotation * diff_ship;
+
+                    let mut converged = true;
+
+                    if solve_heel {
+                        let gmt = state.gmt.unwrap_or(1.0).max(0.1); // Avoid div by zero
+                                                                     // Right-hand rule: positive heel = port UP = starboard down
+                                                                     // If G is port of B (diff_y > 0), ship heels port DOWN = negative heel
+                                                                     // So we negate: d_heel = -(G_y - B_y) / GMt
+                        let d_heel = -(diff_global.y / gmt).to_degrees();
+
+                        if d_heel.abs() > 0.001 {
+                            // Limit step size for stability
+                            let step = d_heel.clamp(-5.0, 5.0);
+                            fixed_heel += step;
+                            converged = false;
+                        }
+                    }
+
+                    if solve_trim {
+                        let gml = state.gml.unwrap_or(100.0).max(1.0);
+                        // Correction = diff_x / GMl
+                        // Example: diff_x > 0 (G is fwd of B) -> need to trim down by bow (+) -> +d_trim
+                        let d_trim = (diff_global.x / gml).to_degrees();
+
+                        if d_trim.abs() > 0.001 {
+                            let step = d_trim.clamp(-2.0, 2.0);
+                            fixed_trim += step;
+                            converged = false;
+                        }
+                    }
+
+                    if converged || iter == max_equi_iter - 1 {
+                        final_state = Some(state);
+                        break;
+                    }
+                }
+                None => {
+                    return Err(format!(
+                        "Could not find draft for displacement {} kg",
+                        displacement_mass
+                    ));
+                }
             }
         }
 
-        // Convergence not achieved within max iterations
-        // Return best estimate
-        let final_draft = (low + high) / 2.0;
-        self.from_draft(final_draft, fixed_trim, fixed_heel, effective_vcg)
-            .map(|state| HydrostaticState {
-                cog, // Only set full COG if it was provided
-                ..state
+        final_state
+            .map(|state| {
+                let final_cog = cog.or(state.cog);
+                HydrostaticState {
+                    cog: final_cog,
+                    ..state
+                }
             })
-            .ok_or_else(|| {
-                format!(
-                    "Could not find draft for displacement {} kg",
-                    displacement_mass
-                )
-            })
+            .ok_or_else(|| "Failed to find equilibrium state".to_string())
     }
 
     /// Returns the water density.
@@ -891,8 +964,14 @@ mod tests {
         assert!((state.draft - 5.0).abs() < 0.01);
 
         // Check that GMT is computed (VCG was provided)
-        // For vcg-only mode, cog should be None in result
-        assert!(state.cog.is_none(), "COG should be None for vcg-only mode");
+        // For vcg-only mode, cog should now be populated with [LCB, TCB, VCG]
+        // because from_draft populates it when vcg is passed, and we now preserve it.
+        assert!(state.cog.is_some(), "COG should be Some for vcg-only mode");
+        let cog = state.cog.unwrap();
+        assert!((cog[2] - 7.0).abs() < 1e-6, "VCG should matches input");
+        // For a box hull, LCB=5.0, TCB=0.0
+        assert!((cog[0] - state.lcb()).abs() < 1e-6, "LCG should match LCB");
+        assert!((cog[1] - state.tcb()).abs() < 1e-6, "TCG should match TCB");
 
         // Check Stability calculation
         // BM_t = 10²/60 = 1.667
@@ -942,5 +1021,98 @@ mod tests {
         assert!((state2.draft_ap - 6.0).abs() < 1e-6);
         assert!((state2.draft_fp - 4.0).abs() < 1e-6);
         assert!(state2.trim < 0.0); // Stern down is negative trim
+    }
+
+    #[test]
+    fn test_vcg_handling_scenarios() {
+        let hull = create_box_hull(10.0, 10.0, 10.0);
+        let vessel = Vessel::new(hull);
+        let calc = HydrostaticsCalculator::new(&vessel, 1025.0);
+        let target_disp = 512500.0; // 5m draft condition
+
+        // Scenario 1: No VCG, No COG -> COG should be None
+        let state1 = calc
+            .from_displacement(target_disp, None, None, None, None)
+            .expect("Calc failed S1");
+        assert!(state1.cog.is_none(), "S1: COG should be None");
+
+        // Scenario 2: VCG only -> COG should be [LCB, TCB, VCG]
+        let state2 = calc
+            .from_displacement(target_disp, Some(6.0), None, None, None)
+            .expect("Calc failed S2");
+        assert!(state2.cog.is_some(), "S2: COG should be Some");
+        let cog2 = state2.cog.unwrap();
+        assert!((cog2[2] - 6.0).abs() < 1e-6, "S2: VCG mismatch");
+        assert!(
+            (cog2[0] - state2.lcb()).abs() < 1e-6,
+            "S2: LCG should match LCB"
+        );
+        assert!(
+            (cog2[1] - state2.tcb()).abs() < 1e-6,
+            "S2: TCG should match TCB"
+        );
+
+        // Scenario 3: Full COG provided -> COG should match input exactly (overriding VCG arg if any)
+        // Note: from_displacement prefers 'cog' arg over 'vcg' arg for the computation
+        let input_cog = [2.0, 1.0, 8.0];
+        let state3 = calc
+            .from_displacement(target_disp, Some(5.0), Some(input_cog), None, None)
+            .expect("Calc failed S3");
+        assert!(state3.cog.is_some(), "S3: COG should be Some");
+        let cog3 = state3.cog.unwrap();
+        assert_eq!(cog3, input_cog, "S3: COG should match input full COG");
+        // Ensure it didn't use the '5.0' from vcg arg
+        assert!((cog3[2] - 8.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_equilibrium_heel_from_tcg_offset() {
+        // Box hull 10x10x10, centered at y=0
+        // Right-hand system: Y+ = port, positive heel = port UP (starboard down)
+        // Weight on port (TcG > 0) → port goes DOWN → NEGATIVE heel
+        let hull = create_box_hull(10.0, 10.0, 10.0);
+        let vessel = Vessel::new(hull);
+        let calc = HydrostaticsCalculator::new(&vessel, 1025.0);
+        let target_disp = 512500.0; // 5m draft condition
+
+        // COG offset to port (TcG = +1.0m)
+        let cog = [5.0, 1.0, 5.0]; // LcG, TcG, VcG
+
+        let state = calc
+            .from_displacement(target_disp, None, Some(cog), None, None)
+            .expect("Calculation failed");
+
+        // Port weight → port down → negative heel (right-hand convention)
+        assert!(
+            state.heel < -0.1,
+            "Heel should be negative for port TcG, got {}",
+            state.heel
+        );
+    }
+
+    #[test]
+    fn test_equilibrium_trim_from_lcg_offset() {
+        // Box hull 10x10x10, LCB at x=5.0
+        // LcG < LCB (aft) → expect negative trim (stern down)
+        // Note: Trim is rotation around Y. Positive trim = X+ (fwd) goes down (bow down).
+        // If we put weight aft (small X), stern goes down, bow goes up. So negative trim.
+        let hull = create_box_hull(10.0, 10.0, 10.0);
+        let vessel = Vessel::new(hull);
+        let calc = HydrostaticsCalculator::new(&vessel, 1025.0);
+        let target_disp = 512500.0; // 5m draft
+
+        // COG offset to aft (LcG = 3.0m, LCB = 5.0m)
+        let cog = [3.0, 0.0, 5.0]; // LcG, TcG, VcG
+
+        let state = calc
+            .from_displacement(target_disp, None, Some(cog), None, None)
+            .expect("Calculation failed");
+
+        // Trim positive = bow down. Stern down = negative trim.
+        assert!(
+            state.trim < -0.1,
+            "Trim should be negative for aft LcG, got {}",
+            state.trim
+        );
     }
 }
