@@ -994,4 +994,56 @@ mod tests {
         // Ensure it didn't use the '5.0' from vcg arg
         assert!((cog3[2] - 8.0).abs() < 1e-6);
     }
+
+    #[test]
+    fn test_equilibrium_heel_from_tcg_offset() {
+        // Box hull 10x10x10, centered at y=0
+        // TcG > 0 (port side) → expect positive heel (port down)
+        let hull = create_box_hull(10.0, 10.0, 10.0);
+        let vessel = Vessel::new(hull);
+        let calc = HydrostaticsCalculator::new(&vessel, 1025.0);
+        let target_disp = 512500.0; // 5m draft condition
+
+        // COG offset to port (TcG = +1.0m)
+        let cog = [5.0, 1.0, 5.0]; // LcG, TcG, VcG
+
+        let state = calc
+            .from_displacement(target_disp, None, Some(cog), None, None)
+            .expect("Calculation failed");
+
+        // Expect positive heel (port down) to bring CB to positive Y
+        // Upright CB_y = 0. Heeling port down (positive heel) moves submerged volume to port side (Y+).
+        // Equilibrium: B_y = G_y = 1.0
+        assert!(
+            state.heel > 0.1,
+            "Heel should be positive for port TcG, got {}",
+            state.heel
+        );
+    }
+
+    #[test]
+    fn test_equilibrium_trim_from_lcg_offset() {
+        // Box hull 10x10x10, LCB at x=5.0
+        // LcG < LCB (aft) → expect negative trim (stern down)
+        // Note: Trim is rotation around Y. Positive trim = X+ (fwd) goes down (bow down).
+        // If we put weight aft (small X), stern goes down, bow goes up. So negative trim.
+        let hull = create_box_hull(10.0, 10.0, 10.0);
+        let vessel = Vessel::new(hull);
+        let calc = HydrostaticsCalculator::new(&vessel, 1025.0);
+        let target_disp = 512500.0; // 5m draft
+
+        // COG offset to aft (LcG = 3.0m, LCB = 5.0m)
+        let cog = [3.0, 0.0, 5.0]; // LcG, TcG, VcG
+
+        let state = calc
+            .from_displacement(target_disp, None, Some(cog), None, None)
+            .expect("Calculation failed");
+
+        // Trim positive = bow down. Stern down = negative trim.
+        assert!(
+            state.trim < -0.1,
+            "Trim should be negative for aft LcG, got {}",
+            state.trim
+        );
+    }
 }
