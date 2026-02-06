@@ -463,9 +463,15 @@ impl<'a> HydrostaticsCalculator<'a> {
 
                 if diff.abs() < tolerance {
                     // Found the draft! Set COG in result:
-                    // - If full COG was provided, use it
-                    // - Otherwise, don't store a fake COG (only VCG was for GM calc)
-                    let final_cog = cog;
+                    // - If full COG was provided, use it (overrides everything)
+                    // - If only VCG was provided, we want to preserve the vcg from input
+                    //   but keep lcb/tcb as lcg/tcg (which is what from_draft does when vcg is passed)
+                    //
+                    // The 'state' returns from 'from_draft' already has:
+                    // cog = Some([lcb, tcb, vcg]) if vcg was passed.
+                    //
+                    // So we just need to overlay the explicit 'cog' if provided.
+                    let final_cog = cog.or(state.cog);
 
                     return Ok(HydrostaticState {
                         cog: final_cog,
@@ -487,9 +493,12 @@ impl<'a> HydrostaticsCalculator<'a> {
         // Return best estimate
         let final_draft = (low + high) / 2.0;
         self.from_draft(final_draft, fixed_trim, fixed_heel, effective_vcg)
-            .map(|state| HydrostaticState {
-                cog, // Only set full COG if it was provided
-                ..state
+            .map(|state| {
+                let final_cog = cog.or(state.cog);
+                HydrostaticState {
+                    cog: final_cog,
+                    ..state
+                }
             })
             .ok_or_else(|| {
                 format!(
@@ -891,8 +900,14 @@ mod tests {
         assert!((state.draft - 5.0).abs() < 0.01);
 
         // Check that GMT is computed (VCG was provided)
-        // For vcg-only mode, cog should be None in result
-        assert!(state.cog.is_none(), "COG should be None for vcg-only mode");
+        // For vcg-only mode, cog should now be populated with [LCB, TCB, VCG]
+        // because from_draft populates it when vcg is passed, and we now preserve it.
+        assert!(state.cog.is_some(), "COG should be Some for vcg-only mode");
+        let cog = state.cog.unwrap();
+        assert!((cog[2] - 7.0).abs() < 1e-6, "VCG should matches input");
+        // For a box hull, LCB=5.0, TCB=0.0
+        assert!((cog[0] - state.lcb()).abs() < 1e-6, "LCG should match LCB");
+        assert!((cog[1] - state.tcb()).abs() < 1e-6, "TCG should match TCB");
 
         // Check Stability calculation
         // BM_t = 10²/60 = 1.667
@@ -942,5 +957,41 @@ mod tests {
         assert!((state2.draft_ap - 6.0).abs() < 1e-6);
         assert!((state2.draft_fp - 4.0).abs() < 1e-6);
         assert!(state2.trim < 0.0); // Stern down is negative trim
+    }
+
+    #[test]
+    fn test_vcg_handling_scenarios() {
+        let hull = create_box_hull(10.0, 10.0, 10.0);
+        let vessel = Vessel::new(hull);
+        let calc = HydrostaticsCalculator::new(&vessel, 1025.0);
+        let target_disp = 512500.0; // 5m draft condition
+
+        // Scenario 1: No VCG, No COG -> COG should be None
+        let state1 = calc
+            .from_displacement(target_disp, None, None, None, None)
+            .expect("Calc failed S1");
+        assert!(state1.cog.is_none(), "S1: COG should be None");
+
+        // Scenario 2: VCG only -> COG should be [LCB, TCB, VCG]
+        let state2 = calc
+            .from_displacement(target_disp, Some(6.0), None, None, None)
+            .expect("Calc failed S2");
+        assert!(state2.cog.is_some(), "S2: COG should be Some");
+        let cog2 = state2.cog.unwrap();
+        assert!((cog2[2] - 6.0).abs() < 1e-6, "S2: VCG mismatch");
+        assert!((cog2[0] - state2.lcb()).abs() < 1e-6, "S2: LCG should match LCB");
+        assert!((cog2[1] - state2.tcb()).abs() < 1e-6, "S2: TCG should match TCB");
+
+        // Scenario 3: Full COG provided -> COG should match input exactly (overriding VCG arg if any)
+        // Note: from_displacement prefers 'cog' arg over 'vcg' arg for the computation
+        let input_cog = [2.0, 1.0, 8.0];
+        let state3 = calc
+            .from_displacement(target_disp, Some(5.0), Some(input_cog), None, None)
+            .expect("Calc failed S3");
+        assert!(state3.cog.is_some(), "S3: COG should be Some");
+        let cog3 = state3.cog.unwrap();
+        assert_eq!(cog3, input_cog, "S3: COG should match input full COG");
+        // Ensure it didn't use the '5.0' from vcg arg
+        assert!((cog3[2] - 8.0).abs() < 1e-6);
     }
 }
