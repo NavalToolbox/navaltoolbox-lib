@@ -438,7 +438,7 @@ impl<'a> HydrostaticsCalculator<'a> {
         let z_max = bounds.5;
 
         let tolerance = target_volume * 1e-4;
-        
+
         // Default trim and heel to 0.0 if not specified
         let mut fixed_trim = trim.unwrap_or(0.0);
         let mut fixed_heel = heel.unwrap_or(0.0);
@@ -452,7 +452,7 @@ impl<'a> HydrostaticsCalculator<'a> {
         let mut final_state = None;
 
         for iter in 0..max_equi_iter {
-             // Determine VCG: COG takes precedence over vcg parameter
+            // Determine VCG: COG takes precedence over vcg parameter
             let effective_vcg = if let Some(full_cog) = cog {
                 Some(full_cog[2])
             } else {
@@ -484,26 +484,26 @@ impl<'a> HydrostaticsCalculator<'a> {
                     low = mid;
                 }
             }
-            
+
             // If we failed to find a valid draft even once, try best estimate
             if found_draft.is_none() {
-                 let draft = (low + high) / 2.0;
-                 found_draft = self.from_draft(draft, fixed_trim, fixed_heel, effective_vcg);
+                let draft = (low + high) / 2.0;
+                found_draft = self.from_draft(draft, fixed_trim, fixed_heel, effective_vcg);
             }
 
             match found_draft {
                 Some(state) => {
                     // Check for equilibrium convergence
                     if !solve_trim && !solve_heel {
-                         final_state = Some(state);
-                         break;
+                        final_state = Some(state);
+                        break;
                     }
-                    
+
                     // Transformation logic to find GZ components
                     // We need to rotate the difference vector (COG - COB) to the global frame
                     // GZ_transverse = (COG_global.y - COB_global.y)
                     // GZ_longitudinal = (COG_global.x - COB_global.x)
-                    
+
                     let cog_ship = Vector3::from(cog.unwrap());
                     let cob_ship = Vector3::new(state.lcb(), state.tcb(), state.vcb());
                     let diff_ship = cog_ship - cob_ship;
@@ -514,38 +514,38 @@ impl<'a> HydrostaticsCalculator<'a> {
                     let rot_x = Rotation3::from_axis_angle(&Vector3::x_axis(), heel_rad);
                     let rot_y = Rotation3::from_axis_angle(&Vector3::y_axis(), trim_rad);
                     let rotation = rot_y * rot_x;
-                    
+
                     let diff_global = rotation * diff_ship;
-                    
+
                     let mut converged = true;
-                    
+
                     if solve_heel {
                         let gmt = state.gmt.unwrap_or(1.0).max(0.1); // Avoid div by zero
-                        // Correction = diff_y / GMt
-                        // Example: diff_y > 0 (G is port of B) -> need to heel more to port (+) -> +d_heel
+                                                                     // Correction = diff_y / GMt
+                                                                     // Example: diff_y > 0 (G is port of B) -> need to heel more to port (+) -> +d_heel
                         let d_heel = (diff_global.y / gmt).to_degrees();
-                        
+
                         if d_heel.abs() > 0.001 {
-                             // Limit step size for stability
-                             let step = d_heel.clamp(-5.0, 5.0); 
-                             fixed_heel += step;
-                             converged = false;
+                            // Limit step size for stability
+                            let step = d_heel.clamp(-5.0, 5.0);
+                            fixed_heel += step;
+                            converged = false;
                         }
                     }
-                    
+
                     if solve_trim {
                         let gml = state.gml.unwrap_or(100.0).max(1.0);
                         // Correction = diff_x / GMl
                         // Example: diff_x > 0 (G is fwd of B) -> need to trim down by bow (+) -> +d_trim
                         let d_trim = (diff_global.x / gml).to_degrees();
-                        
+
                         if d_trim.abs() > 0.001 {
-                             let step = d_trim.clamp(-2.0, 2.0);
-                             fixed_trim += step;
-                             converged = false;
+                            let step = d_trim.clamp(-2.0, 2.0);
+                            fixed_trim += step;
+                            converged = false;
                         }
                     }
-                    
+
                     if converged || iter == max_equi_iter - 1 {
                         final_state = Some(state);
                         break;
@@ -1042,8 +1042,14 @@ mod tests {
         assert!(state2.cog.is_some(), "S2: COG should be Some");
         let cog2 = state2.cog.unwrap();
         assert!((cog2[2] - 6.0).abs() < 1e-6, "S2: VCG mismatch");
-        assert!((cog2[0] - state2.lcb()).abs() < 1e-6, "S2: LCG should match LCB");
-        assert!((cog2[1] - state2.tcb()).abs() < 1e-6, "S2: TCG should match TCB");
+        assert!(
+            (cog2[0] - state2.lcb()).abs() < 1e-6,
+            "S2: LCG should match LCB"
+        );
+        assert!(
+            (cog2[1] - state2.tcb()).abs() < 1e-6,
+            "S2: TCG should match TCB"
+        );
 
         // Scenario 3: Full COG provided -> COG should match input exactly (overriding VCG arg if any)
         // Note: from_displacement prefers 'cog' arg over 'vcg' arg for the computation
