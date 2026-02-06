@@ -1325,8 +1325,8 @@ class Tank:
             name: Tank identifier (e.g., "FO_1P", "FW_2S").
             x_min: Minimum X coordinate in meters.
             x_max: Maximum X coordinate in meters.
-            y_min: Minimum Y coordinate in meters (negative = port).
-            y_max: Maximum Y coordinate in meters (positive = starboard).
+            y_min: Minimum Y coordinate in meters (negative = starboard).
+            y_max: Maximum Y coordinate in meters (positive = port).
             z_min: Minimum Z coordinate in meters (bottom).
             z_max: Maximum Z coordinate in meters (top).
             fluid_density: Fluid density in kg/m³.
