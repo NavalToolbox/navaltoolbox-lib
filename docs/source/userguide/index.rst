@@ -18,6 +18,12 @@ This guide covers installation, getting started, and important information for u
 
         Get started quickly with basic examples.
 
+    .. grid-item-card:: 📐 Coordinate System
+        :link: coordinates
+        :link-type: doc
+
+        Reference for axes, rotations, and sign conventions.
+
 Features
 --------
 
@@ -57,4 +63,5 @@ Disclaimer
 
    installation
    quickstart
+   coordinates
    scripting
