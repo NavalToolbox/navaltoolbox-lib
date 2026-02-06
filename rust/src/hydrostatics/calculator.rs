@@ -521,9 +521,10 @@ impl<'a> HydrostaticsCalculator<'a> {
 
                     if solve_heel {
                         let gmt = state.gmt.unwrap_or(1.0).max(0.1); // Avoid div by zero
-                                                                     // Correction = diff_y / GMt
-                                                                     // Example: diff_y > 0 (G is port of B) -> need to heel more to port (+) -> +d_heel
-                        let d_heel = (diff_global.y / gmt).to_degrees();
+                                                                     // Right-hand rule: positive heel = port UP = starboard down
+                                                                     // If G is port of B (diff_y > 0), ship heels port DOWN = negative heel
+                                                                     // So we negate: d_heel = -(G_y - B_y) / GMt
+                        let d_heel = -(diff_global.y / gmt).to_degrees();
 
                         if d_heel.abs() > 0.001 {
                             // Limit step size for stability
@@ -1067,7 +1068,8 @@ mod tests {
     #[test]
     fn test_equilibrium_heel_from_tcg_offset() {
         // Box hull 10x10x10, centered at y=0
-        // TcG > 0 (port side) → expect positive heel (port down)
+        // Right-hand system: Y+ = port, positive heel = port UP (starboard down)
+        // Weight on port (TcG > 0) → port goes DOWN → NEGATIVE heel
         let hull = create_box_hull(10.0, 10.0, 10.0);
         let vessel = Vessel::new(hull);
         let calc = HydrostaticsCalculator::new(&vessel, 1025.0);
@@ -1080,12 +1082,10 @@ mod tests {
             .from_displacement(target_disp, None, Some(cog), None, None)
             .expect("Calculation failed");
 
-        // Expect positive heel (port down) to bring CB to positive Y
-        // Upright CB_y = 0. Heeling port down (positive heel) moves submerged volume to port side (Y+).
-        // Equilibrium: B_y = G_y = 1.0
+        // Port weight → port down → negative heel (right-hand convention)
         assert!(
-            state.heel > 0.1,
-            "Heel should be positive for port TcG, got {}",
+            state.heel < -0.1,
+            "Heel should be negative for port TcG, got {}",
             state.heel
         );
     }
