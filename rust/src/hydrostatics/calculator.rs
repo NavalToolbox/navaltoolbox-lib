@@ -22,7 +22,7 @@
 use super::HydrostaticState;
 use crate::mesh::{clip_at_waterline, get_bounds, transform_mesh};
 use crate::vessel::Vessel;
-use nalgebra::Point3;
+use nalgebra::{Point3, Rotation3, Vector3};
 use parry3d_f64::shape::Shape;
 
 /// Calculator for hydrostatic properties.
@@ -438,61 +438,129 @@ impl<'a> HydrostaticsCalculator<'a> {
         let z_max = bounds.5;
 
         let tolerance = target_volume * 1e-4;
-        let max_iter = 50;
+        
+        // Default trim and heel to 0.0 if not specified
+        let mut fixed_trim = trim.unwrap_or(0.0);
+        let mut fixed_heel = heel.unwrap_or(0.0);
 
-        let mut low = z_min;
-        let mut high = z_max;
+        // Determine if we need to solve for equilibrium
+        // We solve if angles are NOT fixed AND COG is provided
+        let solve_trim = trim.is_none() && cog.is_some();
+        let solve_heel = heel.is_none() && cog.is_some();
+        let max_equi_iter = if solve_trim || solve_heel { 20 } else { 1 };
 
-        // Default trim and heel to 0.0
-        let fixed_trim = trim.unwrap_or(0.0);
-        let fixed_heel = heel.unwrap_or(0.0);
+        let mut final_state = None;
 
-        // Determine VCG: COG takes precedence over vcg parameter
-        let effective_vcg = if let Some(full_cog) = cog {
-            Some(full_cog[2])
-        } else {
-            vcg
-        };
+        for iter in 0..max_equi_iter {
+             // Determine VCG: COG takes precedence over vcg parameter
+            let effective_vcg = if let Some(full_cog) = cog {
+                Some(full_cog[2])
+            } else {
+                vcg
+            };
 
-        // Bisection search for draft
-        for _ in 0..max_iter {
-            let mid = (low + high) / 2.0;
+            let mut low = z_min;
+            let mut high = z_max;
+            let mut found_draft = None;
 
-            if let Some(state) = self.from_draft(mid, fixed_trim, fixed_heel, effective_vcg) {
-                let diff = state.volume - target_volume;
+            // Inner loop: Find draft for current heel/trim
+            for _ in 0..50 {
+                let mid = (low + high) / 2.0;
 
-                if diff.abs() < tolerance {
-                    // Found the draft! Set COG in result:
-                    // - If full COG was provided, use it (overrides everything)
-                    // - If only VCG was provided, we want to preserve the vcg from input
-                    //   but keep lcb/tcb as lcg/tcg (which is what from_draft does when vcg is passed)
-                    //
-                    // The 'state' returns from 'from_draft' already has:
-                    // cog = Some([lcb, tcb, vcg]) if vcg was passed.
-                    //
-                    // So we just need to overlay the explicit 'cog' if provided.
-                    let final_cog = cog.or(state.cog);
+                if let Some(state) = self.from_draft(mid, fixed_trim, fixed_heel, effective_vcg) {
+                    let diff = state.volume - target_volume;
 
-                    return Ok(HydrostaticState {
-                        cog: final_cog,
-                        ..state
-                    });
-                }
+                    if diff.abs() < tolerance {
+                        found_draft = Some(state);
+                        break;
+                    }
 
-                if diff > 0.0 {
-                    high = mid;
+                    if diff > 0.0 {
+                        high = mid;
+                    } else {
+                        low = mid;
+                    }
                 } else {
                     low = mid;
                 }
-            } else {
-                low = mid;
+            }
+            
+            // If we failed to find a valid draft even once, try best estimate
+            if found_draft.is_none() {
+                 let draft = (low + high) / 2.0;
+                 found_draft = self.from_draft(draft, fixed_trim, fixed_heel, effective_vcg);
+            }
+
+            match found_draft {
+                Some(state) => {
+                    // Check for equilibrium convergence
+                    if !solve_trim && !solve_heel {
+                         final_state = Some(state);
+                         break;
+                    }
+                    
+                    // Transformation logic to find GZ components
+                    // We need to rotate the difference vector (COG - COB) to the global frame
+                    // GZ_transverse = (COG_global.y - COB_global.y)
+                    // GZ_longitudinal = (COG_global.x - COB_global.x)
+                    
+                    let cog_ship = Vector3::from(cog.unwrap());
+                    let cob_ship = Vector3::new(state.lcb(), state.tcb(), state.vcb());
+                    let diff_ship = cog_ship - cob_ship;
+
+                    // Rotation matches transform_mesh logic
+                    let heel_rad = fixed_heel.to_radians();
+                    let trim_rad = fixed_trim.to_radians();
+                    let rot_x = Rotation3::from_axis_angle(&Vector3::x_axis(), heel_rad);
+                    let rot_y = Rotation3::from_axis_angle(&Vector3::y_axis(), trim_rad);
+                    let rotation = rot_y * rot_x;
+                    
+                    let diff_global = rotation * diff_ship;
+                    
+                    let mut converged = true;
+                    
+                    if solve_heel {
+                        let gmt = state.gmt.unwrap_or(1.0).max(0.1); // Avoid div by zero
+                        // Correction = diff_y / GMt
+                        // Example: diff_y > 0 (G is port of B) -> need to heel more to port (+) -> +d_heel
+                        let d_heel = (diff_global.y / gmt).to_degrees();
+                        
+                        if d_heel.abs() > 0.001 {
+                             // Limit step size for stability
+                             let step = d_heel.clamp(-5.0, 5.0); 
+                             fixed_heel += step;
+                             converged = false;
+                        }
+                    }
+                    
+                    if solve_trim {
+                        let gml = state.gml.unwrap_or(100.0).max(1.0);
+                        // Correction = diff_x / GMl
+                        // Example: diff_x > 0 (G is fwd of B) -> need to trim down by bow (+) -> +d_trim
+                        let d_trim = (diff_global.x / gml).to_degrees();
+                        
+                        if d_trim.abs() > 0.001 {
+                             let step = d_trim.clamp(-2.0, 2.0);
+                             fixed_trim += step;
+                             converged = false;
+                        }
+                    }
+                    
+                    if converged || iter == max_equi_iter - 1 {
+                        final_state = Some(state);
+                        break;
+                    }
+                }
+                None => {
+                    return Err(format!(
+                        "Could not find draft for displacement {} kg",
+                        displacement_mass
+                    ));
+                }
             }
         }
 
-        // Convergence not achieved within max iterations
-        // Return best estimate
-        let final_draft = (low + high) / 2.0;
-        self.from_draft(final_draft, fixed_trim, fixed_heel, effective_vcg)
+        final_state
             .map(|state| {
                 let final_cog = cog.or(state.cog);
                 HydrostaticState {
@@ -500,12 +568,7 @@ impl<'a> HydrostaticsCalculator<'a> {
                     ..state
                 }
             })
-            .ok_or_else(|| {
-                format!(
-                    "Could not find draft for displacement {} kg",
-                    displacement_mass
-                )
-            })
+            .ok_or_else(|| "Failed to find equilibrium state".to_string())
     }
 
     /// Returns the water density.
