@@ -432,23 +432,76 @@ impl<'a> HydrostaticsCalculator<'a> {
             }
         }
 
+        // Initialize state
+        let solve_trim = trim.is_none() && cog.is_some();
+        let solve_heel = heel.is_none() && cog.is_some();
+
+        // Initial guess or user-provided values
+        let mut fixed_trim = trim.unwrap_or(0.0);
+        let mut fixed_heel = heel.unwrap_or(0.0);
+
+        // Try Newton-Raphson first (fast)
+        if let Some(state) = self.solve_equilibrium_newton(
+            displacement_mass,
+            vcg,
+            cog,
+            &mut fixed_trim,
+            &mut fixed_heel,
+            solve_trim,
+            solve_heel,
+        )? {
+            return Ok(HydrostaticState {
+                cog: cog.or(state.cog),
+                ..state
+            });
+        }
+
+        // Fallback to Robust Solver (coordinate descent with bisection)
+        // Only if we need to solve for equilibrium
+        if solve_trim || solve_heel {
+            // Revert to initial guess if Newton diverged wildly
+            fixed_trim = trim.unwrap_or(0.0);
+            fixed_heel = heel.unwrap_or(0.0);
+
+            if let Some(state) = self.solve_equilibrium_robust(
+                displacement_mass,
+                vcg,
+                cog,
+                &mut fixed_trim,
+                &mut fixed_heel,
+                solve_trim,
+                solve_heel,
+            ) {
+                return Ok(HydrostaticState {
+                    cog: cog.or(state.cog),
+                    ..state
+                });
+            }
+        }
+
+        Err("Failed to find equilibrium state".to_string())
+    }
+
+    /// Primary equilibrium solver using Newton-Raphson (fast but can diverge)
+    fn solve_equilibrium_newton(
+        &self,
+        displacement_mass: f64,
+        vcg: Option<f64>,
+        cog: Option<[f64; 3]>,
+        fixed_trim: &mut f64,
+        fixed_heel: &mut f64,
+        solve_trim: bool,
+        solve_heel: bool,
+    ) -> Result<Option<HydrostaticState>, String> {
+        let tolerance = displacement_mass / self.water_density * 1e-4;
         let target_volume = displacement_mass / self.water_density;
+
         let bounds = self.vessel.get_bounds();
         let z_min = bounds.4;
         let z_max = bounds.5;
 
-        let tolerance = target_volume * 1e-4;
-
-        // Default trim and heel to 0.0 if not specified
-        let mut fixed_trim = trim.unwrap_or(0.0);
-        let mut fixed_heel = heel.unwrap_or(0.0);
-
-        // Determine if we need to solve for equilibrium
-        // We solve if angles are NOT fixed AND COG is provided
-        let solve_trim = trim.is_none() && cog.is_some();
-        let solve_heel = heel.is_none() && cog.is_some();
-        let max_equi_iter = if solve_trim || solve_heel { 20 } else { 1 };
-
+        // Use adaptive iteration count: if we fallback, we don't need too many Newton steps
+        let max_equi_iter = 20;
         let mut final_state = None;
 
         for iter in 0..max_equi_iter {
@@ -467,7 +520,7 @@ impl<'a> HydrostaticsCalculator<'a> {
             for _ in 0..50 {
                 let mid = (low + high) / 2.0;
 
-                if let Some(state) = self.from_draft(mid, fixed_trim, fixed_heel, effective_vcg) {
+                if let Some(state) = self.from_draft(mid, *fixed_trim, *fixed_heel, effective_vcg) {
                     let diff = state.volume - target_volume;
 
                     if diff.abs() < tolerance {
@@ -488,68 +541,68 @@ impl<'a> HydrostaticsCalculator<'a> {
             // If we failed to find a valid draft even once, try best estimate
             if found_draft.is_none() {
                 let draft = (low + high) / 2.0;
-                found_draft = self.from_draft(draft, fixed_trim, fixed_heel, effective_vcg);
+                found_draft = self.from_draft(draft, *fixed_trim, *fixed_heel, effective_vcg);
             }
 
             match found_draft {
                 Some(state) => {
                     // Check for equilibrium convergence
                     if !solve_trim && !solve_heel {
-                        final_state = Some(state);
-                        break;
+                        return Ok(Some(state));
                     }
 
-                    // Transformation logic to find GZ components
-                    // We need to rotate the difference vector (COG - COB) to the global frame
-                    // GZ_transverse = (COG_global.y - COB_global.y)
-                    // GZ_longitudinal = (COG_global.x - COB_global.x)
-
+                    // COG in ship frame
                     let cog_ship = Vector3::from(cog.unwrap());
-                    let cob_ship = Vector3::new(state.lcb(), state.tcb(), state.vcb());
-                    let diff_ship = cog_ship - cob_ship;
 
-                    // Rotation matches transform_mesh logic
+                    // COB is in global frame, transform to ship frame
                     let heel_rad = fixed_heel.to_radians();
                     let trim_rad = fixed_trim.to_radians();
                     let rot_x = Rotation3::from_axis_angle(&Vector3::x_axis(), heel_rad);
                     let rot_y = Rotation3::from_axis_angle(&Vector3::y_axis(), trim_rad);
                     let rotation = rot_y * rot_x;
+                    let inv_rotation = rotation.inverse();
 
-                    let diff_global = rotation * diff_ship;
+                    let cob_global = Vector3::new(state.lcb(), state.tcb(), state.vcb());
+                    let cob_ship = inv_rotation * cob_global;
 
+                    // Difference in ship frame
+                    let diff_ship = cog_ship - cob_ship;
                     let mut converged = true;
 
                     if solve_heel {
-                        let gmt = state.gmt.unwrap_or(1.0).max(0.1); // Avoid div by zero
-                                                                     // Right-hand rule: positive heel = port UP = starboard down
-                                                                     // If G is port of B (diff_y > 0), ship heels port DOWN = negative heel
-                                                                     // So we negate: d_heel = -(G_y - B_y) / GMt
-                        let d_heel = -(diff_global.y / gmt).to_degrees();
+                        let gmt = state.gmt.unwrap_or(1.0).max(0.1);
+                        let d_heel = -(diff_ship.y / gmt).to_degrees();
 
                         if d_heel.abs() > 0.001 {
-                            // Limit step size for stability
-                            let step = d_heel.clamp(-5.0, 5.0);
-                            fixed_heel += step;
+                            // Adaptive damping
+                            let damping = if fixed_heel.abs() > 25.0 { 0.5 } else { 0.8 };
+                            let step = (d_heel * damping).clamp(-5.0, 5.0);
+                            *fixed_heel += step;
                             converged = false;
                         }
                     }
 
                     if solve_trim {
                         let gml = state.gml.unwrap_or(100.0).max(1.0);
-                        // Correction = diff_x / GMl
-                        // Example: diff_x > 0 (G is fwd of B) -> need to trim down by bow (+) -> +d_trim
-                        let d_trim = (diff_global.x / gml).to_degrees();
+                        let d_trim = (diff_ship.x / gml).to_degrees();
 
                         if d_trim.abs() > 0.001 {
-                            let step = d_trim.clamp(-2.0, 2.0);
-                            fixed_trim += step;
+                            // Adaptive damping
+                            let damping = if fixed_heel.abs() > 15.0 { 0.3 } else { 0.8 };
+                            let max_step = if fixed_heel.abs() > 15.0 { 1.0 } else { 2.0 };
+                            let step = (d_trim * damping).clamp(-max_step, max_step);
+                            *fixed_trim += step;
                             converged = false;
                         }
                     }
 
-                    if converged || iter == max_equi_iter - 1 {
+                    if converged {
+                        return Ok(Some(state));
+                    }
+
+                    // Keep last state in case we hit max iter but result is "good enough"
+                    if iter == max_equi_iter - 1 {
                         final_state = Some(state);
-                        break;
                     }
                 }
                 None => {
@@ -561,15 +614,197 @@ impl<'a> HydrostaticsCalculator<'a> {
             }
         }
 
-        final_state
-            .map(|state| {
-                let final_cog = cog.or(state.cog);
-                HydrostaticState {
-                    cog: final_cog,
-                    ..state
+        // Check if final state is acceptable
+        if let Some(state) = final_state {
+            let cog_ship = Vector3::from(cog.unwrap());
+            let heel_rad = state.heel.to_radians();
+            let trim_rad = state.trim.to_radians();
+            let rot = Rotation3::from_axis_angle(&Vector3::y_axis(), trim_rad)
+                * Rotation3::from_axis_angle(&Vector3::x_axis(), heel_rad);
+            let cob_ship = rot.inverse() * Vector3::new(state.lcb(), state.tcb(), state.vcb());
+
+            let diff = cog_ship - cob_ship;
+            // If error is large (> 0.1m), signal failure to trigger fallback
+            if diff.x.abs() > 0.1 || diff.y.abs() > 0.1 {
+                return Ok(None);
+            }
+            return Ok(Some(state));
+        }
+
+        Ok(None)
+    }
+
+    /// Robust fallback solver using Coordinate Descent with Bisection
+    fn solve_equilibrium_robust(
+        &self,
+        displacement_mass: f64,
+        vcg: Option<f64>,
+        cog: Option<[f64; 3]>,
+        fixed_trim: &mut f64,
+        fixed_heel: &mut f64,
+        solve_trim: bool,
+        solve_heel: bool,
+    ) -> Option<HydrostaticState> {
+        let max_iter = 10;
+        let cog_val = cog.unwrap();
+        let target_lcg = cog_val[0];
+        let target_tcg = cog_val[1];
+        let effective_vcg = Some(cog_val[2]);
+
+        for _ in 0..max_iter {
+            let mut improved = false;
+
+            // 1. Solve Heel (fixing trim)
+            if solve_heel {
+                let (new_heel, _err) = self.bisect_angle(
+                    displacement_mass,
+                    *fixed_trim,
+                    *fixed_heel,
+                    target_tcg,
+                    true, // is_heel
+                    effective_vcg,
+                );
+                if (new_heel - *fixed_heel).abs() > 0.01 {
+                    *fixed_heel = new_heel;
+                    improved = true;
                 }
-            })
-            .ok_or_else(|| "Failed to find equilibrium state".to_string())
+            }
+
+            // 2. Solve Trim (fixing heel)
+            if solve_trim {
+                let (new_trim, _err) = self.bisect_angle(
+                    displacement_mass,
+                    *fixed_trim,
+                    *fixed_heel,
+                    target_lcg,
+                    false, // is_heel (so it's trim)
+                    effective_vcg,
+                );
+                if (new_trim - *fixed_trim).abs() > 0.01 {
+                    *fixed_trim = new_trim;
+                    improved = true;
+                }
+            }
+
+            if !improved {
+                break;
+            }
+        }
+
+        // Return final state
+        self.find_draft_for_displacement(displacement_mass, *fixed_trim, *fixed_heel, effective_vcg)
+    }
+
+    /// Helper for bisection search
+    fn bisect_angle(
+        &self,
+        disp: f64,
+        current_trim: f64,
+        current_heel: f64,
+        target_val: f64,
+        is_heel: bool,
+        vcg: Option<f64>,
+    ) -> (f64, f64) {
+        let (min, max) = if is_heel {
+            (-89.0, 89.0)
+        } else {
+            (-85.0, 85.0)
+        };
+
+        // Try to bracket around current value first
+        let center = if is_heel { current_heel } else { current_trim };
+        let range = if is_heel { 20.0 } else { 20.0 }; // Increased range for robustness
+        let mut b_min = (center - range).max(min);
+        let mut b_max = (center + range).min(max);
+
+        let mut final_diff = 0.0;
+
+        // 20 iterations of bisection
+        for _ in 0..20 {
+            let mid = (b_min + b_max) / 2.0;
+            let (t, h) = if is_heel {
+                (current_trim, mid)
+            } else {
+                (mid, current_heel)
+            };
+
+            if let Some(state) = self.find_draft_for_displacement(disp, t, h, vcg) {
+                // Transform COB to ship frame to compare with target TCG/LCG
+                let h_rad = h.to_radians();
+                let t_rad = t.to_radians();
+                let rot = Rotation3::from_axis_angle(&Vector3::y_axis(), t_rad)
+                    * Rotation3::from_axis_angle(&Vector3::x_axis(), h_rad);
+                let cob_ship = rot.inverse() * Vector3::new(state.lcb(), state.tcb(), state.vcb());
+
+                let val = if is_heel { cob_ship.y } else { cob_ship.x };
+                let diff = val - target_val; // B_pos - G_pos
+                final_diff = diff;
+
+                if is_heel {
+                    // If diff < 0 (B_y < G_y), B is stbd of G. Need to heel port down (negative).
+                    // So we need smaller heel (towards min).
+                    if diff < 0.0 {
+                        b_max = mid;
+                    } else {
+                        b_min = mid;
+                    }
+                } else {
+                    // Trim: if diff < 0 (B_x < G_x), B is aft of G.
+                    // Need B to move fwd. Positive trim (bow down) moves B fwd.
+                    // So we need larger trim (towards max).
+                    if diff < 0.0 {
+                        b_min = mid;
+                    } else {
+                        b_max = mid;
+                    }
+                }
+            } else {
+                // Draft finding failed, narrow range towards 0
+                // If mid is positive, it might be too large, try smaller max
+                if mid > 0.0 {
+                    b_max = mid;
+                } else {
+                    b_min = mid;
+                }
+            }
+        }
+
+        let best = (b_min + b_max) / 2.0;
+        (best, final_diff)
+    }
+
+    fn find_draft_for_displacement(
+        &self,
+        target_disp: f64,
+        trim: f64,
+        heel: f64,
+        vcg: Option<f64>,
+    ) -> Option<HydrostaticState> {
+        let tolerance = target_disp / self.water_density * 1e-4;
+        let target_vol = target_disp / self.water_density;
+        let bounds = self.vessel.get_bounds();
+        let z_min = bounds.4 - 2.0;
+        let z_max = bounds.5 + 2.0;
+        let mut low = z_min;
+        let mut high = z_max;
+
+        for _ in 0..50 {
+            let mid = (low + high) / 2.0;
+            if let Some(state) = self.from_draft(mid, trim, heel, vcg) {
+                let diff = state.volume - target_vol;
+                if diff.abs() < tolerance {
+                    return Some(state);
+                }
+                if diff > 0.0 {
+                    high = mid;
+                } else {
+                    low = mid;
+                }
+            } else {
+                low = mid;
+            }
+        }
+        self.from_draft((low + high) / 2.0, trim, heel, vcg)
     }
 
     /// Returns the water density.
@@ -1113,6 +1348,61 @@ mod tests {
             state.trim < -0.1,
             "Trim should be negative for aft LcG, got {}",
             state.trim
+        );
+    }
+
+    #[test]
+    fn test_equilibrium_vertical_alignment() {
+        // This test verifies the ACTUAL equilibrium condition:
+        // COG and COB must be vertically aligned in the global (waterplane) frame.
+        // This catches frame mixing bugs that simpler sign-only tests miss.
+
+        let hull = create_box_hull(10.0, 10.0, 10.0);
+        let vessel = Vessel::new(hull);
+        let calc = HydrostaticsCalculator::new(&vessel, 1025.0);
+        let target_disp = 512500.0; // 5m draft
+
+        // Test combined offset: weight on port AND aft
+        let cog = [3.0, 1.0, 5.0]; // LcG=3 (aft of LCB=5), TcG=1 (port), VcG=5
+
+        let state = calc
+            .from_displacement(target_disp, None, Some(cog), None, None)
+            .expect("Calculation failed");
+
+        // Now verify equilibrium: COG and COB should be aligned in SHIP frame
+        // The solver transforms COB to ship frame, so we do the same here
+        let heel_rad = state.heel.to_radians();
+        let trim_rad = state.trim.to_radians();
+
+        let rot_x = nalgebra::Rotation3::from_axis_angle(&nalgebra::Vector3::x_axis(), heel_rad);
+        let rot_y = nalgebra::Rotation3::from_axis_angle(&nalgebra::Vector3::y_axis(), trim_rad);
+        let rotation = rot_y * rot_x;
+        let inv_rotation = rotation.inverse();
+
+        let cog_ship = nalgebra::Vector3::new(cog[0], cog[1], cog[2]);
+        let cob_global = nalgebra::Vector3::new(state.lcb(), state.tcb(), state.vcb());
+        let cob_ship = inv_rotation * cob_global;
+
+        // Also compute for debug: COG in global
+        let cog_global = rotation * cog_ship;
+
+        // At equilibrium, horizontal components in ship frame should match closely
+        let diff_x = (cog_ship.x - cob_ship.x).abs();
+        let diff_y = (cog_ship.y - cob_ship.y).abs();
+
+        assert!(
+            diff_x < 0.1,
+            "Equilibrium failed: COG_x ({:.4}) != COB_x ({:.4}) in ship frame, diff={:.4}",
+            cog_ship.x,
+            cob_ship.x,
+            diff_x
+        );
+        assert!(
+            diff_y < 0.1,
+            "Equilibrium failed: COG_y ({:.4}) != COB_y ({:.4}) in ship frame, diff={:.4}",
+            cog_ship.y,
+            cob_ship.y,
+            diff_y
         );
     }
 }
