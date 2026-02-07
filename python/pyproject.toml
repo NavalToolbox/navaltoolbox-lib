@@ -39,6 +39,7 @@ Documentation = "https://navaltoolbox.github.io/navaltoolbox-lib"
 Issues = "https://github.com/NavalToolbox/navaltoolbox-lib/issues"
 
 [tool.maturin]
+bindings = "pyo3"
 features = ["python"]
 manifest-path = "../rust/Cargo.toml"
 python-source = "."
