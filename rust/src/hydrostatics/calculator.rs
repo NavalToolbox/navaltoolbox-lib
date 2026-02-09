@@ -483,6 +483,7 @@ impl<'a> HydrostaticsCalculator<'a> {
     }
 
     /// Primary equilibrium solver using Newton-Raphson (fast but can diverge)
+    #[allow(clippy::too_many_arguments)]
     fn solve_equilibrium_newton(
         &self,
         displacement_mass: f64,
@@ -554,7 +555,16 @@ impl<'a> HydrostaticsCalculator<'a> {
                     // COG in ship frame
                     let cog_ship = Vector3::from(cog.unwrap());
 
+                    // Reconstruct pivot used in from_draft
+                    let ap = self.vessel.ap();
+                    let fp = self.vessel.fp();
+                    let mp_x = (ap + fp) / 2.0;
+                    let bounds = self.vessel.get_bounds();
+                    let center_y = (bounds.2 + bounds.3) / 2.0;
+                    let pivot = Point3::new(mp_x, center_y, state.draft);
+
                     // COB is in global frame, transform to ship frame
+                    // p_ship = pivot + Rot_inv * (p_global - pivot)
                     let heel_rad = fixed_heel.to_radians();
                     let trim_rad = fixed_trim.to_radians();
                     let rot_x = Rotation3::from_axis_angle(&Vector3::x_axis(), heel_rad);
@@ -562,11 +572,12 @@ impl<'a> HydrostaticsCalculator<'a> {
                     let rotation = rot_y * rot_x;
                     let inv_rotation = rotation.inverse();
 
-                    let cob_global = Vector3::new(state.lcb(), state.tcb(), state.vcb());
-                    let cob_ship = inv_rotation * cob_global;
+                    let cob_global = Point3::new(state.lcb(), state.tcb(), state.vcb());
+                    let cob_ship = pivot + inv_rotation * (cob_global - pivot);
+                    let cob_ship_vec = Vector3::new(cob_ship.x, cob_ship.y, cob_ship.z);
 
                     // Difference in ship frame
-                    let diff_ship = cog_ship - cob_ship;
+                    let diff_ship = cog_ship - cob_ship_vec;
                     let mut converged = true;
 
                     if solve_heel {
@@ -575,7 +586,7 @@ impl<'a> HydrostaticsCalculator<'a> {
 
                         if d_heel.abs() > 0.001 {
                             // Adaptive damping
-                            let damping = if fixed_heel.abs() > 25.0 { 0.5 } else { 0.8 };
+                            let damping = if fixed_heel.abs() > 25.0 { 0.3 } else { 0.5 };
                             let step = (d_heel * damping).clamp(-5.0, 5.0);
                             *fixed_heel += step;
                             converged = false;
@@ -588,7 +599,7 @@ impl<'a> HydrostaticsCalculator<'a> {
 
                         if d_trim.abs() > 0.001 {
                             // Adaptive damping
-                            let damping = if fixed_heel.abs() > 15.0 { 0.3 } else { 0.8 };
+                            let damping = if fixed_heel.abs() > 15.0 { 0.3 } else { 0.5 };
                             let max_step = if fixed_heel.abs() > 15.0 { 1.0 } else { 2.0 };
                             let step = (d_trim * damping).clamp(-max_step, max_step);
                             *fixed_trim += step;
@@ -617,13 +628,25 @@ impl<'a> HydrostaticsCalculator<'a> {
         // Check if final state is acceptable
         if let Some(state) = final_state {
             let cog_ship = Vector3::from(cog.unwrap());
+
+            // Reconstruct pivot
+            let ap = self.vessel.ap();
+            let fp = self.vessel.fp();
+            let mp_x = (ap + fp) / 2.0;
+            let bounds = self.vessel.get_bounds();
+            let center_y = (bounds.2 + bounds.3) / 2.0;
+            let pivot = Point3::new(mp_x, center_y, state.draft);
+
             let heel_rad = state.heel.to_radians();
             let trim_rad = state.trim.to_radians();
             let rot = Rotation3::from_axis_angle(&Vector3::y_axis(), trim_rad)
                 * Rotation3::from_axis_angle(&Vector3::x_axis(), heel_rad);
-            let cob_ship = rot.inverse() * Vector3::new(state.lcb(), state.tcb(), state.vcb());
 
-            let diff = cog_ship - cob_ship;
+            let cob_global = Point3::new(state.lcb(), state.tcb(), state.vcb());
+            let cob_ship = pivot + rot.inverse() * (cob_global - pivot);
+            let cob_ship_vec = Vector3::new(cob_ship.x, cob_ship.y, cob_ship.z);
+
+            let diff = cog_ship - cob_ship_vec;
             // If error is large (> 0.1m), signal failure to trigger fallback
             if diff.x.abs() > 0.1 || diff.y.abs() > 0.1 {
                 return Ok(None);
@@ -635,10 +658,11 @@ impl<'a> HydrostaticsCalculator<'a> {
     }
 
     /// Robust fallback solver using Coordinate Descent with Bisection
+    #[allow(clippy::too_many_arguments)]
     fn solve_equilibrium_robust(
         &self,
         displacement_mass: f64,
-        vcg: Option<f64>,
+        _vcg: Option<f64>,
         cog: Option<[f64; 3]>,
         fixed_trim: &mut f64,
         fixed_heel: &mut f64,
@@ -713,7 +737,7 @@ impl<'a> HydrostaticsCalculator<'a> {
 
         // Try to bracket around current value first
         let center = if is_heel { current_heel } else { current_trim };
-        let range = if is_heel { 20.0 } else { 20.0 }; // Increased range for robustness
+        let range = 20.0; // Increased range for robustness
         let mut b_min = (center - range).max(min);
         let mut b_max = (center + range).min(max);
 
@@ -730,11 +754,21 @@ impl<'a> HydrostaticsCalculator<'a> {
 
             if let Some(state) = self.find_draft_for_displacement(disp, t, h, vcg) {
                 // Transform COB to ship frame to compare with target TCG/LCG
+                // Reconstruct pivot (needed for correct transform)
+                let ap = self.vessel.ap();
+                let fp = self.vessel.fp();
+                let mp_x = (ap + fp) / 2.0;
+                let bounds = self.vessel.get_bounds();
+                let center_y = (bounds.2 + bounds.3) / 2.0;
+                let pivot = Point3::new(mp_x, center_y, state.draft);
+
                 let h_rad = h.to_radians();
                 let t_rad = t.to_radians();
                 let rot = Rotation3::from_axis_angle(&Vector3::y_axis(), t_rad)
                     * Rotation3::from_axis_angle(&Vector3::x_axis(), h_rad);
-                let cob_ship = rot.inverse() * Vector3::new(state.lcb(), state.tcb(), state.vcb());
+
+                let cob_global = Point3::new(state.lcb(), state.tcb(), state.vcb());
+                let cob_ship = pivot + rot.inverse() * (cob_global - pivot);
 
                 let val = if is_heel { cob_ship.y } else { cob_ship.x };
                 let diff = val - target_val; // B_pos - G_pos
@@ -1370,7 +1404,7 @@ mod tests {
             .expect("Calculation failed");
 
         // Now verify equilibrium: COG and COB should be aligned in SHIP frame
-        // The solver transforms COB to ship frame, so we do the same here
+        // The solver transforms COB to ship frame using a pivot at (MP, 0, Draft)
         let heel_rad = state.heel.to_radians();
         let trim_rad = state.trim.to_radians();
 
@@ -1379,12 +1413,26 @@ mod tests {
         let rotation = rot_y * rot_x;
         let inv_rotation = rotation.inverse();
 
+        // Reconstruct Pivot
+        let ap = vessel.ap();
+        let fp = vessel.fp();
+        let mp_x = (ap + fp) / 2.0;
+        let bounds = vessel.get_bounds();
+        let center_y = (bounds.2 + bounds.3) / 2.0;
+        let pivot = nalgebra::Point3::new(mp_x, center_y, state.draft);
+
         let cog_ship = nalgebra::Vector3::new(cog[0], cog[1], cog[2]);
-        let cob_global = nalgebra::Vector3::new(state.lcb(), state.tcb(), state.vcb());
-        let cob_ship = inv_rotation * cob_global;
+        let cob_global = nalgebra::Point3::new(state.lcb(), state.tcb(), state.vcb());
+
+        // p_ship = pivot + Rot_inv * (p_global - pivot)
+        let cob_ship_point = pivot + inv_rotation * (cob_global - pivot);
+        let cob_ship = nalgebra::Vector3::new(cob_ship_point.x, cob_ship_point.y, cob_ship_point.z);
 
         // Also compute for debug: COG in global
-        let cog_global = rotation * cog_ship;
+        // p_global = pivot + Rot * (p_ship - pivot)
+        // Not strictly needed for the test assertion but useful debug
+        // let cog_ship_point = pivot + (cog_ship - nalgebra::Vector3::new(pivot.x, pivot.y, pivot.z));
+        // let _cog_global = pivot + rotation * (cog_ship_point - pivot);
 
         // At equilibrium, horizontal components in ship frame should match closely
         let diff_x = (cog_ship.x - cob_ship.x).abs();

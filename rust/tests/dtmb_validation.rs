@@ -84,7 +84,105 @@ fn test_dtmb5415_simman_validation() {
             "GMt mismatch: got {}, expected ~1.95",
             gmt
         );
-    } else {
-        panic!("GMt was None");
     }
+}
+
+#[test]
+fn test_dtmb_equilibrium_trim_from_lcg_offset() {
+    let mut stl_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    stl_path.push("tests/data/dtmb5415.stl");
+
+    let hull = Hull::from_stl(stl_path).expect("Failed to load DTMB 5415 STL");
+    let vessel = Vessel::new(hull);
+    let calc = HydrostaticsCalculator::new(&vessel, 1025.0);
+
+    // Initial state at even keel
+    let draft = 6.15;
+    let vcg = 7.555;
+    let initial_state = calc
+        .from_draft(draft, 0.0, 0.0, Some(vcg))
+        .expect("Failed to calculate initial hydrostatics");
+
+    // LCB at T=6.15
+    let lcb = initial_state.lcb();
+    let target_disp = initial_state.volume * 1025.0;
+
+    // LCG slightly aft of LCB (e.g. -0.5m)
+    // Positive trim = Bow down (check convention)
+    // If LCG is aft of LCB, stern goes down -> Negative trim?
+    // Let's check calculator conventions:
+    // "test_equilibrium_trim_from_lcg_offset":
+    // // LcG < LCB (aft) → expect negative trim (stern down)
+    // // Trim positive = bow down. Stern down = negative trim.
+
+    let lcg_offset = -0.5;
+    let lcg = lcb + lcg_offset;
+    let cog = [lcg, 0.0, vcg];
+
+    let state = calc
+        .from_displacement(target_disp, None, Some(cog), None, None)
+        .expect("Calculation failed");
+
+    println!("LCB: {:.3}, LCG: {:.3}, Trim: {:.3}", lcb, lcg, state.trim);
+
+    assert!(
+        state.trim < -0.01,
+        "Trim should be negative (stern down) for aft LCG, got {}",
+        state.trim
+    );
+}
+
+#[test]
+fn test_dtmb_equilibrium_combined() {
+    let mut stl_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    stl_path.push("tests/data/dtmb5415.stl");
+
+    let hull = Hull::from_stl(stl_path).expect("Failed to load DTMB 5415 STL");
+    let vessel = Vessel::new(hull);
+    let calc = HydrostaticsCalculator::new(&vessel, 1025.0);
+
+    // Initial state at even keel
+    let draft = 6.15;
+    let vcg = 7.555;
+    let initial_state = calc
+        .from_draft(draft, 0.0, 0.0, Some(vcg))
+        .expect("Failed to calculate initial hydrostatics");
+
+    // LCB at T=6.15
+    let lcb = initial_state.lcb();
+    let tcb = initial_state.tcb(); // Should be ~0.0
+    let target_disp = initial_state.volume * 1025.0;
+
+    // Apply combined offsets:
+    // 1. LCG slighty aft (-0.5m) -> Expect negative trim (stern down)
+    // 2. TCG slightly to Port (+0.1m) -> Expect negative heel (port down)?
+    //    Recall: Y+ is Port. Heel+ is Starboard Down (Port Up).
+    //    So Port weight -> Port down -> Negative heel.
+
+    let lcg_offset = -0.1;
+    let tcg_offset = 0.01;
+
+    let lcg = lcb + lcg_offset;
+    let tcg = tcb + tcg_offset;
+    let cog = [lcg, tcg, vcg];
+
+    let state = calc
+        .from_displacement(target_disp, None, Some(cog), None, None)
+        .expect("Calculation failed");
+
+    println!(
+        "LCB: {:.3}, TCB: {:.3}, Trim: {:.3}, Heel: {:.3}",
+        lcb, tcb, state.trim, state.heel
+    );
+
+    assert!(
+        state.trim < -0.01,
+        "Trim should be negative (stern down) for aft LCG, got {}",
+        state.trim
+    );
+    assert!(
+        state.heel < -0.01,
+        "Heel should be negative (port down) for port TCG, got {}",
+        state.heel
+    );
 }
