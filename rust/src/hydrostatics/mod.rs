@@ -21,8 +21,6 @@
 
 mod calculator;
 mod dataclasses;
-mod waterplane;
-
+pub use crate::mesh::{calculate_waterplane_properties, WaterplaneProperties};
 pub use calculator::HydrostaticsCalculator;
-pub use dataclasses::HydrostaticState;
-pub use waterplane::{calculate_waterplane_properties, WaterplaneProperties};
+pub use dataclasses::{HydrostaticState, TankOptions};

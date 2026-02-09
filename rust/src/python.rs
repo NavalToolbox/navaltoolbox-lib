@@ -37,7 +37,7 @@ use crate::stability::{
     CompleteStabilityResult as RustCompleteStabilityResult, StabilityCalculator as RustStabCalc,
     StabilityCurve as RustStabCurve, WindHeelingData as RustWindHeelingData,
 };
-use crate::tanks::Tank as RustTank;
+use crate::tanks::{FSMMode, Tank as RustTank};
 use crate::vessel::Vessel as RustVessel;
 
 use std::path::Path;
@@ -996,6 +996,89 @@ impl PyDownfloodingOpening {
         )
     }
 }
+// ============================================================================
+// TankOptions Python Wrapper
+// ============================================================================
+
+use crate::hydrostatics::TankOptions as RustTankOptions;
+
+/// Options for tank handling in hydrostatic calculations.
+///
+/// Controls whether tank fluid mass is included in displacement calculations
+/// and whether Free Surface Moment (FSM) correction is applied to GM.
+#[pyclass(name = "TankOptions")]
+#[derive(Clone)]
+pub struct PyTankOptions {
+    pub inner: RustTankOptions,
+}
+
+#[pymethods]
+impl PyTankOptions {
+    /// Create tank options with custom settings.
+    ///
+    /// Args:
+    ///     include_mass: Include tank fluid mass in displacement (default: False)
+    ///     include_fsm: Apply Free Surface Moment correction to GM (default: True)
+    #[new]
+    #[pyo3(signature = (include_mass=false, include_fsm=true))]
+    fn new(include_mass: bool, include_fsm: bool) -> Self {
+        Self {
+            inner: RustTankOptions {
+                include_mass,
+                include_fsm,
+            },
+        }
+    }
+
+    /// Create options with no tank effects (mass=False, fsm=False).
+    #[staticmethod]
+    fn none() -> Self {
+        Self {
+            inner: RustTankOptions::none(),
+        }
+    }
+
+    /// Create options with all tank effects (mass=True, fsm=True).
+    #[staticmethod]
+    fn all() -> Self {
+        Self {
+            inner: RustTankOptions::all(),
+        }
+    }
+
+    /// Create options with only mass included (mass=True, fsm=False).
+    #[staticmethod]
+    fn mass_only() -> Self {
+        Self {
+            inner: RustTankOptions::mass_only(),
+        }
+    }
+
+    /// Create options with only FSM correction (mass=False, fsm=True).
+    #[staticmethod]
+    fn fsm_only() -> Self {
+        Self {
+            inner: RustTankOptions::fsm_only(),
+        }
+    }
+
+    #[getter]
+    fn include_mass(&self) -> bool {
+        self.inner.include_mass
+    }
+
+    #[getter]
+    fn include_fsm(&self) -> bool {
+        self.inner.include_fsm
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "TankOptions(include_mass={}, include_fsm={})",
+            self.inner.include_mass, self.inner.include_fsm
+        )
+    }
+}
 
 // ============================================================================
 // HydrostaticState Python Wrapper
@@ -1020,7 +1103,11 @@ pub struct PyHydrostaticState {
     #[pyo3(get)]
     pub volume: f64,
     #[pyo3(get)]
+    pub hull_displacement: f64,
+    #[pyo3(get)]
     pub displacement: f64,
+    #[pyo3(get)]
+    pub tank_mass: f64,
 
     // Internal storage as vectors
     cob_internal: [f64; 3],
@@ -1081,7 +1168,9 @@ impl From<RustHydroState> for PyHydrostaticState {
             draft_fp: state.draft_fp,
             draft_mp: state.draft_mp,
             volume: state.volume,
+            hull_displacement: state.hull_displacement,
             displacement: state.displacement,
+            tank_mass: state.tank_mass,
             cob_internal: state.cob,
             cog_internal: state.cog,
             waterplane_area: state.waterplane_area,
@@ -1227,12 +1316,13 @@ impl PyHydrostaticsCalculator {
     ///     draft: Draft at reference point in meters
     ///     trim: Trim angle in degrees (default 0.0)
     ///     heel: Heel angle in degrees (default 0.0)
-    ///     vcg: Optional vertical center of gravity for GMT/GML calculation
+    ///     vcg: Optional vertical center of gravity for GM calculation
     ///     num_stations: Optional number of stations for sectional area curve (default 21)
+    ///     tank_options: Optional TankOptions
     ///
     /// Returns:
     ///     HydrostaticState with all properties
-    #[pyo3(signature = (draft, trim=0.0, heel=0.0, vcg=None, num_stations=None), name = "from_draft")]
+    #[pyo3(signature = (draft, trim=0.0, heel=0.0, vcg=None, num_stations=None, tank_options=None), name = "from_draft")]
     #[allow(clippy::wrong_self_convention)]
     fn from_draft(
         &self,
@@ -1241,9 +1331,16 @@ impl PyHydrostaticsCalculator {
         heel: f64,
         vcg: Option<f64>,
         num_stations: Option<usize>,
+        tank_options: Option<PyTankOptions>,
     ) -> PyResult<PyHydrostaticState> {
         let calc = RustHydroCalc::new(&self.vessel, self.water_density);
-        calc.from_draft_with_stations(draft, trim, heel, vcg, num_stations)
+        let state = if let Some(opts) = tank_options {
+            calc.from_draft_with_tanks(draft, trim, heel, vcg, opts.inner)
+        } else {
+            calc.from_draft_with_stations(draft, trim, heel, vcg, num_stations)
+        };
+
+        state
             .map(|s| s.into())
             .ok_or_else(|| PyValueError::new_err("No submerged volume at this draft"))
     }
@@ -1255,13 +1352,14 @@ impl PyHydrostaticsCalculator {
     ///     draft_fp: Draft at Forward Perpendicular in meters.
     ///     heel: Heel angle in degrees (default 0.0).
     ///     vcg: Optional vertical center of gravity for GM calculation.
+    ///     tank_options: Optional TankOptions
     ///
     /// Returns:
     ///     HydrostaticState with all properties
     ///
     /// Raises:
     ///     ValueError: If no submerged volume at this draft.
-    #[pyo3(signature = (draft_ap, draft_fp, heel=0.0, vcg=None))]
+    #[pyo3(signature = (draft_ap, draft_fp, heel=0.0, vcg=None, tank_options=None))]
     #[allow(clippy::wrong_self_convention)]
     fn from_drafts(
         &self,
@@ -1269,9 +1367,32 @@ impl PyHydrostaticsCalculator {
         draft_fp: f64,
         heel: f64,
         vcg: Option<f64>,
+        tank_options: Option<PyTankOptions>,
     ) -> PyResult<PyHydrostaticState> {
         let calc = RustHydroCalc::new(&self.vessel, self.water_density);
-        calc.from_drafts(draft_ap, draft_fp, heel, vcg)
+
+        // Calculate mean draft and trim
+        // This reproduces the logic from Rust implementation since we can't call from_drafts with options directly
+        let ap = self.vessel.ap();
+        let fp = self.vessel.fp();
+        let lpp = fp - ap;
+
+        let (draft, trim) = if lpp.abs() < 1e-4 {
+            (draft_ap, 0.0)
+        } else {
+            let trim_rad = ((draft_fp - draft_ap) / lpp).atan();
+            let trim_deg = trim_rad.to_degrees();
+            let draft_mp = (draft_ap + draft_fp) / 2.0;
+            (draft_mp, trim_deg)
+        };
+
+        let state = if let Some(opts) = tank_options {
+            calc.from_draft_with_tanks(draft, trim, heel, vcg, opts.inner)
+        } else {
+            calc.from_draft_with_stations(draft, trim, heel, vcg, None)
+        };
+
+        state
             .map(|s| s.into())
             .ok_or_else(|| PyValueError::new_err("No submerged volume at these drafts"))
     }
@@ -1304,24 +1425,104 @@ impl PyHydrostaticsCalculator {
     ///     
     ///     >>> # With trim constraint
     ///     >>> state = calc.from_displacement(8635000.0, vcg=7.5, trim=2.0)
-    #[pyo3(signature = (displacement_mass, vcg=None, cog=None, trim=None, heel=None), name = "from_displacement")]
+    ///     >>> # With trim constraint
+    ///     >>> state = calc.from_displacement(8635000.0, vcg=7.5, trim=2.0)
+    #[pyo3(signature = (displacement_mass, vcg=None, cog=None, trim=None, heel=None, tank_options=None), name = "from_displacement")]
     #[allow(clippy::wrong_self_convention)]
     fn from_displacement(
         &self,
         displacement_mass: f64,
         vcg: Option<f64>,
-        cog: Option<(f64, f64, f64)>,
+        cog: Option<[f64; 3]>,
         trim: Option<f64>,
         heel: Option<f64>,
+        tank_options: Option<PyTankOptions>,
     ) -> PyResult<PyHydrostaticState> {
         let calc = RustHydroCalc::new(&self.vessel, self.water_density);
 
-        // Convert cog tuple to array if provided
-        let cog_array = cog.map(|(lcg, tcg, vcg_val)| [lcg, tcg, vcg_val]);
+        // Calculate target hull displacement
+        // If include_mass=True, we assume displacement_mass targets the 'displacement' field
+        // which includes tank mass. So Hull Disp = displacement_mass - tank_mass.
+        let target_disp = if let Some(opts) = &tank_options {
+            if opts.inner.include_mass {
+                let tank_mass: f64 = self.vessel.tanks().iter().map(|t| t.fluid_mass()).sum();
+                let d = displacement_mass - tank_mass;
+                if d <= 0.0 {
+                    return Err(PyValueError::new_err(
+                        "Displacement too small for tank mass",
+                    ));
+                }
+                d
+            } else {
+                displacement_mass
+            }
+        } else {
+            displacement_mass
+        };
 
-        calc.from_displacement(displacement_mass, vcg, cog_array, trim, heel)
+        // Note: We use supplied COG/VCG as target Hull COG/VCG.
+        // Adjusting for tank moments is not currently supported as tank CG is not easily accessible.
+        // This assumes the user has provided the Hull COG (Center of Buoyancy target) if tanks are involved,
+        // or that the discrepancy is negligible.
+
+        let mut state = calc
+            .from_displacement(target_disp, vcg, cog, trim, heel)
             .map(|s| s.into())
-            .map_err(PyValueError::new_err)
+            .map_err(|e| PyValueError::new_err(e))?;
+
+        if let Some(opts) = tank_options {
+            if opts.inner.include_mass {
+                state.displacement = state.hull_displacement + state.tank_mass;
+            }
+            if !opts.inner.include_fsm {
+                if let Some(gmt) = state.gmt {
+                    state.gmt = Some(gmt + state.free_surface_correction_t);
+                }
+                if let Some(gml) = state.gml {
+                    state.gml = Some(gml + state.free_surface_correction_l);
+                }
+                state.free_surface_correction_t = 0.0;
+                state.free_surface_correction_l = 0.0;
+            }
+        }
+
+        Ok(state)
+    }
+
+    /// Calculate hydrostatics at a given draft with tank options.
+    ///
+    /// This method allows fine-grained control over how tanks are handled:
+    /// - include_mass: adds tank fluid mass to total displacement
+    /// - include_fsm: applies Free Surface Moment correction to GM
+    ///
+    /// Args:
+    ///     draft: Draft at reference point in meters
+    ///     trim: Trim angle in degrees (default 0.0)
+    ///     heel: Heel angle in degrees (default 0.0)
+    ///     vcg: Optional vertical center of gravity for GMT/GML calculation
+    ///     tank_options: TankOptions controlling tank handling
+    ///
+    /// Returns:
+    ///     HydrostaticState with all properties
+    ///
+    /// Example:
+    ///     >>> opts = TankOptions.all()  # Include mass and FSM
+    ///     >>> state = calc.from_draft_with_tanks(5.0, tank_options=opts)
+    #[pyo3(signature = (draft, trim=0.0, heel=0.0, vcg=None, tank_options=None), name = "from_draft_with_tanks")]
+    #[allow(clippy::wrong_self_convention)]
+    fn from_draft_with_tanks(
+        &self,
+        draft: f64,
+        trim: f64,
+        heel: f64,
+        vcg: Option<f64>,
+        tank_options: Option<PyTankOptions>,
+    ) -> PyResult<PyHydrostaticState> {
+        let calc = RustHydroCalc::new(&self.vessel, self.water_density);
+        let opts = tank_options.map(|t| t.inner).unwrap_or_default();
+        calc.from_draft_with_tanks(draft, trim, heel, vcg, opts)
+            .map(|s| s.into())
+            .ok_or_else(|| PyValueError::new_err("No submerged volume at this draft"))
     }
 
     /// Returns the water density.\n    #[getter]
@@ -1851,6 +2052,45 @@ impl PyTank {
             })
             .unwrap_or_default()
     }
+    /// Set the FSM calculation mode.
+    ///
+    /// Args:
+    ///     mode: 'actual', 'maximum', or 'fixed'
+    ///     t: Transverse FSM (m^4) (required for 'fixed' mode)
+    ///     l: Longitudinal FSM (m^4) (required for 'fixed' mode)
+    #[pyo3(signature = (mode, t=None, l=None))]
+    fn set_fsm_mode(&mut self, mode: &str, t: Option<f64>, l: Option<f64>) -> PyResult<()> {
+        let fsm_mode = match mode.to_lowercase().as_str() {
+            "actual" => FSMMode::Actual,
+            "maximum" => FSMMode::Maximum,
+            "fixed" => {
+                let t_val = t.ok_or_else(|| {
+                    PyValueError::new_err("Fixed mode requires 't' (transverse FSM)")
+                })?;
+                let l_val = l.ok_or_else(|| {
+                    PyValueError::new_err("Fixed mode requires 'l' (longitudinal FSM)")
+                })?;
+                FSMMode::Fixed { t: t_val, l: l_val }
+            }
+            _ => {
+                return Err(PyValueError::new_err(
+                    "Invalid FSM mode. Choose 'actual', 'maximum', or 'fixed'.",
+                ))
+            }
+        };
+        self.inner.set_fsm_mode(fsm_mode);
+        Ok(())
+    }
+
+    /// Returns the current FSM mode ('actual', 'maximum', 'fixed').
+    #[getter]
+    fn fsm_mode(&self) -> String {
+        match self.inner.fsm_mode() {
+            FSMMode::Actual => "actual".to_string(),
+            FSMMode::Maximum => "maximum".to_string(),
+            FSMMode::Fixed { .. } => "fixed".to_string(),
+        }
+    }
 }
 
 // ============================================================================
@@ -2084,7 +2324,9 @@ fn navaltoolbox(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyOpeningType>()?;
     m.add_class::<PyDownfloodingOpening>()?;
     m.add_class::<PyHydrostaticState>()?;
+    m.add_class::<PyTankOptions>()?;
     m.add_class::<PyHydrostaticsCalculator>()?;
+
     m.add_class::<PyStabilityPoint>()?;
     m.add_class::<PyStabilityCurve>()?;
     m.add_class::<PyWindHeelingData>()?;

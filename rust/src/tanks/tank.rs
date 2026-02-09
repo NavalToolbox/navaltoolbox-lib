@@ -24,7 +24,10 @@ use parry3d_f64::shape::{Shape, TriMesh};
 use std::path::Path;
 
 use crate::hull::Hull;
-use crate::mesh::{clip_at_waterline, clip_by_axis_aligned_plane, load_stl, load_vtk, Axis};
+use crate::mesh::{
+    calculate_waterplane_properties, clip_at_waterline, clip_by_axis_aligned_plane, load_stl,
+    load_vtk, Axis,
+};
 
 /// Represents a tank with fluid management capabilities.
 #[derive(Clone)]
@@ -43,6 +46,21 @@ pub struct Tank {
     water_density: f64,
     /// Bounds (xmin, xmax, ymin, ymax, zmin, zmax)
     bounds: (f64, f64, f64, f64, f64, f64),
+    /// Free Surface Moment calculation mode
+    fsm_mode: FSMMode,
+    /// Cached maximum FSM (transverse, longitudinal)
+    max_fsm_cache: Option<(f64, f64)>,
+}
+
+/// Mode for Free Surface Moment calculation
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum FSMMode {
+    /// Calculate based on actual fluid level and waterplane
+    Actual,
+    /// Use the maximum FSM for all possible fill levels
+    Maximum,
+    /// Use fixed values for FSM (transverse, longitudinal)
+    Fixed { t: f64, l: f64 },
 }
 
 impl Tank {
@@ -68,6 +86,8 @@ impl Tank {
             fill_level: 0.0,
             water_density: 1025.0,
             bounds,
+            fsm_mode: FSMMode::Actual,
+            max_fsm_cache: None,
         }
     }
 
@@ -409,30 +429,90 @@ impl Tank {
 
     /// Returns the transverse free surface moment (I_t) in m⁴.
     pub fn free_surface_moment_t(&self) -> f64 {
-        if self.fill_level <= 0.0 || self.fill_level >= 1.0 {
-            return 0.0;
+        match self.fsm_mode {
+            FSMMode::Actual => {
+                if self.fill_level <= 0.0 || self.fill_level >= 0.98 {
+                    // 0.98 threshold to avoid numerical noise at full tank? Or strictly 1.0?
+                    // Standard is > 98% rule. Let's stick to simple logic for now.
+                    if self.fill_level >= 1.0 - 1e-6 {
+                        return 0.0;
+                    }
+                    if self.fill_level <= 1e-6 {
+                        return 0.0;
+                    }
+                }
+
+                // Find fluid level Z
+                let target_volume = self.total_volume * self.fill_level;
+                let z = self.find_z_for_mesh(&self.mesh, target_volume);
+
+                // Calculate waterplane properties
+                if let Some(wp) = calculate_waterplane_properties(&self.mesh, z) {
+                    wp.i_transverse
+                } else {
+                    0.0
+                }
+            }
+            FSMMode::Maximum => self.max_fsm_cache.map(|(t, _)| t).unwrap_or(0.0),
+            FSMMode::Fixed { t, .. } => t,
         }
-
-        // Simplified: use box approximation of bounding box at fill level
-        // TODO: Implement exact waterplane inertia calculation
-        let length = self.bounds.1 - self.bounds.0;
-        let breadth = self.bounds.3 - self.bounds.2;
-
-        // I_t = L * B³ / 12
-        length * breadth.powi(3) / 12.0
     }
 
     /// Returns the longitudinal free surface moment (I_l) in m⁴.
     pub fn free_surface_moment_l(&self) -> f64 {
-        if self.fill_level <= 0.0 || self.fill_level >= 1.0 {
-            return 0.0;
+        match self.fsm_mode {
+            FSMMode::Actual => {
+                if self.fill_level <= 1e-6 || self.fill_level >= 1.0 - 1e-6 {
+                    return 0.0;
+                }
+
+                let target_volume = self.total_volume * self.fill_level;
+                let z = self.find_z_for_mesh(&self.mesh, target_volume);
+
+                if let Some(wp) = calculate_waterplane_properties(&self.mesh, z) {
+                    wp.i_longitudinal
+                } else {
+                    0.0
+                }
+            }
+            FSMMode::Maximum => self.max_fsm_cache.map(|(_, l)| l).unwrap_or(0.0),
+            FSMMode::Fixed { l, .. } => l,
         }
+    }
 
-        let length = self.bounds.1 - self.bounds.0;
-        let breadth = self.bounds.3 - self.bounds.2;
+    /// Set the FSM calculation mode.
+    /// If mode is Maximum, this triggers a sampling calculation if not already cached.
+    pub fn set_fsm_mode(&mut self, mode: FSMMode) {
+        self.fsm_mode = mode;
+        if self.fsm_mode == FSMMode::Maximum && self.max_fsm_cache.is_none() {
+            self.max_fsm_cache = Some(self.calculate_max_fsm());
+        }
+    }
 
-        // I_l = B * L³ / 12
-        breadth * length.powi(3) / 12.0
+    /// Calculate approximate maximum FSM by sampling.
+    fn calculate_max_fsm(&self) -> (f64, f64) {
+        let levels = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95];
+        let mut max_t = 0.0;
+        let mut max_l = 0.0;
+
+        for level in levels {
+            let target_volume = self.total_volume * level;
+            let z = self.find_z_for_mesh(&self.mesh, target_volume);
+            if let Some(wp) = calculate_waterplane_properties(&self.mesh, z) {
+                if wp.i_transverse > max_t {
+                    max_t = wp.i_transverse;
+                }
+                if wp.i_longitudinal > max_l {
+                    max_l = wp.i_longitudinal;
+                }
+            }
+        }
+        (max_t, max_l)
+    }
+
+    /// Get current FSM Mode
+    pub fn fsm_mode(&self) -> FSMMode {
+        self.fsm_mode
     }
 
     /// Returns the transverse free surface correction.
@@ -517,5 +597,31 @@ mod tests {
             "Outside", &hull, 30.0, 40.0, 0.0, 1.0, 0.0, 1.0, 1025.0,
         );
         assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_tank_fsm() {
+        // Box tank 10m x 10m x 10m
+        let tank = Tank::from_box("FSM_Test", 0.0, 10.0, 0.0, 10.0, 0.0, 10.0, 1000.0);
+        let mut tank = tank;
+        tank.set_fill_percent(50.0); // Filled to 5m depth
+
+        // Waterplane is 10x10 square.
+        // I_t = 10 * 10^3 / 12 = 10000 / 12 = 833.333
+        // I_l = 10 * 10^3 / 12 = 833.333
+
+        let i_t = tank.free_surface_moment_t();
+        let i_l = tank.free_surface_moment_l();
+
+        assert!((i_t - 833.333).abs() < 1.0, "I_t was {}", i_t);
+        assert!((i_l - 833.333).abs() < 1.0, "I_l was {}", i_l);
+
+        // Test at full (should be 0)
+        tank.set_fill_level(1.0);
+        assert_eq!(tank.free_surface_moment_t(), 0.0);
+
+        // Test at empty (should be 0)
+        tank.set_fill_level(0.0);
+        assert_eq!(tank.free_surface_moment_t(), 0.0);
     }
 }

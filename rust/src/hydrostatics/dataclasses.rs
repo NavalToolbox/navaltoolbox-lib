@@ -17,6 +17,58 @@
 
 //! Hydrostatic state dataclass.
 
+/// Options for tank handling in hydrostatic calculations.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TankOptions {
+    /// Include tank fluid mass in displacement calculation
+    pub include_mass: bool,
+    /// Include Free Surface Moment correction in GM calculations
+    pub include_fsm: bool,
+}
+
+impl Default for TankOptions {
+    fn default() -> Self {
+        Self {
+            include_mass: false,
+            include_fsm: true,
+        }
+    }
+}
+
+impl TankOptions {
+    /// Create options with all tank effects disabled
+    pub fn none() -> Self {
+        Self {
+            include_mass: false,
+            include_fsm: false,
+        }
+    }
+
+    /// Create options with all tank effects enabled
+    pub fn all() -> Self {
+        Self {
+            include_mass: true,
+            include_fsm: true,
+        }
+    }
+
+    /// Create options with only mass included (no FSM)
+    pub fn mass_only() -> Self {
+        Self {
+            include_mass: true,
+            include_fsm: false,
+        }
+    }
+
+    /// Create options with only FSM correction (no mass)
+    pub fn fsm_only() -> Self {
+        Self {
+            include_mass: false,
+            include_fsm: true,
+        }
+    }
+}
+
 /// Result of hydrostatic calculations at a given draft/trim/heel.
 #[derive(Debug, Clone)]
 pub struct HydrostaticState {
@@ -35,8 +87,12 @@ pub struct HydrostaticState {
 
     /// Submerged volume in m³
     pub volume: f64,
-    /// Displacement mass in kg
+    /// Hull displacement mass in kg (does not include tank mass)
+    pub hull_displacement: f64,
+    /// Total displacement mass in kg (includes tank mass if TankOptions.include_mass is true)
     pub displacement: f64,
+    /// Tank fluid mass in kg (sum of all tank fluid masses)
+    pub tank_mass: f64,
 
     /// Center of buoyancy [LCB, TCB, VCB] in meters
     pub cob: [f64; 3],
@@ -139,7 +195,9 @@ impl Default for HydrostaticState {
             trim: 0.0,
             heel: 0.0,
             volume: 0.0,
+            hull_displacement: 0.0,
             displacement: 0.0,
+            tank_mass: 0.0,
             cob: [0.0, 0.0, 0.0],
             cog: None,
             waterplane_area: 0.0,

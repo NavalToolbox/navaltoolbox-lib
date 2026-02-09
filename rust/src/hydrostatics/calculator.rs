@@ -150,10 +150,8 @@ impl<'a> HydrostaticsCalculator<'a> {
                 let mesh_area = calculate_mesh_area(&clipped);
 
                 // Waterplane Properties
-                if let Some(wp) = crate::hydrostatics::waterplane::calculate_waterplane_properties(
-                    &transformed,
-                    draft,
-                ) {
+                if let Some(wp) = crate::mesh::calculate_waterplane_properties(&transformed, draft)
+                {
                     total_wetted_surface += (mesh_area - wp.area).max(0.0);
 
                     combined_wp_area += wp.area;
@@ -295,6 +293,9 @@ impl<'a> HydrostaticsCalculator<'a> {
             k[28] = displacement * g * gml;
         }
 
+        // Get tank mass for reporting
+        let tank_mass: f64 = self.vessel.tanks().iter().map(|t| t.fluid_mass()).sum();
+
         let cog_ret = vcg.map(|z| [lcb, tcb, z]);
 
         Some(HydrostaticState {
@@ -305,7 +306,9 @@ impl<'a> HydrostaticsCalculator<'a> {
             draft_fp,
             draft_mp,
             volume: total_volume,
-            displacement,
+            hull_displacement: displacement,
+            displacement, // Same as hull_displacement for standard from_draft
+            tank_mass,
             cob,
             cog: cog_ret,
             waterplane_area: wp_area,
@@ -334,6 +337,50 @@ impl<'a> HydrostaticsCalculator<'a> {
             sectional_areas: self.calculate_sectional_areas(draft, trim, heel, num_stations),
             freeboard: self.vessel.get_min_freeboard(heel, trim, draft),
         })
+    }
+
+    /// Calculates hydrostatics with tank options for controlling tank mass and FSM inclusion.
+    ///
+    /// # Arguments
+    /// * `draft` - Draft at the reference point in meters
+    /// * `trim` - Trim angle in degrees (positive = bow down)
+    /// * `heel` - Heel angle in degrees (positive = starboard down)
+    /// * `vcg` - Optional vertical center of gravity for GM calculation
+    /// * `tank_options` - Options for tank handling
+    ///
+    /// # Tank Options
+    /// - `include_mass`: If true, adds tank fluid mass to total displacement
+    /// - `include_fsm`: If true, applies Free Surface Moment correction to GM
+    pub fn from_draft_with_tanks(
+        &self,
+        draft: f64,
+        trim: f64,
+        heel: f64,
+        vcg: Option<f64>,
+        tank_options: super::TankOptions,
+    ) -> Option<HydrostaticState> {
+        // Get base hydrostatics (without tank mass in displacement)
+        let mut state = self.from_draft_with_stations(draft, trim, heel, vcg, None)?;
+
+        // Apply tank options
+        if tank_options.include_mass {
+            // Add tank mass to total displacement
+            state.displacement = state.hull_displacement + state.tank_mass;
+        }
+
+        if !tank_options.include_fsm {
+            // Remove FSM correction from GM values
+            if let Some(gmt) = state.gmt {
+                state.gmt = Some(gmt + state.free_surface_correction_t);
+            }
+            if let Some(gml) = state.gml {
+                state.gml = Some(gml + state.free_surface_correction_l);
+            }
+            state.free_surface_correction_t = 0.0;
+            state.free_surface_correction_l = 0.0;
+        }
+
+        Some(state)
     }
 
     /// Calculates hydrostatics from drafts at Aft and Forward Perpendiculars.
