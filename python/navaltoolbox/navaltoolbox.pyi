@@ -1391,6 +1391,21 @@ class Tank:
     def free_surface_moment_l(self) -> float:
         """Returns the longitudinal free surface moment in m⁴."""
         ...
+
+    @property
+    def fsm_mode(self) -> str:
+        """Returns the current FSM calculation mode ('actual', 'maximum', 'fixed')."""
+        ...
+    
+    def set_fsm_mode(self, mode: str, t: float | None = None, l: float | None = None) -> None:
+        """Set the FSM calculation mode.
+        
+        Args:
+            mode: Mode string ('actual', 'maximum', 'fixed').
+            t: Transverse FSM (m^4) (required for 'fixed' mode).
+            l: Longitudinal FSM (m^4) (required for 'fixed' mode).
+        """
+        ...
     
     def get_vertices(self) -> List[Tuple[float, float, float]]:
         """Returns tank container vertices [(x,y,z)]."""

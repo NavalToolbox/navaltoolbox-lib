@@ -99,6 +99,21 @@ Tank
 
       Longitudinal free surface moment (m⁴).
 
+   **FSM Configuration**
+
+   .. py:attribute:: fsm_mode
+      :type: str
+
+      Current FSM calculation mode ('actual', 'maximum', 'fixed').
+
+   .. py:method:: set_fsm_mode(mode, t=None, l=None)
+
+      Sets the free surface moment calculation mode.
+
+      :param mode: Mode string ('actual', 'maximum', 'fixed')
+      :param t: Transverse FSM (m^4), required if mode is 'fixed'
+      :param l: Longitudinal FSM (m^4), required if mode is 'fixed'
+
    **Geometry**
 
    .. py:method:: get_vertices()
