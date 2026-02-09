@@ -1465,7 +1465,7 @@ impl PyHydrostaticsCalculator {
         // This assumes the user has provided the Hull COG (Center of Buoyancy target) if tanks are involved,
         // or that the discrepancy is negligible.
 
-        let mut state = calc
+        let mut state: PyHydrostaticState = calc
             .from_displacement(target_disp, vcg, cog, trim, heel)
             .map(|s| s.into())
             .map_err(|e| PyValueError::new_err(e))?;
@@ -1475,11 +1475,11 @@ impl PyHydrostaticsCalculator {
                 state.displacement = state.hull_displacement + state.tank_mass;
             }
             if !opts.inner.include_fsm {
-                if let Some(gmt) = state.gmt {
-                    state.gmt = Some(gmt + state.free_surface_correction_t);
+                if let Some(gmt) = state.gmt_internal {
+                    state.gmt_internal = Some(gmt + state.free_surface_correction_t);
                 }
-                if let Some(gml) = state.gml {
-                    state.gml = Some(gml + state.free_surface_correction_l);
+                if let Some(gml) = state.gml_internal {
+                    state.gml_internal = Some(gml + state.free_surface_correction_l);
                 }
                 state.free_surface_correction_t = 0.0;
                 state.free_surface_correction_l = 0.0;
