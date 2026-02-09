@@ -150,10 +150,8 @@ impl<'a> HydrostaticsCalculator<'a> {
                 let mesh_area = calculate_mesh_area(&clipped);
 
                 // Waterplane Properties
-                if let Some(wp) = crate::hydrostatics::waterplane::calculate_waterplane_properties(
-                    &transformed,
-                    draft,
-                ) {
+                if let Some(wp) = crate::mesh::calculate_waterplane_properties(&transformed, draft)
+                {
                     total_wetted_surface += (mesh_area - wp.area).max(0.0);
 
                     combined_wp_area += wp.area;

@@ -22,7 +22,9 @@
 mod clipper;
 mod loader;
 mod transform;
+mod waterplane;
 
 pub use clipper::{clip_at_waterline, clip_by_axis_aligned_plane, Axis};
 pub use loader::{load_stl, load_vtk};
 pub use transform::{get_bounds, transform_mesh, transform_point};
+pub use waterplane::{calculate_waterplane_properties, WaterplaneProperties};
