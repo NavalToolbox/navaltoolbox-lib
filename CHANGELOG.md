@@ -5,6 +5,17 @@ All notable changes to NavalToolbox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-02-09
+
+### Added
+- **hydrostatics**: Introduce `TankOptions` for fine-grained control over tank mass and FSM inclusion
+- **hydrostatics**: Add `hull_displacement` (buoyancy) and `tank_mass` fields to `HydrostaticState`
+- **tanks**: Implement `FSMMode` (Actual, Maximum, Fixed) for flexible free surface moment calculations
+- **tanks**: Exact sorting of waterplane vertices for robust FSM calculation on complex hull shapes
+
+### Changed
+- **hydrostatics**: `from_draft`, `from_drafts`, and `from_displacement` now accept optional `tank_options` argument
+
 ## [0.4.2] - 2026-02-07
 
 ### Fixed
