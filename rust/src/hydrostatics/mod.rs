@@ -24,5 +24,5 @@ mod dataclasses;
 mod waterplane;
 
 pub use calculator::HydrostaticsCalculator;
-pub use dataclasses::HydrostaticState;
+pub use dataclasses::{HydrostaticState, TankOptions};
 pub use waterplane::{calculate_waterplane_properties, WaterplaneProperties};
