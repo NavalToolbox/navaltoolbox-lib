@@ -24,7 +24,10 @@ use parry3d_f64::shape::{Shape, TriMesh};
 use std::path::Path;
 
 use crate::hull::Hull;
-use crate::mesh::{clip_at_waterline, clip_by_axis_aligned_plane, load_stl, load_vtk, Axis};
+use crate::mesh::{
+    calculate_waterplane_properties, clip_at_waterline, clip_by_axis_aligned_plane, load_stl,
+    load_vtk, Axis,
+};
 
 /// Represents a tank with fluid management capabilities.
 #[derive(Clone)]
@@ -413,13 +416,16 @@ impl Tank {
             return 0.0;
         }
 
-        // Simplified: use box approximation of bounding box at fill level
-        // TODO: Implement exact waterplane inertia calculation
-        let length = self.bounds.1 - self.bounds.0;
-        let breadth = self.bounds.3 - self.bounds.2;
+        // Find fluid level Z
+        let target_volume = self.total_volume * self.fill_level;
+        let z = self.find_z_for_mesh(&self.mesh, target_volume);
 
-        // I_t = L * B³ / 12
-        length * breadth.powi(3) / 12.0
+        // Calculate waterplane properties
+        if let Some(wp) = calculate_waterplane_properties(&self.mesh, z) {
+            wp.i_transverse
+        } else {
+            0.0
+        }
     }
 
     /// Returns the longitudinal free surface moment (I_l) in m⁴.
@@ -428,11 +434,16 @@ impl Tank {
             return 0.0;
         }
 
-        let length = self.bounds.1 - self.bounds.0;
-        let breadth = self.bounds.3 - self.bounds.2;
+        // Find fluid level Z
+        let target_volume = self.total_volume * self.fill_level;
+        let z = self.find_z_for_mesh(&self.mesh, target_volume);
 
-        // I_l = B * L³ / 12
-        breadth * length.powi(3) / 12.0
+        // Calculate waterplane properties
+        if let Some(wp) = calculate_waterplane_properties(&self.mesh, z) {
+            wp.i_longitudinal
+        } else {
+            0.0
+        }
     }
 
     /// Returns the transverse free surface correction.
@@ -517,5 +528,31 @@ mod tests {
             "Outside", &hull, 30.0, 40.0, 0.0, 1.0, 0.0, 1.0, 1025.0,
         );
         assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_tank_fsm() {
+        // Box tank 10m x 10m x 10m
+        let tank = Tank::from_box("FSM_Test", 0.0, 10.0, 0.0, 10.0, 0.0, 10.0, 1000.0);
+        let mut tank = tank;
+        tank.set_fill_percent(50.0); // Filled to 5m depth
+
+        // Waterplane is 10x10 square.
+        // I_t = 10 * 10^3 / 12 = 10000 / 12 = 833.333
+        // I_l = 10 * 10^3 / 12 = 833.333
+
+        let i_t = tank.free_surface_moment_t();
+        let i_l = tank.free_surface_moment_l();
+
+        assert!((i_t - 833.333).abs() < 1.0, "I_t was {}", i_t);
+        assert!((i_l - 833.333).abs() < 1.0, "I_l was {}", i_l);
+
+        // Test at full (should be 0)
+        tank.set_fill_level(1.0);
+        assert_eq!(tank.free_surface_moment_t(), 0.0);
+
+        // Test at empty (should be 0)
+        tank.set_fill_level(0.0);
+        assert_eq!(tank.free_surface_moment_t(), 0.0);
     }
 }
