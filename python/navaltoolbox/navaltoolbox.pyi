@@ -945,17 +945,20 @@ class HydrostaticsCalculator:
         heel: float = 0.0,
         vcg: float | None = None,
         num_stations: int | None = None,
+        tank_options: TankOptions | None = None,
     ) -> HydrostaticState:
         """Calculate hydrostatics at a given draft, trim, and heel.
         
         Args:
-            draft: Draft at midship in meters.
-            trim: Trim angle in degrees (default: 0).
-            heel: Heel angle in degrees (default: 0).
-            vcg: Optional vertical center of gravity in meters for GMT/GML calculation.
+            draft: Draft at reference point in meters.
+            trim: Trim angle in degrees (default 0.0).
+            heel: Heel angle in degrees (default 0.0).
+            vcg: Optional vertical center of gravity for GM calculation.
+            num_stations: Optional number of stations for sectional area curve (default 21).
+            tank_options: Optional TankOptions.
         
         Returns:
-            HydrostaticState with calculated properties.
+            HydrostaticState with all properties.
         
         Raises:
             ValueError: If no submerged volume at this draft.
@@ -968,17 +971,19 @@ class HydrostaticsCalculator:
         draft_fp: float,
         heel: float = 0.0,
         vcg: float | None = None,
+        tank_options: TankOptions | None = None,
     ) -> HydrostaticState:
         """Calculate hydrostatics from drafts at Aft and Forward Perpendiculars.
         
         Args:
             draft_ap: Draft at Aft Perpendicular in meters.
             draft_fp: Draft at Forward Perpendicular in meters.
-            heel: Heel angle in degrees (default: 0).
-            vcg: Optional vertical center of gravity in meters for GMT/GML calculation.
+            heel: Heel angle in degrees (default 0.0).
+            vcg: Optional vertical center of gravity for GM calculation.
+            tank_options: Optional TankOptions.
         
         Returns:
-            HydrostaticState with calculated properties.
+            HydrostaticState with all properties.
         
         Raises:
             ValueError: If no submerged volume at these drafts.
@@ -992,6 +997,7 @@ class HydrostaticsCalculator:
         cog: Tuple[float, float, float] | None = None,
         trim: float | None = None,
         heel: float | None = None,
+        tank_options: TankOptions | None = None,
     ) -> HydrostaticState:
         """Calculate hydrostatics for a given displacement with optional constraints.
         
@@ -1002,6 +1008,7 @@ class HydrostaticsCalculator:
                  (overrides vcg if both are provided)
             trim: Optional trim angle in degrees.
             heel: Optional heel angle in degrees.
+            tank_options: Optional TankOptions.
         
         Returns:
             Complete HydrostaticState.
@@ -1422,6 +1429,55 @@ class Tank:
     def get_fluid_faces(self, heel: float = 0.0, trim: float = 0.0) -> List[Tuple[int, int, int]]:
         """Returns fluid mesh faces [(i,j,k)] or empty list."""
         ...
+
+
+class TankOptions:
+    """Options for tank handling in hydrostatic calculations.
+    
+    Controls whether tank fluid mass is included in displacement calculations
+    and whether Free Surface Moment (FSM) correction is applied to GM.
+    """
+    
+    def __init__(self, include_mass: bool = False, include_fsm: bool = True) -> None:
+        """Create tank options with custom settings.
+        
+        Args:
+            include_mass: Include tank fluid mass in displacement (default: False).
+            include_fsm: Apply Free Surface Moment correction to GM (default: True).
+        """
+        ...
+    
+    @staticmethod
+    def none() -> "TankOptions":
+        """Create options with no tank effects (mass=False, fsm=False)."""
+        ...
+    
+    @staticmethod
+    def all() -> "TankOptions":
+        """Create options with all tank effects (mass=True, fsm=True)."""
+        ...
+    
+    @staticmethod
+    def mass_only() -> "TankOptions":
+        """Create options with only mass included (mass=True, fsm=False)."""
+        ...
+    
+    @staticmethod
+    def fsm_only() -> "TankOptions":
+        """Create options with only FSM correction (mass=False, fsm=True)."""
+        ...
+    
+    @property
+    def include_mass(self) -> bool:
+        """Whether tank mass is included."""
+        ...
+    
+    @property
+    def include_fsm(self) -> bool:
+        """Whether FSM correction is applied."""
+        ...
+    
+    def __repr__(self) -> str: ...
 
 
 class CriterionResult:
