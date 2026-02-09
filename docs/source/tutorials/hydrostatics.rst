@@ -108,7 +108,36 @@ The calculator computes accurate waterplane properties and applies Free Surface 
     # GM_wet = GM_dry - FSC
     print(f"KMt: {state.vcb + state.bmt:.2f} m")
     print(f"GMT (corrected/wet): {state.gmt:.3f} m")
+    print(f"KMt: {state.vcb + state.bmt:.2f} m")
+    print(f"GMT (corrected/wet): {state.gmt:.3f} m")
     print(f"GMT (solid/dry):     {state.gmt_dry:.3f} m")
+
+Handling Tank Options
+---------------------
+
+You can control how tanks affect hydrostatic calculations using ``TankOptions``. This allows you to include tank fluid mass in the displacement and apply Free Surface Moment (FSM) corrections to GM.
+
+.. code-block:: python
+
+    from navaltoolbox import TankOptions
+
+    # Create options
+    # include_mass=True: Adds tank fluid mass to displacement
+    # include_fsm=True: Applies FSM correction to GM
+    opts = TankOptions(include_mass=True, include_fsm=True)
+
+    # Calculate with options
+    state = calc.from_draft(6.0, tank_options=opts)
+    print(f"Displacement (with tanks): {state.displacement:.0f} kg")
+    print(f"GMT (corrected): {state.gmt:.3f} m")
+
+    # Use presets
+    # TankOptions.none()       # No effects
+    # TankOptions.all()        # Mass + FSM
+    # TankOptions.mass_only()  # Mass only
+    # TankOptions.fsm_only()   # FSM only (default behavior mostly)
+
+
 
 Finding Equilibrium Draft
 -------------------------
