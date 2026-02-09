@@ -52,6 +52,90 @@ fn create_box_hull(loa: f64, boa: f64, depth: f64) -> Hull {
     Hull::from_mesh(mesh)
 }
 
+fn create_u_shape_mesh(loa: f64, boa: f64, depth: f64, thickness: f64) -> TriMesh {
+    let _arm_width = thickness;
+
+    let hb = boa / 2.0;
+    let th = thickness;
+
+    let z0 = 0.0;
+    let z1 = depth;
+
+    let profile = vec![
+        Point::new(0.0, -hb, 0.0),      // 0
+        Point::new(loa, -hb, 0.0),      // 1
+        Point::new(loa, -hb + th, 0.0), // 2
+        Point::new(th, -hb + th, 0.0),  // 3
+        Point::new(th, hb - th, 0.0),   // 4
+        Point::new(loa, hb - th, 0.0),  // 5
+        Point::new(loa, hb, 0.0),       // 6
+        Point::new(0.0, hb, 0.0),       // 7
+    ];
+
+    let mut vertices = Vec::new();
+    // Bottom vertices (0-7)
+    for p in &profile {
+        vertices.push(Point::new(p.x, p.y, z0));
+    }
+    // Top vertices (8-15)
+    for p in &profile {
+        vertices.push(Point::new(p.x, p.y, z1));
+    }
+
+    let mut indices = vec![];
+
+    // Bottom (reverse winding for -Z normal)
+    indices.extend_from_slice(&[[0, 2, 1], [0, 3, 2]]);
+    indices.extend_from_slice(&[[0, 4, 3], [0, 7, 4]]);
+    indices.extend_from_slice(&[[4, 6, 5], [4, 7, 6]]);
+
+    // Top (forward winding for +Z normal) offset by 8
+    indices.extend_from_slice(&[[8, 9, 10], [8, 10, 11]]);
+    indices.extend_from_slice(&[[8, 11, 12], [8, 12, 15]]);
+    indices.extend_from_slice(&[[12, 13, 14], [12, 14, 15]]);
+
+    // Sides
+    let n = 8;
+    for i in 0..n {
+        let next = (i + 1) % n;
+        indices.push([i as u32, next as u32, (next + 8) as u32]);
+        indices.push([i as u32, (next + 8) as u32, (i + 8) as u32]);
+    }
+
+    TriMesh::new(vertices, indices).unwrap()
+}
+
+#[test]
+fn test_u_shape_waterplane() {
+    // U-shape: LOA 10, BOA 10, Depth 10, Thickness 2
+    let mesh = create_u_shape_mesh(10.0, 10.0, 10.0, 2.0);
+    let draft = 5.0;
+    let wp = calculate_waterplane_properties(&mesh, draft).unwrap();
+
+    // Area = 10*2 + 2*6 + 10*2 = 20 + 12 + 20 = 52.
+    let expected_area = 52.0;
+    assert!(
+        (wp.area - expected_area).abs() < 1.0,
+        "U-shape Area: got {:.2}, expected {:.2}",
+        wp.area,
+        expected_area
+    );
+
+    // LCF check.
+    // Arm 1 Center: (5, -4), Area 20. Moment X = 100
+    // Base Center: (1, 0), Area 12. Moment X = 12
+    // Arm 2 Center: (5, 4), Area 20. Moment X = 100
+    // Total Moment X = 212.
+    // LCF = 212 / 52 = 4.077
+    let expected_lcf = 212.0 / 52.0;
+    assert!(
+        (wp.centroid[0] - expected_lcf).abs() < 0.1,
+        "U-shape LCF: got {:.3}, expected {:.3}",
+        wp.centroid[0],
+        expected_lcf
+    );
+}
+
 #[test]
 fn test_box_waterplane_area() {
     // 10m × 10m × 10m box
