@@ -289,3 +289,55 @@ fn test_two_joined_boxes() {
         state.cob[0]
     );
 }
+
+#[test]
+fn test_tank_fsm_modes() {
+    use navaltoolbox::tanks::{FSMMode, Tank};
+
+    // Create a 10x10x10 box tank
+    let hull = create_box_hull(10.0, 10.0, 10.0);
+    let mesh = hull.mesh();
+    let mut tank = Tank::new("TestTank", mesh.clone(), 1025.0);
+
+    // 1. Test Actual Mode (Default)
+    tank.set_fill_level(0.5);
+    // I_t for 10x10 box = 10*10^3/12 = 833.333
+    let fsm_actual = tank.free_surface_moment_t();
+    assert!(
+        (fsm_actual - 833.333).abs() < 1.0,
+        "Actual FSM incorrect: {}",
+        fsm_actual
+    );
+
+    // Fill 100% -> 0
+    tank.set_fill_level(1.0);
+    assert_eq!(tank.free_surface_moment_t(), 0.0);
+
+    // 2. Test Fixed Mode
+    tank.set_fsm_mode(FSMMode::Fixed {
+        t: 500.0,
+        l: 1000.0,
+    });
+    tank.set_fill_level(0.5);
+    assert_eq!(tank.free_surface_moment_t(), 500.0);
+    assert_eq!(tank.free_surface_moment_l(), 1000.0);
+
+    // 3. Test Maximum Mode
+    tank.set_fsm_mode(FSMMode::Maximum);
+    // For a box, Max FSM is constant 833.33.
+    let fsm_max = tank.free_surface_moment_t();
+    assert!(
+        (fsm_max - 833.333).abs() < 10.0,
+        "Max FSM incorrect: {}",
+        fsm_max
+    );
+
+    // At very low fill, Actual is small, Max is large
+    tank.set_fill_level(0.01);
+    let fsm_low = tank.free_surface_moment_t();
+    assert!(
+        (fsm_low - 833.333).abs() < 10.0,
+        "Max FSM at low fill incorrect: {}",
+        fsm_low
+    );
+}

@@ -23,4 +23,4 @@ mod dataclasses;
 mod tank;
 
 pub use dataclasses::TankState;
-pub use tank::Tank;
+pub use tank::{FSMMode, Tank};

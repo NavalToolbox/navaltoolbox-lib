@@ -37,7 +37,7 @@ use crate::stability::{
     CompleteStabilityResult as RustCompleteStabilityResult, StabilityCalculator as RustStabCalc,
     StabilityCurve as RustStabCurve, WindHeelingData as RustWindHeelingData,
 };
-use crate::tanks::Tank as RustTank;
+use crate::tanks::{FSMMode, Tank as RustTank};
 use crate::vessel::Vessel as RustVessel;
 
 use std::path::Path;
@@ -1975,6 +1975,45 @@ impl PyTank {
                     .collect()
             })
             .unwrap_or_default()
+    }
+    /// Set the FSM calculation mode.
+    ///
+    /// Args:
+    ///     mode: 'actual', 'maximum', or 'fixed'
+    ///     t: Transverse FSM (m^4) (required for 'fixed' mode)
+    ///     l: Longitudinal FSM (m^4) (required for 'fixed' mode)
+    #[pyo3(signature = (mode, t=None, l=None))]
+    fn set_fsm_mode(&mut self, mode: &str, t: Option<f64>, l: Option<f64>) -> PyResult<()> {
+        let fsm_mode = match mode.to_lowercase().as_str() {
+            "actual" => FSMMode::Actual,
+            "maximum" => FSMMode::Maximum,
+            "fixed" => {
+                let t_val = t.ok_or_else(|| {
+                    PyValueError::new_err("Fixed mode requires 't' (transverse FSM)")
+                })?;
+                let l_val = l.ok_or_else(|| {
+                    PyValueError::new_err("Fixed mode requires 'l' (longitudinal FSM)")
+                })?;
+                FSMMode::Fixed { t: t_val, l: l_val }
+            }
+            _ => {
+                return Err(PyValueError::new_err(
+                    "Invalid FSM mode. Choose 'actual', 'maximum', or 'fixed'.",
+                ))
+            }
+        };
+        self.inner.set_fsm_mode(fsm_mode);
+        Ok(())
+    }
+
+    /// Returns the current FSM mode ('actual', 'maximum', 'fixed').
+    #[getter]
+    fn fsm_mode(&self) -> String {
+        match self.inner.fsm_mode() {
+            FSMMode::Actual => "actual".to_string(),
+            FSMMode::Maximum => "maximum".to_string(),
+            FSMMode::Fixed { .. } => "fixed".to_string(),
+        }
     }
 }
 
