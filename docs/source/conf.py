@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.abspath("../../python"))
 project = "NavalToolbox"
 copyright = "2026, Antoine ANCEAU"
 author = "Antoine ANCEAU"
-release = "0.4.2"
+release = "0.4.3"
 
 # -- General configuration ---------------------------------------------------
 
