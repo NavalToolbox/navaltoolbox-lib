@@ -87,12 +87,15 @@ pub struct HydrostaticState {
 
     /// Submerged volume in m³
     pub volume: f64,
-    /// Hull displacement mass in kg (does not include tank mass)
-    pub hull_displacement: f64,
-    /// Total displacement mass in kg (includes tank mass if TankOptions.include_mass is true)
+    /// Total displacement mass in kg (Volume * water_density).
+    /// This represents the total weight of the floating system (Vessel + Tanks).
     pub displacement: f64,
-    /// Tank fluid mass in kg (sum of all tank fluid masses)
-    pub tank_mass: f64,
+    /// Vessel displacement mass in kg (Total - Tank Contents).
+    /// Corresponds to the input displacement (Lightship + Deadweight excluding tanks).
+    pub vessel_displacement: f64,
+    /// Tank fluid mass in kg (sum of all tank fluid masses).
+    /// If TankOptions.include_mass is false, this will be 0.0.
+    pub tank_displacement: f64,
 
     /// Center of buoyancy [LCB, TCB, VCB] in meters
     pub cob: [f64; 3],
@@ -195,9 +198,9 @@ impl Default for HydrostaticState {
             trim: 0.0,
             heel: 0.0,
             volume: 0.0,
-            hull_displacement: 0.0,
             displacement: 0.0,
-            tank_mass: 0.0,
+            vessel_displacement: 0.0,
+            tank_displacement: 0.0,
             cob: [0.0, 0.0, 0.0],
             cog: None,
             waterplane_area: 0.0,
