@@ -1290,7 +1290,12 @@ impl PyHydrostaticState {
 
         format!(
             "HydrostaticState(draft_mp={:.3}m, disp={:.0}kg (Vessel={:.0}kg, Tank={:.0}kg), volume={:.2}m³, {})",
-            self.draft_mp, self.displacement, self.vessel_displacement, self.tank_displacement, cog_str
+            self.draft_mp,
+            self.displacement,
+            self.vessel_displacement,
+            self.tank_displacement,
+            self.volume,
+            cog_str
         )
     }
 }
