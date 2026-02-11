@@ -520,10 +520,47 @@ impl<'a> StabilityCalculator<'a> {
         cog: [f64; 3],
         heels: &[f64],
     ) -> CompleteStabilityResult {
-        // Calculate hydrostatics at equilibrium
+        // Compute total displacement including tank mass (consistent with gz_curve)
+        let total_fluid_mass: f64 = self.vessel.tanks().iter().map(|t| t.fluid_mass()).sum();
+        let total_mass = displacement_mass + total_fluid_mass;
+
+        // Compute effective upright COG including tanks (consistent with gz_curve)
+        let effective_cog = if total_fluid_mass > 0.0 {
+            let mut total_moment = [
+                displacement_mass * cog[0],
+                displacement_mass * cog[1],
+                displacement_mass * cog[2],
+            ];
+            for tank in self.vessel.tanks() {
+                let mass = tank.fluid_mass();
+                if mass > 0.0 {
+                    let tank_cog = tank.center_of_gravity();
+                    total_moment[0] += mass * tank_cog[0];
+                    total_moment[1] += mass * tank_cog[1];
+                    total_moment[2] += mass * tank_cog[2];
+                }
+            }
+            [
+                total_moment[0] / total_mass,
+                total_moment[1] / total_mass,
+                total_moment[2] / total_mass,
+            ]
+        } else {
+            cog
+        };
+
+        // Calculate hydrostatics at equilibrium with total mass and effective COG
         let hydro_calc = HydrostaticsCalculator::new(self.vessel, self.water_density);
         let hydrostatics = hydro_calc
-            .from_displacement(displacement_mass, None, Some(cog), None, None)
+            .from_displacement(
+                total_mass,
+                None,
+                Some(effective_cog),
+                None,
+                None,
+                None,
+                None,
+            )
             .unwrap_or_default();
 
         // Calculate GZ curve
