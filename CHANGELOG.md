@@ -5,6 +5,17 @@ All notable changes to NavalToolbox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-02-11
+
+### Added
+- **stability**: Support for `tank_options` in `gz_curve` and `complete_stability` methods
+- **hydrostatics**: Added `vessel_displacement` and `tank_displacement` fields to `HydrostaticState`
+
+### Changed
+- **hydrostatics**: **BREAKING** Removed `hull_displacement` field from `HydrostaticState` (replaced by `vessel_displacement`)
+- **hydrostatics**: `displacement` field now explicitly represents the Total Displacement (Vessel + Tanks)
+- **stability**: `complete_stability` now correctly delegates displacement calculation to avoid double-counting tank mass
+
 ## [0.5.1] - 2026-02-09
 
 ### Fixed
