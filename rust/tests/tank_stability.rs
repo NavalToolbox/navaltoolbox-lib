@@ -32,7 +32,9 @@ fn test_complete_stability_with_tanks() {
     // Total Mass = 205000 + 128125 = 333125 kg
     // Expected Draft = Total Mass / (1025 * 10 * 10) = 333125 / 102500 = 3.25 m
     let heels = vec![0.0, 10.0, 20.0];
-    let result = calc.complete_stability(ship_mass, ship_cog, &heels);
+    // Use TankOptions with Mass=True (previous default)
+    let tank_opts = Some(navaltoolbox::hydrostatics::TankOptions::all());
+    let result = calc.complete_stability(ship_mass, ship_cog, &heels, tank_opts);
 
     // 6. Verify Hydrostatics
     println!(
@@ -87,7 +89,9 @@ fn test_complete_stability_equilibrium_trim() {
     let ship_cog = [10.0, 0.0, 2.0]; // centered
 
     // With tank fwd, vessel should trim bow down (positive trim)
-    let result = calc.complete_stability(ship_mass, ship_cog, &vec![0.0]);
+    // Use TankOptions with Mass=True
+    let tank_opts = Some(navaltoolbox::hydrostatics::TankOptions::all());
+    let result = calc.complete_stability(ship_mass, ship_cog, &vec![0.0], tank_opts);
 
     println!("Trim with fwd tank: {}", result.hydrostatics.trim);
     assert!(
