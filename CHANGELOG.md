@@ -5,6 +5,14 @@ All notable changes to NavalToolbox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2026-02-11
+
+### Fixed
+- **loading**: Correctly load DXF `AcDb2dPolyline` entities with OCS normal (0,1,0) (fixes "no wind data" error)
+- **stability**: Resolve issue where `StabilityCalculator` used a stale Vessel copy, ignoring subsequently added silhouettes
+- **loading**: Add support for loading silhouettes from CSV/TXT point files
+- **validation**: Add warnings for invalid silhouette geometries (zero area, open loops)
+
 ## [0.6.0] - 2026-02-11
 
 ### Added
