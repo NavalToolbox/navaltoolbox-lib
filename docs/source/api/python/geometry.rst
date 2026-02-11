@@ -326,7 +326,7 @@ Silhouette
    
    Used for calculating wind heeling moments per IMO 2008 IS Code (MSC.267).
 
-   :param file_path: Path to the geometry file (DXF, VTK, VTP)
+   :param file_path: Path to the geometry file (DXF, VTK, VTP, CSV, TXT)
    :type file_path: str
 
    .. py:staticmethod:: from_points(points, name)

@@ -411,7 +411,7 @@ class Silhouette:
     """
     
     def __init__(self, file_path: str) -> None:
-        """Load a silhouette from a file (DXF, VTK, or VTP).
+        """Load a silhouette from a file (DXF, VTK, VTP, CSV, or TXT).
         
         Args:
             file_path: Path to the geometry file.
@@ -420,7 +420,6 @@ class Silhouette:
             IOError: If the file cannot be read or parsed.
         """
         ...
-    
     
     @staticmethod
     def from_points(points: List[Tuple[float, float]], name: str) -> "Silhouette":
