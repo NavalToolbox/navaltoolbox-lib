@@ -971,6 +971,7 @@ class HydrostaticsCalculator:
         draft_fp: float,
         heel: float = 0.0,
         vcg: float | None = None,
+        num_stations: int | None = None,
         tank_options: TankOptions | None = None,
     ) -> HydrostaticState:
         """Calculate hydrostatics from drafts at Aft and Forward Perpendiculars.
@@ -980,6 +981,7 @@ class HydrostaticsCalculator:
             draft_fp: Draft at Forward Perpendicular in meters.
             heel: Heel angle in degrees (default 0.0).
             vcg: Optional vertical center of gravity for GM calculation.
+            num_stations: Optional number of stations for sectional area curve (default 21).
             tank_options: Optional TankOptions.
         
         Returns:
@@ -997,6 +999,7 @@ class HydrostaticsCalculator:
         cog: Tuple[float, float, float] | None = None,
         trim: float | None = None,
         heel: float | None = None,
+        num_stations: int | None = None,
         tank_options: TankOptions | None = None,
     ) -> HydrostaticState:
         """Calculate hydrostatics for a given displacement with optional constraints.
@@ -1008,7 +1011,14 @@ class HydrostaticsCalculator:
                  (overrides vcg if both are provided)
             trim: Optional trim angle in degrees.
             heel: Optional heel angle in degrees.
+            num_stations: Optional number of stations for sectional area curve (default 21).
             tank_options: Optional TankOptions.
+
+        Note: 
+            When ``tank_options`` is provided with ``include_mass=True``, ``displacement_mass``
+            is interpreted as the mass of the vessel **excluding** the fluid in the tanks. 
+            The total displacement used for calculation will be 
+            ``displacement_mass + tank_fluid_mass``.
         
         Returns:
             Complete HydrostaticState.
