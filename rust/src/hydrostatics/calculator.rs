@@ -276,8 +276,16 @@ impl<'a> HydrostaticsCalculator<'a> {
             k[28] = displacement * g * gml;
         }
 
-        // Get tank mass for reporting
-        let tank_mass: f64 = self.vessel.tanks().iter().map(|t| t.fluid_mass()).sum();
+        // Calculate tank displacement based on options
+        let include_mass = tank_options.map(|o| o.include_mass).unwrap_or(false);
+        let tank_displacement = if include_mass {
+            self.vessel.tanks().iter().map(|t| t.fluid_mass()).sum()
+        } else {
+            0.0
+        };
+
+        // Vessel displacement = Total (Buoyancy) - Tank Displacement
+        let vessel_displacement = displacement - tank_displacement;
 
         let cog_ret = vcg.map(|z| [lcb, tcb, z]);
 
@@ -289,9 +297,9 @@ impl<'a> HydrostaticsCalculator<'a> {
             draft_fp,
             draft_mp,
             volume: total_volume,
-            hull_displacement: displacement,
-            displacement, // Same as hull_displacement for standard from_draft
-            tank_mass,
+            displacement,
+            vessel_displacement,
+            tank_displacement,
             cob,
             cog: cog_ret,
             waterplane_area: wp_area,
@@ -324,13 +332,7 @@ impl<'a> HydrostaticsCalculator<'a> {
         // Apply tank options if provided
         if let Some(state) = &mut state {
             if let Some(opts) = tank_options {
-                if opts.include_mass {
-                    // Do NOT add tank mass to total displacement.
-                    // Displacement = Volume * Density (Buoyancy).
-                    // If we are at equilibrium, Buoyancy = Ship Mass + Tank Mass.
-                    // state.hull_displacement already reflects the buoyancy of the hull.
-                    // state.displacement = state.hull_displacement; // Already set by default
-                }
+                // state.displacement = state.vessel_displacement + state.tank_displacement; // Already correct by definition of vessel_displacement
 
                 if !opts.include_fsm {
                     // Remove FSM correction from GM values
