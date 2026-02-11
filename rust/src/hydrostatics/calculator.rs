@@ -58,25 +58,8 @@ impl<'a> HydrostaticsCalculator<'a> {
         trim: f64,
         heel: f64,
         vcg: Option<f64>,
-    ) -> Option<HydrostaticState> {
-        self.from_draft_with_stations(draft, trim, heel, vcg, None)
-    }
-
-    /// Calculates hydrostatics with configurable number of stations for sectional area curve.
-    ///
-    /// # Arguments
-    /// * `draft` - Draft at the reference point in meters
-    /// * `trim` - Trim angle in degrees (positive = bow down)
-    /// * `heel` - Heel angle in degrees (positive = starboard down)
-    /// * `vcg` - Optional vertical center of gravity for GM calculation
-    /// * `num_stations` - Number of stations for sectional area curve (default: 21)
-    pub fn from_draft_with_stations(
-        &self,
-        draft: f64,
-        trim: f64,
-        heel: f64,
-        vcg: Option<f64>,
         num_stations: Option<usize>,
+        tank_options: Option<crate::hydrostatics::TankOptions>,
     ) -> Option<HydrostaticState> {
         // Use AP/FP (defaults to bounds min/max if not set)
         let ap = self.vessel.ap();
@@ -298,7 +281,7 @@ impl<'a> HydrostaticsCalculator<'a> {
 
         let cog_ret = vcg.map(|z| [lcb, tcb, z]);
 
-        Some(HydrostaticState {
+        let mut state = Some(HydrostaticState {
             draft,
             trim,
             heel,
@@ -336,69 +319,52 @@ impl<'a> HydrostaticsCalculator<'a> {
             },
             sectional_areas: self.calculate_sectional_areas(draft, trim, heel, num_stations),
             freeboard: self.vessel.get_min_freeboard(heel, trim, draft),
-        })
-    }
+        });
 
-    /// Calculates hydrostatics with tank options for controlling tank mass and FSM inclusion.
-    ///
-    /// # Arguments
-    /// * `draft` - Draft at the reference point in meters
-    /// * `trim` - Trim angle in degrees (positive = bow down)
-    /// * `heel` - Heel angle in degrees (positive = starboard down)
-    /// * `vcg` - Optional vertical center of gravity for GM calculation
-    /// * `tank_options` - Options for tank handling
-    ///
-    /// # Tank Options
-    /// - `include_mass`: If true, adds tank fluid mass to total displacement
-    /// - `include_fsm`: If true, applies Free Surface Moment correction to GM
-    pub fn from_draft_with_tanks(
-        &self,
-        draft: f64,
-        trim: f64,
-        heel: f64,
-        vcg: Option<f64>,
-        tank_options: super::TankOptions,
-    ) -> Option<HydrostaticState> {
-        // Get base hydrostatics (without tank mass in displacement)
-        let mut state = self.from_draft_with_stations(draft, trim, heel, vcg, None)?;
+        // Apply tank options if provided
+        if let Some(state) = &mut state {
+            if let Some(opts) = tank_options {
+                if opts.include_mass {
+                    // Add tank mass to total displacement
+                    state.displacement = state.hull_displacement + state.tank_mass;
+                }
 
-        // Apply tank options
-        if tank_options.include_mass {
-            // Add tank mass to total displacement
-            state.displacement = state.hull_displacement + state.tank_mass;
+                if !opts.include_fsm {
+                    // Remove FSM correction from GM values
+                    if let Some(gmt) = state.gmt {
+                        state.gmt = Some(gmt + state.free_surface_correction_t);
+                    }
+                    if let Some(gml) = state.gml {
+                        state.gml = Some(gml + state.free_surface_correction_l);
+                    }
+                    state.free_surface_correction_t = 0.0;
+                    state.free_surface_correction_l = 0.0;
+                }
+            }
         }
 
-        if !tank_options.include_fsm {
-            // Remove FSM correction from GM values
-            if let Some(gmt) = state.gmt {
-                state.gmt = Some(gmt + state.free_surface_correction_t);
-            }
-            if let Some(gml) = state.gml {
-                state.gml = Some(gml + state.free_surface_correction_l);
-            }
-            state.free_surface_correction_t = 0.0;
-            state.free_surface_correction_l = 0.0;
-        }
-
-        Some(state)
+        state
     }
 
     /// Calculates hydrostatics from drafts at Aft and Forward Perpendiculars.
     ///
     /// This is a convenience method that calculates the equivalent mean draft (at MP)
-    /// and trim angle, then calls `from_draft`.
+    /// and trim angle, then calls `from_draft_with_stations`.
     ///
     /// # Arguments
     /// * `draft_ap` - Draft at Aft Perpendicular in meters
     /// * `draft_fp` - Draft at Forward Perpendicular in meters
     /// * `heel` - Heel angle in degrees
     /// * `vcg` - Optional vertical center of gravity for GM calculation
+    /// * `num_stations` - Number of stations for sectional area curve (default: 21)
     pub fn from_drafts(
         &self,
         draft_ap: f64,
         draft_fp: f64,
         heel: f64,
         vcg: Option<f64>,
+        num_stations: Option<usize>,
+        tank_options: Option<crate::hydrostatics::TankOptions>,
     ) -> Option<HydrostaticState> {
         let ap = self.vessel.ap();
         let fp = self.vessel.fp();
@@ -406,7 +372,7 @@ impl<'a> HydrostaticsCalculator<'a> {
 
         if lpp.abs() < 1e-4 {
             // Lpp is too small, assume zero trim
-            return self.from_draft(draft_ap, 0.0, heel, vcg);
+            return self.from_draft(draft_ap, 0.0, heel, vcg, num_stations, tank_options);
         }
 
         // Calculate trim: positive bow down (fp draft > ap draft)
@@ -423,16 +389,18 @@ impl<'a> HydrostaticsCalculator<'a> {
         // T_mp = (T_ap + T_fp) / 2
         let draft_mp = (draft_ap + draft_fp) / 2.0;
 
-        self.from_draft(draft_mp, trim_deg, heel, vcg)
+        self.from_draft(draft_mp, trim_deg, heel, vcg, num_stations, tank_options)
     }
 
     /// Calculate hydrostatics for a given displacement with optional constraints.
     ///
     /// # Arguments
     /// * `displacement_mass` - Target displacement in kg
-    /// * `cog` - Optional center of gravity [LCG, TCG, VCG]. Used for GM calculations and equilibrium.
-    /// * `trim` - Optional fixed trim angle in degrees
-    /// * `heel` - Optional fixed heel angle in degrees
+    /// * `vcg` - Optional VCG only (m) for GM calculation
+    /// * `cog` - Optional full COG [LCG, TCG, VCG] (overrides vcg if provided)
+    /// * `trim` - Optional trim angle in degrees (default 0.0)
+    /// * `heel` - Optional heel angle in degrees (default 0.0)
+    /// * `num_stations` - Number of stations for sectional area curve (default: 21)
     ///
     /// # Returns
     /// Complete HydrostaticState or error if constraints are invalid/unsatisfiable
@@ -448,13 +416,7 @@ impl<'a> HydrostaticsCalculator<'a> {
     /// - Displacement + VCG + heel → finds draft with fixed heel, free trim
     /// - Displacement + COG (full) → finds draft, level, full COG specified
     /// - Displacement + trim + heel → finds draft with fixed attitude
-    ///
-    /// # Arguments
-    /// * `displacement_mass` - Target displacement in kg
-    /// * `vcg` - Optional VCG only (m) for GM calculation
-    /// * `cog` - Optional full COG [LCG, TCG, VCG] (overrides vcg if provided)
-    /// * `trim` - Optional trim angle in degrees (default 0.0)
-    /// * `heel` - Optional heel angle in degrees (default 0.0)
+    #[allow(clippy::too_many_arguments)]
     pub fn from_displacement(
         &self,
         displacement_mass: f64,
@@ -462,6 +424,8 @@ impl<'a> HydrostaticsCalculator<'a> {
         cog: Option<[f64; 3]>,
         trim: Option<f64>,
         heel: Option<f64>,
+        num_stations: Option<usize>,
+        tank_options: Option<crate::hydrostatics::TankOptions>,
     ) -> Result<HydrostaticState, String> {
         // Validate COG constraints (only if full COG is provided)
         if let Some(cog_val) = cog {
@@ -479,6 +443,21 @@ impl<'a> HydrostaticsCalculator<'a> {
             }
         }
 
+        // Calculate target displacement for the hull
+        // If tank_options.include_mass is true, we ADD tank mass to displacement_mass
+        // because displacement_mass is interpreted as ship-only mass.
+        // Total Disp = Ship Mass + Tank Mass
+        let target_disp = if let Some(opts) = tank_options {
+            if opts.include_mass {
+                let tank_mass: f64 = self.vessel.tanks().iter().map(|t| t.fluid_mass()).sum();
+                displacement_mass + tank_mass
+            } else {
+                displacement_mass
+            }
+        } else {
+            displacement_mass
+        };
+
         // Initialize state
         let solve_trim = trim.is_none() && cog.is_some();
         let solve_heel = heel.is_none() && cog.is_some();
@@ -489,7 +468,7 @@ impl<'a> HydrostaticsCalculator<'a> {
 
         // Try Newton-Raphson first (fast)
         if let Some(state) = self.solve_equilibrium_newton(
-            displacement_mass,
+            target_disp,
             vcg,
             cog,
             &mut fixed_trim,
@@ -497,9 +476,23 @@ impl<'a> HydrostaticsCalculator<'a> {
             solve_trim,
             solve_heel,
         )? {
+            // Recompute with requested num_stations and tank_options if needed
+            let final_state = if num_stations.is_some() || tank_options.is_some() {
+                self.from_draft(
+                    state.draft,
+                    state.trim,
+                    state.heel,
+                    vcg.or(cog.map(|c| c[2])),
+                    num_stations,
+                    tank_options,
+                )
+                .unwrap_or(state)
+            } else {
+                state
+            };
             return Ok(HydrostaticState {
-                cog: cog.or(state.cog),
-                ..state
+                cog: cog.or(final_state.cog),
+                ..final_state
             });
         }
 
@@ -511,7 +504,7 @@ impl<'a> HydrostaticsCalculator<'a> {
             fixed_heel = heel.unwrap_or(0.0);
 
             if let Some(state) = self.solve_equilibrium_robust(
-                displacement_mass,
+                target_disp,
                 vcg,
                 cog,
                 &mut fixed_trim,
@@ -519,9 +512,23 @@ impl<'a> HydrostaticsCalculator<'a> {
                 solve_trim,
                 solve_heel,
             ) {
+                // Recompute with requested num_stations and tank_options if needed
+                let final_state = if num_stations.is_some() || tank_options.is_some() {
+                    self.from_draft(
+                        state.draft,
+                        state.trim,
+                        state.heel,
+                        vcg.or(cog.map(|c| c[2])),
+                        num_stations,
+                        tank_options,
+                    )
+                    .unwrap_or(state)
+                } else {
+                    state
+                };
                 return Ok(HydrostaticState {
-                    cog: cog.or(state.cog),
-                    ..state
+                    cog: cog.or(final_state.cog),
+                    ..final_state
                 });
             }
         }
@@ -568,7 +575,9 @@ impl<'a> HydrostaticsCalculator<'a> {
             for _ in 0..50 {
                 let mid = (low + high) / 2.0;
 
-                if let Some(state) = self.from_draft(mid, *fixed_trim, *fixed_heel, effective_vcg) {
+                if let Some(state) =
+                    self.from_draft(mid, *fixed_trim, *fixed_heel, effective_vcg, None, None)
+                {
                     let diff = state.volume - target_volume;
 
                     if diff.abs() < tolerance {
@@ -589,7 +598,8 @@ impl<'a> HydrostaticsCalculator<'a> {
             // If we failed to find a valid draft even once, try best estimate
             if found_draft.is_none() {
                 let draft = (low + high) / 2.0;
-                found_draft = self.from_draft(draft, *fixed_trim, *fixed_heel, effective_vcg);
+                found_draft =
+                    self.from_draft(draft, *fixed_trim, *fixed_heel, effective_vcg, None, None);
             }
 
             match found_draft {
@@ -871,7 +881,7 @@ impl<'a> HydrostaticsCalculator<'a> {
 
         for _ in 0..50 {
             let mid = (low + high) / 2.0;
-            if let Some(state) = self.from_draft(mid, trim, heel, vcg) {
+            if let Some(state) = self.from_draft(mid, trim, heel, vcg, None, None) {
                 let diff = state.volume - target_vol;
                 if diff.abs() < tolerance {
                     return Some(state);
@@ -885,7 +895,7 @@ impl<'a> HydrostaticsCalculator<'a> {
                 low = mid;
             }
         }
-        self.from_draft((low + high) / 2.0, trim, heel, vcg)
+        self.from_draft((low + high) / 2.0, trim, heel, vcg, None, None)
     }
 
     /// Returns the water density.
@@ -1198,7 +1208,8 @@ mod tests {
         let calc = HydrostaticsCalculator::new(&vessel, 1025.0);
 
         // At draft 5m, volume should be 10 * 10 * 5 = 500 m³
-        let state = calc.from_draft(5.0, 0.0, 0.0, None).unwrap();
+        // At draft 5m, volume should be 10 * 10 * 5 = 500 m³
+        let state = calc.from_draft(5.0, 0.0, 0.0, None, None, None).unwrap();
         assert!(
             (state.volume - 500.0).abs() < 1.0,
             "Volume was {}",
@@ -1217,7 +1228,7 @@ mod tests {
 
         // Calculate at displacement with no other constraints (level keel)
         let state = calc
-            .from_displacement(target_disp, None, None, None, None)
+            .from_displacement(target_disp, None, None, None, None, None, None)
             .expect("Calculation failed");
 
         assert!(
@@ -1274,7 +1285,7 @@ mod tests {
         // With VCG provided, should compute GMT/GML
         // Note: LCB/TCB assumed 0.0 for box hull, so just set VCG=7.0
         let state = calc
-            .from_displacement(target_disp, Some(7.0), None, None, None)
+            .from_displacement(target_disp, Some(7.0), None, None, None, None, None)
             .expect("Calculation failed");
 
         assert!((state.draft - 5.0).abs() < 0.01);
@@ -1305,11 +1316,27 @@ mod tests {
         let calc = HydrostaticsCalculator::new(&vessel, 1025.0);
 
         // Invalid: Trim provided but also LCG constrained (non-zero)
-        let res = calc.from_displacement(100000.0, None, Some([5.0, 0.0, 0.0]), Some(0.0), None);
+        let res = calc.from_displacement(
+            100000.0,
+            None,
+            Some([5.0, 0.0, 0.0]),
+            Some(0.0),
+            None,
+            None,
+            None,
+        );
         assert!(res.is_err(), "Should fail for both LCG and Trim specified");
 
         // Invalid: Heel provided but also TCG constrained
-        let res = calc.from_displacement(100000.0, None, Some([0.0, 5.0, 0.0]), None, Some(0.0));
+        let res = calc.from_displacement(
+            100000.0,
+            None,
+            Some([0.0, 5.0, 0.0]),
+            None,
+            Some(0.0),
+            None,
+            None,
+        );
         assert!(res.is_err(), "Should fail for both TCG and Heel specified");
     }
     #[test]
@@ -1323,7 +1350,7 @@ mod tests {
         let calc = HydrostaticsCalculator::new(&vessel, 1025.0);
 
         // Case 1: Even Keel (Draft=5.0)
-        let state1 = calc.from_drafts(5.0, 5.0, 0.0, None).unwrap();
+        let state1 = calc.from_drafts(5.0, 5.0, 0.0, None, None, None).unwrap();
         assert!((state1.draft - 5.0).abs() < 1e-6);
         assert!((state1.draft_ap - 5.0).abs() < 1e-6);
         assert!((state1.draft_fp - 5.0).abs() < 1e-6);
@@ -1332,7 +1359,7 @@ mod tests {
         // Case 2: Trimmed by stern (AP=6.0, FP=4.0)
         // MP draft should be 5.0
         // Trim = atan((4-6)/100) = atan(-0.02)
-        let state2 = calc.from_drafts(6.0, 4.0, 0.0, None).unwrap();
+        let state2 = calc.from_drafts(6.0, 4.0, 0.0, None, None, None).unwrap();
         assert!((state2.draft_mp - 5.0).abs() < 1e-6);
         assert!((state2.draft_ap - 6.0).abs() < 1e-6);
         assert!((state2.draft_fp - 4.0).abs() < 1e-6);
@@ -1348,13 +1375,13 @@ mod tests {
 
         // Scenario 1: No VCG, No COG -> COG should be None
         let state1 = calc
-            .from_displacement(target_disp, None, None, None, None)
+            .from_displacement(target_disp, None, None, None, None, None, None)
             .expect("Calc failed S1");
         assert!(state1.cog.is_none(), "S1: COG should be None");
 
         // Scenario 2: VCG only -> COG should be [LCB, TCB, VCG]
         let state2 = calc
-            .from_displacement(target_disp, Some(6.0), None, None, None)
+            .from_displacement(target_disp, Some(6.0), None, None, None, None, None)
             .expect("Calc failed S2");
         assert!(state2.cog.is_some(), "S2: COG should be Some");
         let cog2 = state2.cog.unwrap();
@@ -1372,7 +1399,15 @@ mod tests {
         // Note: from_displacement prefers 'cog' arg over 'vcg' arg for the computation
         let input_cog = [2.0, 1.0, 8.0];
         let state3 = calc
-            .from_displacement(target_disp, Some(5.0), Some(input_cog), None, None)
+            .from_displacement(
+                target_disp,
+                Some(5.0),
+                Some(input_cog),
+                None,
+                None,
+                None,
+                None,
+            )
             .expect("Calc failed S3");
         assert!(state3.cog.is_some(), "S3: COG should be Some");
         let cog3 = state3.cog.unwrap();
@@ -1395,7 +1430,7 @@ mod tests {
         let cog = [5.0, 1.0, 5.0]; // LcG, TcG, VcG
 
         let state = calc
-            .from_displacement(target_disp, None, Some(cog), None, None)
+            .from_displacement(target_disp, None, Some(cog), None, None, None, None)
             .expect("Calculation failed");
 
         // Port weight → port down → negative heel (right-hand convention)
@@ -1421,7 +1456,7 @@ mod tests {
         let cog = [3.0, 0.0, 5.0]; // LcG, TcG, VcG
 
         let state = calc
-            .from_displacement(target_disp, None, Some(cog), None, None)
+            .from_displacement(target_disp, None, Some(cog), None, None, None, None)
             .expect("Calculation failed");
 
         // Trim positive = bow down. Stern down = negative trim.
@@ -1447,7 +1482,7 @@ mod tests {
         let cog = [3.0, 1.0, 5.0]; // LcG=3 (aft of LCB=5), TcG=1 (port), VcG=5
 
         let state = calc
-            .from_displacement(target_disp, None, Some(cog), None, None)
+            .from_displacement(target_disp, None, Some(cog), None, None, None, None)
             .expect("Calculation failed");
 
         // Now verify equilibrium: COG and COB should be aligned in SHIP frame

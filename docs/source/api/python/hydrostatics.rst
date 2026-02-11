@@ -86,6 +86,11 @@ HydrostaticsCalculator
       :param tank_options: TankOptions object (optional)
       :returns: HydrostaticState with all properties
 
+      .. note::
+         When ``tank_options`` is provided with ``include_mass=True``, ``displacement_mass``
+         is interpreted as the mass of the vessel **excluding** the fluid in the tanks.
+         The total displacement used for calculation will be ``displacement_mass + tank_fluid_mass``.
+
 
 HydrostaticState
 ----------------
