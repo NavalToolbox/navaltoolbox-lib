@@ -110,7 +110,7 @@ mod box_barge_tests {
         // Formula valid for all these angles
         let test_angles = [5.0, 10.0, 20.0];
 
-        let curve = calc.gz_curve(displacement, cog, &test_angles);
+        let curve = calc.gz_curve(displacement, cog, &test_angles, None);
 
         for point in &curve.points {
             let phi_rad = point.heel.to_radians();
@@ -152,11 +152,11 @@ mod box_barge_tests {
         let kn_curve = &kn_curves[0];
 
         // 2. Calculate GZ curve (VCG=2.0)
-        let gz_curve = calc.gz_curve(displacement, cog, &heels);
+        let curve = calc.gz_curve(displacement, cog, &heels, None);
 
         // Verify relation: GZ = KN - KG * sin(phi)
         // => KN = GZ + KG * sin(phi)
-        for (kn_point, gz_point) in kn_curve.points.iter().zip(gz_curve.points.iter()) {
+        for (kn_point, gz_point) in kn_curve.points.iter().zip(curve.points.iter()) {
             let phi_rad = kn_point.heel.to_radians();
             let kg_sin_phi = vcg * phi_rad.sin();
             let expected_kn = gz_point.value + kg_sin_phi;
@@ -616,7 +616,7 @@ mod dtmb5415_tests {
         let cog = [LCG, TCG, VCG];
         let heels: Vec<f64> = (0..=60).step_by(10).map(|x| x as f64).collect();
 
-        let curve = calc.gz_curve(DISPLACEMENT, cog, &heels);
+        let curve = calc.gz_curve(DISPLACEMENT, cog, &heels, None);
 
         println!("\nDTMB5415 GZ Curve:");
         println!("Heel      Calc GZ    Ref GZ");
@@ -671,7 +671,7 @@ mod dtmb5415_tests {
         let cog = [LCG, TCG, VCG];
         let heels: Vec<f64> = (0..=65).step_by(5).map(|x| x as f64).collect();
 
-        let curve = calc.gz_curve(DISPLACEMENT, cog, &heels);
+        let curve = calc.gz_curve(DISPLACEMENT, cog, &heels, None);
 
         // Find max GZ
         let (max_heel, max_gz) = curve
@@ -718,7 +718,7 @@ mod dtmb5415_tests {
         let cog = [LCG, TCG, VCG];
         let heels: Vec<f64> = REFERENCE_DATA.iter().map(|(h, _, _, _)| *h).collect();
 
-        let curve = calc.gz_curve(DISPLACEMENT, cog, &heels);
+        let curve = calc.gz_curve(DISPLACEMENT, cog, &heels, None);
 
         // Check GZ values with 5cm tolerance (as in Python tests)
         // Note: larger tolerance needed due to mesh differences
@@ -787,7 +787,7 @@ mod complete_stability_tests {
         let cog = [0.0, 0.0, 2.0]; // Low VCG
         let heels: Vec<f64> = (0..=30).step_by(10).map(|x| x as f64).collect();
 
-        let result = calc.complete_stability(displacement, cog, &heels);
+        let result = calc.complete_stability(displacement, cog, &heels, None);
 
         // Check hydrostatics
         assert!(
@@ -844,7 +844,7 @@ mod complete_stability_tests {
         let cog = [0.0, 0.0, 2.0];
         let heels: Vec<f64> = vec![0.0, 15.0, 30.0];
 
-        let result = calc.complete_stability(displacement, cog, &heels);
+        let result = calc.complete_stability(displacement, cog, &heels, None);
 
         // Check wind data is available
         assert!(

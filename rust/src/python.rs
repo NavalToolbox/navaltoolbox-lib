@@ -1102,12 +1102,20 @@ pub struct PyHydrostaticState {
     pub draft_mp: f64,
     #[pyo3(get)]
     pub volume: f64,
-    #[pyo3(get)]
-    pub hull_displacement: f64,
+    /// Total displacement mass in kg (Volume * water_density).
+    /// This represents the total weight of the floating system (Vessel + Tanks).
     #[pyo3(get)]
     pub displacement: f64,
+
+    /// Vessel displacement mass in kg (Total - Tank Contents).
+    /// Corresponds to the input displacement (Lightship + Deadweight excluding tanks).
     #[pyo3(get)]
-    pub tank_mass: f64,
+    pub vessel_displacement: f64,
+
+    /// Tank fluid mass in kg (sum of all tank fluid masses).
+    /// If TankOptions.include_mass is false, this will be 0.0.
+    #[pyo3(get)]
+    pub tank_displacement: f64,
 
     // Internal storage as vectors
     cob_internal: [f64; 3],
@@ -1168,9 +1176,9 @@ impl From<RustHydroState> for PyHydrostaticState {
             draft_fp: state.draft_fp,
             draft_mp: state.draft_mp,
             volume: state.volume,
-            hull_displacement: state.hull_displacement,
             displacement: state.displacement,
-            tank_mass: state.tank_mass,
+            vessel_displacement: state.vessel_displacement,
+            tank_displacement: state.tank_displacement,
             cob_internal: state.cob,
             cog_internal: state.cog,
             waterplane_area: state.waterplane_area,
@@ -1281,8 +1289,8 @@ impl PyHydrostaticState {
         };
 
         format!(
-            "HydrostaticState(draft_mp={:.3}m (AP={:.3}, FP={:.3}), volume={:.2}m³, displacement={:.0}kg, {})",
-            self.draft_mp, self.draft_ap, self.draft_fp, self.volume, self.displacement, cog_str
+            "HydrostaticState(draft_mp={:.3}m, disp={:.0}kg (Vessel={:.0}kg, Tank={:.0}kg), volume={:.2}m³, {})",
+            self.draft_mp, self.displacement, self.vessel_displacement, self.tank_displacement, cog_str
         )
     }
 }
@@ -1709,14 +1717,22 @@ impl PyStabilityCalculator {
     }
 
     /// Calculate the GZ curve for a given loading condition.
+    /// Calculate the GZ curve for a given loading condition.
+    #[pyo3(signature = (displacement_mass, cog, heels, tank_options=None))]
     fn gz_curve(
         &self,
         displacement_mass: f64,
         cog: (f64, f64, f64),
         heels: Vec<f64>,
+        tank_options: Option<PyTankOptions>,
     ) -> PyStabilityCurve {
         let calc = RustStabCalc::new(&self.vessel, self.water_density);
-        let curve = calc.gz_curve(displacement_mass, [cog.0, cog.1, cog.2], &heels);
+        let curve = calc.gz_curve(
+            displacement_mass,
+            [cog.0, cog.1, cog.2],
+            &heels,
+            tank_options.map(|t| t.inner),
+        );
         PyStabilityCurve { inner: curve }
     }
 
@@ -1760,14 +1776,34 @@ impl PyStabilityCalculator {
     ///
     /// Returns:
     ///     CompleteStabilityResult with hydrostatics, GZ curve, and wind data
+    /// Calculate complete stability analysis for a loading condition.
+    ///
+    /// Combines hydrostatic calculations, GZ curve, and wind heeling data
+    /// (if silhouettes are available) for a single loading condition.
+    ///
+    /// Args:
+    ///     displacement_mass: Target displacement in kg
+    ///     cog: Center of gravity (lcg, tcg, vcg) tuple
+    ///     heels: List of heel angles for GZ curve in degrees
+    ///     tank_options: Optional TankOptions
+    ///
+    /// Returns:
+    ///     CompleteStabilityResult with hydrostatics, GZ curve, and wind data
+    #[pyo3(signature = (displacement_mass, cog, heels, tank_options=None))]
     fn complete_stability(
         &self,
         displacement_mass: f64,
         cog: (f64, f64, f64),
         heels: Vec<f64>,
+        tank_options: Option<PyTankOptions>,
     ) -> PyCompleteStabilityResult {
         let calc = RustStabCalc::new(&self.vessel, self.water_density);
-        let result = calc.complete_stability(displacement_mass, [cog.0, cog.1, cog.2], &heels);
+        let result = calc.complete_stability(
+            displacement_mass,
+            [cog.0, cog.1, cog.2],
+            &heels,
+            tank_options.map(|t| t.inner),
+        );
         result.into()
     }
 }

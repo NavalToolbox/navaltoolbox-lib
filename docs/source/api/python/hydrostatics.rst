@@ -130,7 +130,17 @@ HydrostaticState
    .. py:attribute:: displacement
       :type: float
 
-      Displacement mass (kg).
+      Total displacement mass in kg (Volume * Water Density). Represents the total weight of the floating system (Vessel + Tanks).
+
+   .. py:attribute:: vessel_displacement
+      :type: float
+
+      Vessel displacement mass in kg (Total - Tank Mass). Represents the input displacement (Lightship + Deadweight excluding tanks).
+
+   .. py:attribute:: tank_displacement
+      :type: float
+
+      Tank fluid mass in kg (sum of all tank fluid masses). 0.0 if ``include_mass`` is False.
 
    **Centers**
 

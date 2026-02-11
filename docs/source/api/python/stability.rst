@@ -13,14 +13,15 @@ StabilityCalculator
    :param vessel: The vessel to calculate stability for
    :param water_density: Water density in kg/m³
 
-   .. py:method:: gz_curve(displacement_mass, cog, heels)
+   .. method:: gz_curve(displacement_mass: float, cog: tuple[float, float, float], heels: list[float], tank_options: TankOptions | None = None) -> StabilityCurve
 
-      Calculates the GZ curve for a given loading condition.
+      Calculate the GZ curve for a given loading condition.
 
-      :param displacement_mass: Base vessel displacement (excluding dynamic tanks) in kg
-      :param cog: Base center of gravity (LCG, TCG, VCG) excluding dynamic tanks
-      :param heels: List of heel angles in degrees
-      :returns: StabilityCurve object with corrected GZ values
+      :param displacement_mass: Target displacement in kg.
+      :param cog: Center of gravity (lcg, tcg, vcg) tuple in meters.
+      :param heels: List of heel angles in degrees.
+      :param tank_options: Optional :class:`~navaltoolbox.hydrostatics.TankOptions` to configure tank mass and free surface moment inclusion.
+      :return: A :class:`StabilityCurve` object.
 
    .. py:method:: kn_curve(displacements, heels, lcg=0.0, tcg=0.0)
 
@@ -34,14 +35,18 @@ StabilityCalculator
       :param tcg: Transverse Center of Gravity (m)
       :returns: List of StabilityCurve objects
 
-   .. py:method:: complete_stability(displacement_mass, cog, heels)
+   .. method:: complete_stability(displacement_mass: float, cog: tuple[float, float, float], heels: list[float], tank_options: TankOptions | None = None) -> CompleteStabilityResult
 
-      Calculates complete stability analysis combining hydrostatics, GZ curve, and wind data.
+      Calculate complete stability analysis for a loading condition.
+      
+      This method combines hydrostatic calculations (at equilibrium), GZ curve generation, 
+      and wind heeling analysis (if silhouettes are present).
 
-      :param displacement_mass: Target displacement in kg
-      :param cog: Center of gravity (LCG, TCG, VCG) tuple
-      :param heels: List of heel angles for GZ curve in degrees
-      :returns: CompleteStabilityResult with hydrostatics, GZ curve, and wind data
+      :param displacement_mass: Target displacement in kg.
+      :param cog: Center of gravity (lcg, tcg, vcg) tuple in meters.
+      :param heels: List of heel angles in degrees.
+      :param tank_options: Optional :class:`~navaltoolbox.hydrostatics.TankOptions` to configure tank mass and free surface moment inclusion.
+      :return: A :class:`CompleteStabilityResult` object containing all analysis data.
 
 CompleteStabilityResult
 -----------------------
