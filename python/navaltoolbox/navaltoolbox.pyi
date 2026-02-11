@@ -792,7 +792,9 @@ class HydrostaticState:
         draft_fp: Draft at Forward Perpendicular in meters.
         draft_mp: Draft at Midship Perpendicular in meters.
         volume: Submerged volume in m³.
-        displacement: Displacement mass in kg.
+        displacement: Total displacement mass in kg (Vessel + Tanks).
+        vessel_displacement: Vessel displacement mass in kg (Total - Tanks).
+        tank_displacement: Tank fluid displacement mass in kg.
 
         cob: Center of buoyancy as tuple (lcb, tcb, vcb).
         cog: Center of gravity as tuple (lcg, tcg, vcg) if specified, None otherwise.
@@ -833,6 +835,8 @@ class HydrostaticState:
     draft_mp: float
     volume: float
     displacement: float
+    vessel_displacement: float
+    tank_displacement: float
     
     sectional_areas: List[Tuple[float, float]]
     freeboard: float | None
