@@ -50,7 +50,13 @@ impl<'a> StabilityCalculator<'a> {
     /// * `heels` - List of heel angles in degrees
     ///
     /// This function uses parallel processing (Rayon) for improved performance.
-    pub fn gz_curve(&self, displacement_mass: f64, cog: [f64; 3], heels: &[f64]) -> StabilityCurve {
+    pub fn gz_curve(
+        &self,
+        displacement_mass: f64,
+        cog: [f64; 3],
+        heels: &[f64],
+        tank_options: Option<crate::hydrostatics::TankOptions>,
+    ) -> StabilityCurve {
         use crate::hull::Hull;
         use crate::vessel::Vessel;
         use rayon::prelude::*;
@@ -69,7 +75,15 @@ impl<'a> StabilityCalculator<'a> {
         // Calculate total mass and volume
         let ship_mass = displacement_mass;
         let ship_cog = cog;
-        let total_fluid_mass: f64 = self.vessel.tanks().iter().map(|t| t.fluid_mass()).sum();
+
+        // Handle tank options for mass inclusion
+        let include_tank_mass = tank_options.map(|o| o.include_mass).unwrap_or(false);
+
+        let total_fluid_mass: f64 = if include_tank_mass {
+            self.vessel.tanks().iter().map(|t| t.fluid_mass()).sum()
+        } else {
+            0.0
+        };
         let total_mass = ship_mass + total_fluid_mass;
         let target_volume = total_mass / self.water_density;
 
@@ -265,7 +279,7 @@ impl<'a> StabilityCalculator<'a> {
         let cog = [lcg, tcg, 0.0];
         displacements
             .iter()
-            .map(|&disp| self.gz_curve(disp, cog, heels))
+            .map(|&disp| self.gz_curve(disp, cog, heels, None))
             .collect()
     }
 
@@ -519,12 +533,20 @@ impl<'a> StabilityCalculator<'a> {
         displacement_mass: f64,
         cog: [f64; 3],
         heels: &[f64],
+        tank_options: Option<crate::hydrostatics::TankOptions>,
     ) -> CompleteStabilityResult {
-        // Compute total displacement including tank mass (consistent with gz_curve)
-        let total_fluid_mass: f64 = self.vessel.tanks().iter().map(|t| t.fluid_mass()).sum();
+        // Handle tank options
+        let include_tank_mass = tank_options.map(|o| o.include_mass).unwrap_or(false);
+
+        // Compute total displacement including tank mass
+        let total_fluid_mass: f64 = if include_tank_mass {
+            self.vessel.tanks().iter().map(|t| t.fluid_mass()).sum()
+        } else {
+            0.0
+        };
         let total_mass = displacement_mass + total_fluid_mass;
 
-        // Compute effective upright COG including tanks (consistent with gz_curve)
+        // Compute effective upright COG including tanks
         let effective_cog = if total_fluid_mass > 0.0 {
             let mut total_moment = [
                 displacement_mass * cog[0],
@@ -550,21 +572,28 @@ impl<'a> StabilityCalculator<'a> {
         };
 
         // Calculate hydrostatics at equilibrium with total mass and effective COG
+        // NOTE: If tank_options.include_mass is true, from_displacement will separate target displacement
+        // into ship mass + tank mass internally. So we should pass 'displacement_mass' (ship only)
+        // if we want from_displacement to do the adding.
+        // However, we calculated effective_cog based on total mass.
+        // Let's refine:
+        // HydrostaticsCalculator::from_displacement(d) -> d is treated as SHIP mass if include_mass=True
+
         let hydro_calc = HydrostaticsCalculator::new(self.vessel, self.water_density);
         let hydrostatics = hydro_calc
             .from_displacement(
-                total_mass,
+                displacement_mass, // Pass ship mass, let hydro_calc add tank mass if needed
                 None,
                 Some(effective_cog),
                 None,
                 None,
                 None,
-                None,
+                tank_options,
             )
             .unwrap_or_default();
 
         // Calculate GZ curve
-        let gz_curve = self.gz_curve(displacement_mass, cog, heels);
+        let gz_curve = self.gz_curve(displacement_mass, cog, heels, tank_options);
 
         // Calculate wind heeling data if silhouettes exist
         let wind_data = if self.vessel.has_silhouettes() {
@@ -635,7 +664,7 @@ mod tests {
         let cog = [5.0, 0.0, 2.0]; // Center of box, low VCG
         let displacement = 500.0 * 1025.0; // 500 m³ at 5m draft
 
-        let curve = calc.gz_curve(displacement, cog, &[0.0]);
+        let curve = calc.gz_curve(displacement, cog, &[0.0], None);
 
         // At zero heel for symmetric hull, GZ should be ~0
         assert!(
@@ -679,7 +708,9 @@ mod tests {
         let heel: f64 = 10.0;
 
         // Calculate GZ with FSC (Wet)
-        let curve_wet = calc.gz_curve(ship_mass, ship_cog, &[heel]);
+        // Use TankOptions with Mass=True (default behavior before was implicit mass inclusion)
+        let tank_opts = Some(crate::hydrostatics::TankOptions::all());
+        let curve_wet = calc.gz_curve(ship_mass, ship_cog, &[heel], tank_opts);
         let gz_wet = curve_wet.points[0].value;
 
         // Calculate Dry reference
@@ -692,7 +723,7 @@ mod tests {
 
         vessel.remove_tank(0);
         let calc_dry = StabilityCalculator::new(&vessel, 1025.0);
-        let curve_dry = calc_dry.gz_curve(total_mass, total_cog, &[heel]);
+        let curve_dry = calc_dry.gz_curve(total_mass, total_cog, &[heel], None);
         let gz_dry = curve_dry.points[0].value;
 
         // Theoretical Reduction GG'

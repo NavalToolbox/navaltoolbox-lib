@@ -1202,18 +1202,20 @@ class StabilityCalculator:
     def gz_curve(
         self,
         displacement_mass: float,
-        cog: Tuple[float, float, float],
-        heels: List[float],
+        cog: tuple[float, float, float],
+        heels: list[float],
+        tank_options: TankOptions | None = None,
     ) -> StabilityCurve:
         """Calculate the GZ curve for a given loading condition.
         
         Args:
-            displacement_mass: Displacement in kg.
-            cog: Center of gravity (x, y, z) in meters.
-            heels: List of heel angles in degrees to calculate.
-        
+            displacement_mass: Target displacement in kg
+            cog: Center of gravity (lcg, tcg, vcg) tuple
+            heels: List of heel angles in degrees
+            tank_options: Optional tank configuration (mass/FSM inclusion)
+            
         Returns:
-            StabilityCurve with GZ values at each heel angle.
+            StabilityCurve object
         """
         ...
     
@@ -1243,8 +1245,9 @@ class StabilityCalculator:
     def complete_stability(
         self,
         displacement_mass: float,
-        cog: Tuple[float, float, float],
-        heels: List[float],
+        cog: tuple[float, float, float],
+        heels: list[float],
+        tank_options: TankOptions | None = None,
     ) -> CompleteStabilityResult:
         """Calculate complete stability analysis for a loading condition.
         
@@ -1252,12 +1255,13 @@ class StabilityCalculator:
         (if silhouettes are available) for a single loading condition.
         
         Args:
-            displacement_mass: Target displacement in kg.
-            cog: Center of gravity (lcg, tcg, vcg) tuple.
-            heels: List of heel angles for GZ curve in degrees.
-        
+            displacement_mass: Target displacement in kg
+            cog: Center of gravity (lcg, tcg, vcg) tuple
+            heels: List of heel angles for GZ curve in degrees
+            tank_options: Optional tank configuration (mass/FSM inclusion)
+            
         Returns:
-            CompleteStabilityResult with hydrostatics, GZ curve, and wind data.
+            CompleteStabilityResult with hydrostatics, GZ curve, and wind data
         """
         ...
 

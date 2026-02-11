@@ -1709,14 +1709,22 @@ impl PyStabilityCalculator {
     }
 
     /// Calculate the GZ curve for a given loading condition.
+    /// Calculate the GZ curve for a given loading condition.
+    #[pyo3(signature = (displacement_mass, cog, heels, tank_options=None))]
     fn gz_curve(
         &self,
         displacement_mass: f64,
         cog: (f64, f64, f64),
         heels: Vec<f64>,
+        tank_options: Option<PyTankOptions>,
     ) -> PyStabilityCurve {
         let calc = RustStabCalc::new(&self.vessel, self.water_density);
-        let curve = calc.gz_curve(displacement_mass, [cog.0, cog.1, cog.2], &heels);
+        let curve = calc.gz_curve(
+            displacement_mass,
+            [cog.0, cog.1, cog.2],
+            &heels,
+            tank_options.map(|t| t.inner),
+        );
         PyStabilityCurve { inner: curve }
     }
 
@@ -1760,14 +1768,34 @@ impl PyStabilityCalculator {
     ///
     /// Returns:
     ///     CompleteStabilityResult with hydrostatics, GZ curve, and wind data
+    /// Calculate complete stability analysis for a loading condition.
+    ///
+    /// Combines hydrostatic calculations, GZ curve, and wind heeling data
+    /// (if silhouettes are available) for a single loading condition.
+    ///
+    /// Args:
+    ///     displacement_mass: Target displacement in kg
+    ///     cog: Center of gravity (lcg, tcg, vcg) tuple
+    ///     heels: List of heel angles for GZ curve in degrees
+    ///     tank_options: Optional TankOptions
+    ///
+    /// Returns:
+    ///     CompleteStabilityResult with hydrostatics, GZ curve, and wind data
+    #[pyo3(signature = (displacement_mass, cog, heels, tank_options=None))]
     fn complete_stability(
         &self,
         displacement_mass: f64,
         cog: (f64, f64, f64),
         heels: Vec<f64>,
+        tank_options: Option<PyTankOptions>,
     ) -> PyCompleteStabilityResult {
         let calc = RustStabCalc::new(&self.vessel, self.water_density);
-        let result = calc.complete_stability(displacement_mass, [cog.0, cog.1, cog.2], &heels);
+        let result = calc.complete_stability(
+            displacement_mass,
+            [cog.0, cog.1, cog.2],
+            &heels,
+            tank_options.map(|t| t.inner),
+        );
         result.into()
     }
 }

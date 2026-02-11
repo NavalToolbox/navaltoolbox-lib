@@ -325,8 +325,11 @@ impl<'a> HydrostaticsCalculator<'a> {
         if let Some(state) = &mut state {
             if let Some(opts) = tank_options {
                 if opts.include_mass {
-                    // Add tank mass to total displacement
-                    state.displacement = state.hull_displacement + state.tank_mass;
+                    // Do NOT add tank mass to total displacement.
+                    // Displacement = Volume * Density (Buoyancy).
+                    // If we are at equilibrium, Buoyancy = Ship Mass + Tank Mass.
+                    // state.hull_displacement already reflects the buoyancy of the hull.
+                    // state.displacement = state.hull_displacement; // Already set by default
                 }
 
                 if !opts.include_fsm {
