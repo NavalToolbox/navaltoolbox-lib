@@ -608,6 +608,10 @@ impl<'a> StabilityCalculator<'a> {
                     waterline_z,
                 ))
             } else {
+                log::warn!(
+                    "Silhouettes present but emerged area is zero at draft {:.3}m. Wind data skipped. Check silhouette elevation.",
+                    waterline_z
+                );
                 None
             }
         } else {

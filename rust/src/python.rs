@@ -1705,7 +1705,7 @@ impl PyCompleteStabilityResult {
 /// Calculator for stability curves (GZ).
 #[pyclass(name = "StabilityCalculator")]
 pub struct PyStabilityCalculator {
-    vessel: RustVessel,
+    vessel: Py<PyVessel>,
     water_density: f64,
 }
 
@@ -1714,24 +1714,25 @@ impl PyStabilityCalculator {
     /// Create a stability calculator for a vessel.
     #[new]
     #[pyo3(signature = (vessel, water_density=1025.0))]
-    fn new(vessel: &PyVessel, water_density: f64) -> Self {
+    fn new(vessel: Py<PyVessel>, water_density: f64) -> Self {
         Self {
-            vessel: vessel.inner.clone(),
+            vessel,
             water_density,
         }
     }
 
     /// Calculate the GZ curve for a given loading condition.
-    /// Calculate the GZ curve for a given loading condition.
     #[pyo3(signature = (displacement_mass, cog, heels, tank_options=None))]
     fn gz_curve(
         &self,
+        py: Python<'_>,
         displacement_mass: f64,
         cog: (f64, f64, f64),
         heels: Vec<f64>,
         tank_options: Option<PyTankOptions>,
     ) -> PyStabilityCurve {
-        let calc = RustStabCalc::new(&self.vessel, self.water_density);
+        let vessel = self.vessel.borrow(py);
+        let calc = RustStabCalc::new(&vessel.inner, self.water_density);
         let curve = calc.gz_curve(
             displacement_mass,
             [cog.0, cog.1, cog.2],
@@ -1756,12 +1757,14 @@ impl PyStabilityCalculator {
     #[pyo3(signature = (displacements, heels, lcg=0.0, tcg=0.0))]
     fn kn_curve(
         &self,
+        py: Python<'_>,
         displacements: Vec<f64>,
         heels: Vec<f64>,
         lcg: f64,
         tcg: f64,
     ) -> Vec<PyStabilityCurve> {
-        let calc = RustStabCalc::new(&self.vessel, self.water_density);
+        let vessel = self.vessel.borrow(py);
+        let calc = RustStabCalc::new(&vessel.inner, self.water_density);
         let curves = calc.kn_curve(&displacements, lcg, tcg, &heels);
         curves
             .into_iter()
@@ -1781,28 +1784,17 @@ impl PyStabilityCalculator {
     ///
     /// Returns:
     ///     CompleteStabilityResult with hydrostatics, GZ curve, and wind data
-    /// Calculate complete stability analysis for a loading condition.
-    ///
-    /// Combines hydrostatic calculations, GZ curve, and wind heeling data
-    /// (if silhouettes are available) for a single loading condition.
-    ///
-    /// Args:
-    ///     displacement_mass: Target displacement in kg
-    ///     cog: Center of gravity (lcg, tcg, vcg) tuple
-    ///     heels: List of heel angles for GZ curve in degrees
-    ///     tank_options: Optional TankOptions
-    ///
-    /// Returns:
-    ///     CompleteStabilityResult with hydrostatics, GZ curve, and wind data
     #[pyo3(signature = (displacement_mass, cog, heels, tank_options=None))]
     fn complete_stability(
         &self,
+        py: Python<'_>,
         displacement_mass: f64,
         cog: (f64, f64, f64),
         heels: Vec<f64>,
         tank_options: Option<PyTankOptions>,
     ) -> PyCompleteStabilityResult {
-        let calc = RustStabCalc::new(&self.vessel, self.water_density);
+        let vessel = self.vessel.borrow(py);
+        let calc = RustStabCalc::new(&vessel.inner, self.water_density);
         let result = calc.complete_stability(
             displacement_mass,
             [cog.0, cog.1, cog.2],

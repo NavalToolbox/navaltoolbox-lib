@@ -17,7 +17,9 @@
 
 //! Silhouette struct for wind heeling moment calculations.
 
-use super::loader::{load_dxf_silhouette, load_vtk_silhouette, SilhouetteLoadError};
+use super::loader::{
+    load_csv_silhouette, load_dxf_silhouette, load_vtk_silhouette, SilhouetteLoadError,
+};
 use std::path::Path;
 
 /// A 2D silhouette profile in the X-Z plane (ship lateral view).
@@ -35,7 +37,26 @@ pub struct Silhouette {
 impl Silhouette {
     /// Create a new silhouette from a list of 3D points.
     pub fn new(points: Vec<[f64; 3]>, name: String) -> Self {
-        Self { points, name }
+        let s = Self { points, name };
+        s.validate();
+        s
+    }
+
+    /// Validate the silhouette geometry and log warnings if issues found.
+    pub fn validate(&self) {
+        if self.points.len() < 3 {
+            log::warn!("Silhouette '{}' has fewer than 3 points.", self.name);
+        }
+        if !self.is_closed() {
+            log::warn!("Silhouette '{}' is not closed.", self.name);
+        }
+        if self.get_area() < 1e-4 {
+            log::warn!(
+                "Silhouette '{}' has extremely small or zero area ({:.6} m²). Check loading units or orientation.",
+                self.name,
+                self.get_area()
+            );
+        }
     }
 
     /// Load a silhouette from a DXF file.
@@ -44,7 +65,9 @@ impl Silhouette {
     /// If Y coordinates are non-zero, they are set to 0 with a warning.
     pub fn from_dxf(path: &Path) -> Result<Self, SilhouetteLoadError> {
         let (points, name) = load_dxf_silhouette(path)?;
-        Ok(Self { points, name })
+        let s = Self { points, name };
+        s.validate();
+        Ok(s)
     }
 
     /// Load a silhouette from a VTK file (.vtk or .vtp).
@@ -53,7 +76,17 @@ impl Silhouette {
     /// If Y coordinates are non-zero, they are set to 0 with a warning.
     pub fn from_vtk(path: &Path) -> Result<Self, SilhouetteLoadError> {
         let (points, name) = load_vtk_silhouette(path)?;
-        Ok(Self { points, name })
+        let s = Self { points, name };
+        s.validate();
+        Ok(s)
+    }
+
+    /// Load a silhouette from a CSV or TXT file.
+    pub fn from_csv(path: &Path) -> Result<Self, SilhouetteLoadError> {
+        let (points, name) = load_csv_silhouette(path)?;
+        let s = Self { points, name };
+        s.validate();
+        Ok(s)
     }
 
     /// Load a silhouette from a file (DXF or VTK) based on extension.
@@ -67,6 +100,7 @@ impl Silhouette {
         match ext.as_str() {
             "dxf" => Self::from_dxf(path),
             "vtk" | "vtp" | "vtu" => Self::from_vtk(path),
+            "csv" | "txt" => Self::from_csv(path),
             _ => Err(SilhouetteLoadError::UnsupportedFormat),
         }
     }
@@ -341,5 +375,25 @@ mod tests {
         let rect = create_rectangle(0.0, 100.0, 0.0, 20.0);
         let emerged = rect.get_emerged_area(25.0);
         assert!(emerged < 1.0, "No emerged area above z=25, got {}", emerged);
+    }
+
+    #[test]
+    fn test_open_silhouette_detection() {
+        let points = vec![
+            [0.0, 0.0, 0.0],
+            [10.0, 0.0, 0.0],
+            [10.0, 0.0, 5.0],
+            // Missing closure back to 0,0,0
+        ];
+        let s = Silhouette::new(points, "open".to_string());
+        assert!(!s.is_closed());
+    }
+
+    #[test]
+    fn test_zero_area_detection() {
+        // Collinear points
+        let points = vec![[0.0, 0.0, 0.0], [5.0, 0.0, 0.0], [10.0, 0.0, 0.0]];
+        let s = Silhouette::new(points, "flat".to_string());
+        assert!(s.get_area() < 1e-6);
     }
 }
