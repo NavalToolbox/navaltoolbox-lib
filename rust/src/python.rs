@@ -1120,6 +1120,7 @@ pub struct PyHydrostaticState {
     // Internal storage as vectors
     cob_internal: [f64; 3],
     cog_internal: Option<[f64; 3]>,
+    vessel_cog_internal: Option<[f64; 3]>,
 
     // Expose all hydrostatic properties
     #[pyo3(get)]
@@ -1181,6 +1182,7 @@ impl From<RustHydroState> for PyHydrostaticState {
             tank_displacement: state.tank_displacement,
             cob_internal: state.cob,
             cog_internal: state.cog,
+            vessel_cog_internal: state.vessel_cog,
             waterplane_area: state.waterplane_area,
             lcf: state.lcf,
             bmt: state.bmt,
@@ -1254,6 +1256,27 @@ impl PyHydrostaticState {
     #[getter]
     fn vcg(&self) -> Option<f64> {
         self.cog_internal.map(|c| c[2])
+    }
+
+    // Convenience getters for individual Vessel COG components
+    #[getter]
+    fn vessel_cog(&self) -> Option<(f64, f64, f64)> {
+        self.vessel_cog_internal.map(|c| (c[0], c[1], c[2]))
+    }
+
+    #[getter]
+    fn vessel_lcg(&self) -> Option<f64> {
+        self.vessel_cog_internal.map(|c| c[0])
+    }
+
+    #[getter]
+    fn vessel_tcg(&self) -> Option<f64> {
+        self.vessel_cog_internal.map(|c| c[1])
+    }
+
+    #[getter]
+    fn vessel_vcg(&self) -> Option<f64> {
+        self.vessel_cog_internal.map(|c| c[2])
     }
 
     // GMT/GML getters (optional)
@@ -1355,6 +1378,8 @@ impl PyHydrostaticsCalculator {
             vcg,
             num_stations,
             tank_options.map(|t| t.inner),
+            None,
+            None,
         );
 
         state
@@ -1489,6 +1514,10 @@ pub struct PyStabilityPoint {
     pub is_flooding: bool,
     #[pyo3(get)]
     pub flooded_openings: Vec<String>,
+    #[pyo3(get)]
+    pub cog: Option<(f64, f64, f64)>,
+    #[pyo3(get)]
+    pub vessel_cog: Option<(f64, f64, f64)>,
 }
 
 /// A complete GZ stability curve.
@@ -1530,6 +1559,8 @@ impl PyStabilityCurve {
                 gz: p.value,
                 is_flooding: p.is_flooding,
                 flooded_openings: p.flooded_openings.clone(),
+                cog: p.cog.map(|c| (c[0], c[1], c[2])),
+                vessel_cog: p.vessel_cog.map(|c| (c[0], c[1], c[2])),
             })
             .collect()
     }

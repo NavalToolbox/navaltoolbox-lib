@@ -184,7 +184,9 @@ mod box_barge_tests {
         let calc = HydrostaticsCalculator::new(&vessel, 1025.0);
 
         // At draft 5m, volume should be 10*10*5 = 500 m³
-        let state = calc.from_draft(5.0, 0.0, 0.0, None, None, None).unwrap();
+        let state = calc
+            .from_draft(5.0, 0.0, 0.0, None, None, None, None, None)
+            .unwrap();
 
         let expected_volume = 500.0;
         let error = (state.volume - expected_volume).abs();
@@ -235,7 +237,9 @@ mod hydrostatics_tests {
 
         // At draft 1.0, half is submerged
         // Expected volume: 10 * 2 * 1 = 20 m³
-        let state = calc.from_draft(1.0, 0.0, 0.0, None, None, None).unwrap();
+        let state = calc
+            .from_draft(1.0, 0.0, 0.0, None, None, None, None, None)
+            .unwrap();
 
         let expected_volume = 20.0;
         let error = (state.volume - expected_volume).abs();
@@ -259,10 +263,10 @@ mod hydrostatics_tests {
         let calc_salt = HydrostaticsCalculator::new(&vessel, 1025.0);
 
         let state_fresh = calc_fresh
-            .from_draft(1.0, 0.0, 0.0, None, None, None)
+            .from_draft(1.0, 0.0, 0.0, None, None, None, None, None)
             .unwrap();
         let state_salt = calc_salt
-            .from_draft(1.0, 0.0, 0.0, None, None, None)
+            .from_draft(1.0, 0.0, 0.0, None, None, None, None, None)
             .unwrap();
 
         // Same volume
@@ -287,7 +291,9 @@ mod hydrostatics_tests {
         let vessel = create_test_hull();
         let calc = HydrostaticsCalculator::new(&vessel, 1000.0);
 
-        let state = calc.from_draft(1.0, 0.0, 0.0, None, None, None).unwrap();
+        let state = calc
+            .from_draft(1.0, 0.0, 0.0, None, None, None, None, None)
+            .unwrap();
 
         // Displacement = Volume * Density
         let expected_displacement = state.volume * 1000.0;
@@ -579,7 +585,7 @@ mod dtmb5415_tests {
         let calc = HydrostaticsCalculator::new(&vessel, 1025.0);
 
         // At draft 6.15m, volume should be ~8424 m³ (SIMMAN 2008)
-        let state = calc.from_draft(6.15, 0.0, 0.0, Some(VCG), None, None);
+        let state = calc.from_draft(6.15, 0.0, 0.0, Some(VCG), None, None, None, None);
 
         assert!(
             state.is_some(),

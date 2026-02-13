@@ -187,7 +187,7 @@ fn test_box_metacentric_heights() {
     let vcg = 7.0;
 
     let state = calc
-        .from_draft(draft, 0.0, 0.0, Some(vcg), None, None)
+        .from_draft(draft, 0.0, 0.0, Some(vcg), None, None, None, None)
         .unwrap();
 
     // Theoretical BM_t = B² / (12×T) = 100 / 60 = 1.667 m
@@ -242,7 +242,9 @@ fn test_catamaran_two_disjoint_boxes() {
     let vessel = Vessel::new_multi(vec![hull1, hull2]).unwrap();
 
     let calc = HydrostaticsCalculator::new(&vessel, 1025.0);
-    let state = calc.from_draft(5.0, 0.0, 0.0, None, None, None).unwrap();
+    let state = calc
+        .from_draft(5.0, 0.0, 0.0, None, None, None, None, None)
+        .unwrap();
 
     // Expected total area = 100 m²
     assert!(
@@ -275,7 +277,9 @@ fn test_two_joined_boxes() {
     let vessel = Vessel::new_multi(vec![hull1, hull2]).unwrap();
 
     let calc = HydrostaticsCalculator::new(&vessel, 1025.0);
-    let state = calc.from_draft(5.0, 0.0, 0.0, None, None, None).unwrap();
+    let state = calc
+        .from_draft(5.0, 0.0, 0.0, None, None, None, None, None)
+        .unwrap();
 
     // Expected area = 10 × 10 = 100 m²
     assert!(

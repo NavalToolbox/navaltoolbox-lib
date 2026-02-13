@@ -32,6 +32,10 @@ pub struct StabilityPoint {
     pub is_flooding: bool,
     /// Names of submerged openings (empty if none)
     pub flooded_openings: Vec<String>,
+    /// Total (Effective) Center of Gravity [LCG, TCG, VCG] at this heel (Ship + Liquid Shift)
+    pub cog: Option<[f64; 3]>,
+    /// Vessel (Ship-only) Center of Gravity [LCG, TCG, VCG]
+    pub vessel_cog: Option<[f64; 3]>,
 }
 
 /// A complete stability curve.

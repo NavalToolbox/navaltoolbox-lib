@@ -100,8 +100,10 @@ pub struct HydrostaticState {
     /// Center of buoyancy [LCB, TCB, VCB] in meters
     pub cob: [f64; 3],
 
-    /// Center of gravity [LCG, TCG, VCG] in meters (if specified)
+    /// Total Center of gravity [LCG, TCG, VCG] in meters (Ship + Tanks)
     pub cog: Option<[f64; 3]>,
+    /// Vessel (Ship-only) Center of gravity [LCG, TCG, VCG] in meters
+    pub vessel_cog: Option<[f64; 3]>,
 
     /// Waterplane area in m²
     pub waterplane_area: f64,
@@ -189,6 +191,21 @@ impl HydrostaticState {
     pub fn vcg(&self) -> Option<f64> {
         self.cog.map(|c| c[2])
     }
+
+    /// Returns the vessel longitudinal center of gravity (LCG) if specified
+    pub fn vessel_lcg(&self) -> Option<f64> {
+        self.vessel_cog.map(|c| c[0])
+    }
+
+    /// Returns the vessel transverse center of gravity (TCG) if specified
+    pub fn vessel_tcg(&self) -> Option<f64> {
+        self.vessel_cog.map(|c| c[1])
+    }
+
+    /// Returns the vessel vertical center of gravity (VCG) if specified
+    pub fn vessel_vcg(&self) -> Option<f64> {
+        self.vessel_cog.map(|c| c[2])
+    }
 }
 
 impl Default for HydrostaticState {
@@ -203,6 +220,7 @@ impl Default for HydrostaticState {
             tank_displacement: 0.0,
             cob: [0.0, 0.0, 0.0],
             cog: None,
+            vessel_cog: None,
             waterplane_area: 0.0,
             lcf: 0.0,
             bmt: 0.0,

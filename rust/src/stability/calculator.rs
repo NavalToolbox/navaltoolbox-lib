@@ -78,9 +78,12 @@ impl<'a> StabilityCalculator<'a> {
 
         // Handle tank options for mass inclusion
         let include_tank_mass = tank_options.map(|o| o.include_mass).unwrap_or(false);
+        let include_fsm = tank_options.map(|o| o.include_fsm).unwrap_or(true);
+
+        let total_fluid_mass_calc: f64 = self.vessel.tanks().iter().map(|t| t.fluid_mass()).sum();
 
         let total_fluid_mass: f64 = if include_tank_mass {
-            self.vessel.tanks().iter().map(|t| t.fluid_mass()).sum()
+            total_fluid_mass_calc
         } else {
             0.0
         };
@@ -138,14 +141,28 @@ impl<'a> StabilityCalculator<'a> {
                 let mut total_moment_y = ship_mass * ship_cog[1];
                 let mut total_moment_z = ship_mass * ship_cog[2];
 
-                if total_fluid_mass > 0.0 {
+                if include_tank_mass || include_fsm {
                     for tank in self.vessel.tanks() {
                         let mass = tank.fluid_mass();
                         if mass > 0.0 {
-                            let tank_cog = tank.center_of_gravity_at(heel, 0.0);
-                            total_moment_x += mass * tank_cog[0];
-                            total_moment_y += mass * tank_cog[1];
-                            total_moment_z += mass * tank_cog[2];
+                            let tank_cog = if include_fsm {
+                                tank.center_of_gravity_at(heel, 0.0)
+                            } else {
+                                tank.center_of_gravity()
+                            };
+
+                            if include_tank_mass {
+                                total_moment_x += mass * tank_cog[0];
+                                total_moment_y += mass * tank_cog[1];
+                                total_moment_z += mass * tank_cog[2];
+                            } else {
+                                // FSM only: Add the shift moment relative to upright
+                                // Assumes static mass is already part of ship_mass
+                                let upright_cog = tank.center_of_gravity();
+                                total_moment_x += mass * (tank_cog[0] - upright_cog[0]);
+                                total_moment_y += mass * (tank_cog[1] - upright_cog[1]);
+                                total_moment_z += mass * (tank_cog[2] - upright_cog[2]);
+                            }
                         }
                     }
                 }
@@ -204,6 +221,8 @@ impl<'a> StabilityCalculator<'a> {
                     value: gz,
                     is_flooding,
                     flooded_openings,
+                    cog: Some(effective_cog),
+                    vessel_cog: Some(ship_cog),
                 }
             })
             .collect();

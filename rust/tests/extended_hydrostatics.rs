@@ -19,7 +19,7 @@ fn test_box_hydrostatics() {
     // Implicit VCG=None.
 
     let state = calc
-        .from_draft(draft, 0.0, 0.0, None, None, None)
+        .from_draft(draft, 0.0, 0.0, None, None, None, None, None)
         .expect("Failed to calculate box hydrostatics");
 
     println!("Box State at T=5.0: {:#?}", state);

@@ -52,6 +52,7 @@ pub mod hull;
 pub mod hydrostatics;
 pub mod mesh;
 pub mod scripting;
+
 pub mod silhouette;
 pub mod stability;
 pub mod tanks;

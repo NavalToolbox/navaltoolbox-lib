@@ -17,7 +17,7 @@ fn test_dtmb5415_simman_validation() {
     let vcg = 7.555;
 
     let state = calc
-        .from_draft(draft, 0.0, 0.0, Some(vcg), None, None)
+        .from_draft(draft, 0.0, 0.0, Some(vcg), None, None, None, None)
         .expect("Failed to calculate hydrostatics");
 
     println!("Hydrostatic State at T={}: {:#?}", draft, state);
@@ -100,7 +100,7 @@ fn test_dtmb_equilibrium_trim_from_lcg_offset() {
     let draft = 6.15;
     let vcg = 7.555;
     let initial_state = calc
-        .from_draft(draft, 0.0, 0.0, Some(vcg), None, None)
+        .from_draft(draft, 0.0, 0.0, Some(vcg), None, None, None, None)
         .expect("Failed to calculate initial hydrostatics");
 
     // LCB at T=6.15
@@ -145,7 +145,7 @@ fn test_dtmb_equilibrium_combined() {
     let draft = 6.15;
     let vcg = 7.555;
     let initial_state = calc
-        .from_draft(draft, 0.0, 0.0, Some(vcg), None, None)
+        .from_draft(draft, 0.0, 0.0, Some(vcg), None, None, None, None)
         .expect("Failed to calculate initial hydrostatics");
 
     // LCB at T=6.15
