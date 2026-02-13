@@ -1468,7 +1468,12 @@ class Tank:
         ...
     
     def get_fluid_faces(self, heel: float = 0.0, trim: float = 0.0) -> List[Tuple[int, int, int]]:
-        """Returns fluid mesh faces [(i,j,k)] or empty list."""
+        """Returns fluid mesh faces [(i,j,k)] or empty list if empty.
+        
+        Args:
+            heel: Heel angle in degrees (default 0.0).
+            trim: Trim angle in degrees (default 0.0).
+        """
         ...
 
 

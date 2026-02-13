@@ -24,3 +24,7 @@ mod tank;
 
 pub use dataclasses::TankState;
 pub use tank::{FSMMode, Tank};
+
+/// A thread-safe shared reference to a Tank.
+/// This allows multiple components (Vessel, Python wrappers) to point to the same Tank instance.
+pub type SharedTank = std::sync::Arc<std::sync::RwLock<Tank>>;

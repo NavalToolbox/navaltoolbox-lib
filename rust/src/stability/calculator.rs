@@ -80,7 +80,12 @@ impl<'a> StabilityCalculator<'a> {
         let include_tank_mass = tank_options.map(|o| o.include_mass).unwrap_or(false);
         let include_fsm = tank_options.map(|o| o.include_fsm).unwrap_or(true);
 
-        let total_fluid_mass_calc: f64 = self.vessel.tanks().iter().map(|t| t.fluid_mass()).sum();
+        let total_fluid_mass_calc: f64 = self
+            .vessel
+            .tanks()
+            .iter()
+            .map(|t| t.read().unwrap().fluid_mass())
+            .sum();
 
         let total_fluid_mass: f64 = if include_tank_mass {
             total_fluid_mass_calc
@@ -141,27 +146,50 @@ impl<'a> StabilityCalculator<'a> {
                 let mut total_moment_y = ship_mass * ship_cog[1];
                 let mut total_moment_z = ship_mass * ship_cog[2];
 
+                let mut total_fsm_moment = 0.0;
+
                 if include_tank_mass || include_fsm {
-                    for tank in self.vessel.tanks() {
+                    for tank_arc in self.vessel.tanks() {
+                        let tank = tank_arc.read().unwrap();
                         let mass = tank.fluid_mass();
                         if mass > 0.0 {
-                            let tank_cog = if include_fsm {
-                                tank.center_of_gravity_at(heel, 0.0)
+                            // Determine Tank COG and whether to apply GG' correction
+                            let (tank_cog, apply_gg_correction) = if include_fsm {
+                                match tank.fsm_mode() {
+                                    crate::tanks::FSMMode::Actual => {
+                                        // Physical Shift: accurate 3D simulation
+                                        (tank.center_of_gravity_at(heel, 0.0), false)
+                                    }
+                                    _ => {
+                                        // Maximum or Fixed: Frozen mass + GG' correction
+                                        (tank.center_of_gravity(), true)
+                                    }
+                                }
                             } else {
-                                tank.center_of_gravity()
+                                // No FSM: Frozen mass
+                                (tank.center_of_gravity(), false)
                             };
 
+                            // Accumulate mass moments
                             if include_tank_mass {
                                 total_moment_x += mass * tank_cog[0];
                                 total_moment_y += mass * tank_cog[1];
                                 total_moment_z += mass * tank_cog[2];
                             } else {
-                                // FSM only: Add the shift moment relative to upright
-                                // Assumes static mass is already part of ship_mass
+                                // FSM only (shift relative to upright) used for legacy/compatibility
+                                // If mass is not included in total, we assume it's in lightship but we trigger shift?
+                                // This path is rarely used if include_tank_mass is checked (default).
+                                // If we are here, it means we treat tank mass as "on board" but dynamic.
                                 let upright_cog = tank.center_of_gravity();
                                 total_moment_x += mass * (tank_cog[0] - upright_cog[0]);
                                 total_moment_y += mass * (tank_cog[1] - upright_cog[1]);
                                 total_moment_z += mass * (tank_cog[2] - upright_cog[2]);
+                            }
+
+                            // Accumulate FSM correction moment if needed
+                            if apply_gg_correction {
+                                total_fsm_moment +=
+                                    tank.free_surface_moment_t() * tank.fluid_density();
                             }
                         }
                     }
@@ -192,16 +220,18 @@ impl<'a> StabilityCalculator<'a> {
                 );
 
                 // 3. Calculate Exact GZ (using ORIGINAL/SELF calculator)
-                // If proxy was used, the GZ returned is approx. computation on simplified mesh.
-                // We MUST recompute GZ on the full mesh for accuracy.
-                // If NO proxy was used, proxy_calc IS self, so _approx_gz IS exact.
-                // However, re-running one computation is negligible compared to the search.
-                // Optimally:
-                let gz = if simplified_vessel_storage.is_some() {
+                let mut gz = if simplified_vessel_storage.is_some() {
                     self.compute_gz_at_state(draft, trim, heel, effective_cog, center_x, center_y)
                 } else {
                     _approx_gz // Already computed on full mesh
                 };
+
+                // Apply GG' correction if accumulated (for Maximum/Fixed modes)
+                // GZ_fluid = GZ_solid - (FSM / Displacement) * sin(heel)
+                if total_fsm_moment > 0.0 && total_mass > 0.0 {
+                    let gg_prime = total_fsm_moment / total_mass;
+                    gz -= gg_prime * heel.to_radians().sin();
+                }
 
                 // 4. Check Downflooding (using ORIGINAL vessel)
                 let pivot = [center_x, center_y, draft];
@@ -558,8 +588,13 @@ impl<'a> StabilityCalculator<'a> {
         let include_tank_mass = tank_options.map(|o| o.include_mass).unwrap_or(false);
 
         // Compute total displacement including tank mass
+        // Compute total displacement including tank mass
         let total_fluid_mass: f64 = if include_tank_mass {
-            self.vessel.tanks().iter().map(|t| t.fluid_mass()).sum()
+            self.vessel
+                .tanks()
+                .iter()
+                .map(|t| t.read().unwrap().fluid_mass())
+                .sum()
         } else {
             0.0
         };
@@ -572,7 +607,8 @@ impl<'a> StabilityCalculator<'a> {
                 displacement_mass * cog[1],
                 displacement_mass * cog[2],
             ];
-            for tank in self.vessel.tanks() {
+            for tank_arc in self.vessel.tanks() {
+                let tank = tank_arc.read().unwrap();
                 let mass = tank.fluid_mass();
                 if mass > 0.0 {
                     let tank_cog = tank.center_of_gravity();
@@ -708,7 +744,8 @@ mod tests {
         let tank = Tank::from_box("FSC_Test", 0.0, 5.0, -2.5, 2.5, 0.0, 2.0, 1000.0);
         let mut tank = tank;
         tank.set_fill_percent(50.0);
-        vessel.add_tank(tank.clone());
+        use std::sync::{Arc, RwLock};
+        vessel.add_tank(Arc::new(RwLock::new(tank.clone())));
 
         let calc = StabilityCalculator::new(&vessel, 1025.0);
         let target_total_displacement = 500.0 * 1025.0; // 500m³ * 1.025

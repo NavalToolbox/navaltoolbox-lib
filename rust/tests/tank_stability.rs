@@ -2,6 +2,7 @@ use navaltoolbox::hull::Hull;
 use navaltoolbox::stability::StabilityCalculator;
 use navaltoolbox::tanks::Tank;
 use navaltoolbox::vessel::Vessel;
+use std::sync::{Arc, RwLock};
 
 #[test]
 fn test_complete_stability_with_tanks() {
@@ -16,7 +17,7 @@ fn test_complete_stability_with_tanks() {
         "TestTank", 0.0, 5.0, -2.5, 2.5, 0.0, 5.0, 1025.0, // Seawater density inside
     );
     tank.set_fill_percent(100.0);
-    vessel.add_tank(tank);
+    vessel.add_tank(Arc::new(RwLock::new(tank)));
 
     // 3. Setup Stability Calculator
     let calc = StabilityCalculator::new(&vessel, 1025.0);
@@ -71,7 +72,7 @@ fn test_complete_stability_equilibrium_trim() {
 
     let mut tank = Tank::from_box("FwdTank", 15.0, 20.0, -2.5, 2.5, 0.0, 5.0, 1025.0);
     tank.set_fill_percent(100.0);
-    vessel.add_tank(tank);
+    vessel.add_tank(Arc::new(RwLock::new(tank)));
 
     let calc = StabilityCalculator::new(&vessel, 1025.0);
     let ship_mass = 205000.0;
@@ -96,7 +97,7 @@ fn test_displacement_components() {
     let mut tank = Tank::from_box("TestTank", 0.0, 5.0, -2.5, 2.5, 0.0, 5.0, 1025.0);
     tank.set_fill_percent(100.0);
     let tank_mass = tank.fluid_mass();
-    vessel.add_tank(tank);
+    vessel.add_tank(Arc::new(RwLock::new(tank)));
 
     let calc = StabilityCalculator::new(&vessel, 1025.0);
     let ship_mass = 205000.0; // ~200t

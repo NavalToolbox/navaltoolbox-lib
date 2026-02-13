@@ -37,10 +37,11 @@ use crate::stability::{
     CompleteStabilityResult as RustCompleteStabilityResult, StabilityCalculator as RustStabCalc,
     StabilityCurve as RustStabCurve, WindHeelingData as RustWindHeelingData,
 };
-use crate::tanks::{FSMMode, Tank as RustTank};
+use crate::tanks::{FSMMode, SharedTank, Tank as RustTank};
 use crate::vessel::Vessel as RustVessel;
 
 use std::path::Path;
+use std::sync::{Arc, RwLock};
 
 // ============================================================================
 // Hull Python Wrapper
@@ -1842,8 +1843,9 @@ impl PyStabilityCalculator {
 
 /// A tank with fluid management capabilities.
 #[pyclass(name = "Tank")]
+#[derive(Clone)]
 pub struct PyTank {
-    inner: RustTank,
+    inner: SharedTank,
 }
 
 #[pymethods]
@@ -1859,7 +1861,9 @@ impl PyTank {
         if let Some(n) = name {
             tank.set_name(n);
         }
-        Ok(Self { inner: tank })
+        Ok(Self {
+            inner: Arc::new(RwLock::new(tank)),
+        })
     }
 
     /// Create a Tank as the intersection of a box with a hull geometry.
@@ -1892,7 +1896,9 @@ impl PyTank {
             PyValueError::new_err(format!("Failed to create tank from intersection: {}", e))
         })?;
 
-        Ok(Self { inner: tank })
+        Ok(Self {
+            inner: Arc::new(RwLock::new(tank)),
+        })
     }
 
     /// Create a box-shaped tank.
@@ -1909,7 +1915,7 @@ impl PyTank {
         fluid_density: f64,
     ) -> Self {
         Self {
-            inner: RustTank::from_box(
+            inner: Arc::new(RwLock::new(RustTank::from_box(
                 name,
                 x_min,
                 x_max,
@@ -1918,88 +1924,101 @@ impl PyTank {
                 z_min,
                 z_max,
                 fluid_density,
-            ),
+            ))),
         }
     }
 
     /// Returns the tank name.
     #[getter]
-    fn name(&self) -> &str {
-        self.inner.name()
+    fn name(&self) -> String {
+        self.inner.read().unwrap().name().to_string()
     }
 
     /// Returns the total volume in m³.
     #[getter]
     fn total_volume(&self) -> f64 {
-        self.inner.total_volume()
+        self.inner.read().unwrap().total_volume()
     }
 
     /// Returns the fill level as a fraction (0-1).
     #[getter]
     fn fill_level(&self) -> f64 {
-        self.inner.fill_level()
+        self.inner.read().unwrap().fill_level()
     }
 
     /// Sets the fill level as a fraction (0-1).
     #[setter]
     fn set_fill_level(&mut self, level: f64) {
-        self.inner.set_fill_level(level);
+        self.inner.write().unwrap().set_fill_level(level);
     }
 
     /// Returns the fill level as a percentage (0-100).
     #[getter]
     fn fill_percent(&self) -> f64 {
-        self.inner.fill_percent()
+        self.inner.read().unwrap().fill_percent()
     }
 
     /// Sets the fill level as a percentage (0-100).
     #[setter]
     fn set_fill_percent(&mut self, percent: f64) {
-        self.inner.set_fill_percent(percent);
+        self.inner.write().unwrap().set_fill_percent(percent);
     }
 
     /// Returns the filled volume in m³.
     #[getter]
     fn fill_volume(&self) -> f64 {
-        self.inner.fill_volume()
+        self.inner.read().unwrap().fill_volume()
     }
 
     /// Returns the fluid mass in kg.
     #[getter]
     fn fluid_mass(&self) -> f64 {
-        self.inner.fluid_mass()
+        self.inner.read().unwrap().fluid_mass()
     }
 
     /// Returns the center of gravity [x, y, z].
     #[getter]
     fn center_of_gravity(&self) -> [f64; 3] {
-        self.inner.center_of_gravity()
+        self.inner.read().unwrap().center_of_gravity()
+    }
+
+    /// Returns the center of gravity of the fluid at a specific heel and trim.
+    ///
+    /// Args:
+    ///     heel: Heel angle in degrees
+    ///     trim: Trim angle in degrees (default 0.0)
+    #[pyo3(signature = (heel, trim=0.0))]
+    fn center_of_gravity_at(&self, heel: f64, trim: f64) -> [f64; 3] {
+        self.inner.read().unwrap().center_of_gravity_at(heel, trim)
     }
 
     /// Returns the transverse free surface moment in m⁴.
     #[getter]
     fn free_surface_moment_t(&self) -> f64 {
-        self.inner.free_surface_moment_t()
+        self.inner.read().unwrap().free_surface_moment_t()
     }
 
     /// Returns the longitudinal free surface moment in m⁴.
     #[getter]
     fn free_surface_moment_l(&self) -> f64 {
-        self.inner.free_surface_moment_l()
+        self.inner.read().unwrap().free_surface_moment_l()
     }
 
     fn __repr__(&self) -> String {
+        let tank = self.inner.read().unwrap();
         format!(
             "Tank(name='{}', volume={:.2}m³, fill={:.1}%)",
-            self.inner.name(),
-            self.inner.total_volume(),
-            self.inner.fill_percent()
+            tank.name(),
+            tank.total_volume(),
+            tank.fill_percent()
         )
     }
 
     /// Returns tank container vertices [(x,y,z)].
     fn get_vertices(&self) -> Vec<(f64, f64, f64)> {
         self.inner
+            .read()
+            .unwrap()
             .mesh()
             .vertices()
             .iter()
@@ -2010,6 +2029,8 @@ impl PyTank {
     /// Returns tank container faces [(i,j,k)].
     fn get_faces(&self) -> Vec<(u32, u32, u32)> {
         self.inner
+            .read()
+            .unwrap()
             .mesh()
             .indices()
             .iter()
@@ -2022,6 +2043,8 @@ impl PyTank {
     #[pyo3(signature = (heel=0.0, trim=0.0))]
     fn get_fluid_vertices(&self, heel: f64, trim: f64) -> Vec<(f64, f64, f64)> {
         self.inner
+            .read()
+            .unwrap()
             .get_fluid_mesh_at(heel, trim)
             .map(|m| m.vertices().iter().map(|v| (v.x, v.y, v.z)).collect())
             .unwrap_or_default()
@@ -2032,6 +2055,8 @@ impl PyTank {
     #[pyo3(signature = (heel=0.0, trim=0.0))]
     fn get_fluid_faces(&self, heel: f64, trim: f64) -> Vec<(u32, u32, u32)> {
         self.inner
+            .read()
+            .unwrap()
             .get_fluid_mesh_at(heel, trim)
             .map(|m| {
                 m.indices()
@@ -2067,14 +2092,14 @@ impl PyTank {
                 ))
             }
         };
-        self.inner.set_fsm_mode(fsm_mode);
+        self.inner.write().unwrap().set_fsm_mode(fsm_mode);
         Ok(())
     }
 
     /// Returns the current FSM mode ('actual', 'maximum', 'fixed').
     #[getter]
     fn fsm_mode(&self) -> String {
-        match self.inner.fsm_mode() {
+        match self.inner.read().unwrap().fsm_mode() {
             FSMMode::Actual => "actual".to_string(),
             FSMMode::Maximum => "maximum".to_string(),
             FSMMode::Fixed { .. } => "fixed".to_string(),

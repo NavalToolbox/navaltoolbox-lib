@@ -24,7 +24,7 @@ use crate::deckedge::DeckEdge;
 use crate::downflooding::DownfloodingOpening;
 use crate::hull::Hull;
 use crate::silhouette::Silhouette;
-use crate::tanks::Tank;
+use crate::tanks::SharedTank;
 
 /// Represents a vessel containing hull geometries, tanks, and vessel-level properties.
 ///
@@ -36,8 +36,8 @@ use crate::tanks::Tank;
 pub struct Vessel {
     /// List of hull geometries
     hulls: Vec<Hull>,
-    /// List of tanks
-    tanks: Vec<Tank>,
+    /// List of tanks (shared references)
+    tanks: Vec<SharedTank>,
     /// List of appendages
     appendages: Vec<Appendage>,
     /// Deck edges for freeboard calculation
@@ -114,12 +114,12 @@ impl Vessel {
     }
 
     /// Returns the list of tanks.
-    pub fn tanks(&self) -> &[Tank] {
+    pub fn tanks(&self) -> &[SharedTank] {
         &self.tanks
     }
 
-    /// Returns a mutable reference to the tanks.
-    pub fn tanks_mut(&mut self) -> &mut Vec<Tank> {
+    /// Returns a mutable reference to the list of tanks.
+    pub fn tanks_mut(&mut self) -> &mut Vec<SharedTank> {
         &mut self.tanks
     }
 
@@ -185,13 +185,13 @@ impl Vessel {
     // Tank Management
     // =========================================================================
 
-    /// Adds a tank to the vessel.
-    pub fn add_tank(&mut self, tank: Tank) {
+    /// Adds a tank to the vessel (takes shared ownership).
+    pub fn add_tank(&mut self, tank: SharedTank) {
         self.tanks.push(tank);
     }
 
     /// Removes a tank from the vessel by index.
-    pub fn remove_tank(&mut self, index: usize) -> Option<Tank> {
+    pub fn remove_tank(&mut self, index: usize) -> Option<SharedTank> {
         if index < self.tanks.len() {
             Some(self.tanks.remove(index))
         } else {
@@ -199,19 +199,25 @@ impl Vessel {
         }
     }
 
-    /// Finds a tank by its name.
-    pub fn get_tank_by_name(&self, name: &str) -> Option<&Tank> {
-        self.tanks.iter().find(|t| t.name() == name)
+    /// Finds a tank by its name. Returns a shared reference.
+    pub fn get_tank_by_name(&self, name: &str) -> Option<SharedTank> {
+        self.tanks
+            .iter()
+            .find(|t| t.read().unwrap().name() == name)
+            .cloned()
     }
 
-    /// Finds a tank by its name (mutable).
-    pub fn get_tank_by_name_mut(&mut self, name: &str) -> Option<&mut Tank> {
-        self.tanks.iter_mut().find(|t| t.name() == name)
+    /// Finds a tank by its name (mutable access via write lock on returned Arc).
+    pub fn get_tank_by_name_mut(&self, name: &str) -> Option<SharedTank> {
+        self.get_tank_by_name(name)
     }
 
     /// Calculates the total mass of all fluid in tanks.
     pub fn get_total_tanks_mass(&self) -> f64 {
-        self.tanks.iter().map(|t| t.fluid_mass()).sum()
+        self.tanks
+            .iter()
+            .map(|t| t.read().unwrap().fluid_mass())
+            .sum()
     }
 
     /// Calculates the combined center of gravity of all tank fluids.
@@ -224,7 +230,8 @@ impl Vessel {
         }
 
         let mut moment = [0.0, 0.0, 0.0];
-        for tank in &self.tanks {
+        for tank_arc in &self.tanks {
+            let tank = tank_arc.read().unwrap();
             if tank.fluid_mass() > 0.0 {
                 let cog = tank.center_of_gravity();
                 moment[0] += tank.fluid_mass() * cog[0];
@@ -244,8 +251,16 @@ impl Vessel {
     ///
     /// Returns (transverse_moment, longitudinal_moment) in m⁴.
     pub fn get_total_free_surface_moment(&self) -> (f64, f64) {
-        let fsm_t: f64 = self.tanks.iter().map(|t| t.free_surface_moment_t()).sum();
-        let fsm_l: f64 = self.tanks.iter().map(|t| t.free_surface_moment_l()).sum();
+        let fsm_t: f64 = self
+            .tanks
+            .iter()
+            .map(|t| t.read().unwrap().free_surface_moment_t())
+            .sum();
+        let fsm_l: f64 = self
+            .tanks
+            .iter()
+            .map(|t| t.read().unwrap().free_surface_moment_l())
+            .sum();
         (fsm_t, fsm_l)
     }
 
@@ -256,12 +271,12 @@ impl Vessel {
         let fsc_t: f64 = self
             .tanks
             .iter()
-            .map(|t| t.free_surface_correction_t())
+            .map(|t| t.read().unwrap().free_surface_correction_t())
             .sum();
         let fsc_l: f64 = self
             .tanks
             .iter()
-            .map(|t| t.free_surface_correction_l())
+            .map(|t| t.read().unwrap().free_surface_correction_l())
             .sum();
         (fsc_t, fsc_l)
     }

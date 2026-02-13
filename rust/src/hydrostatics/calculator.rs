@@ -221,7 +221,8 @@ impl<'a> HydrostaticsCalculator<'a> {
         // Free Surface Correction
         let mut fsm_mass_moment_t = 0.0;
         let mut fsm_mass_moment_l = 0.0;
-        for tank in self.vessel.tanks() {
+        for tank_arc in self.vessel.tanks() {
+            let tank = tank_arc.read().unwrap();
             let rho = tank.fluid_density();
             fsm_mass_moment_t += tank.free_surface_moment_t() * rho;
             fsm_mass_moment_l += tank.free_surface_moment_l() * rho;
@@ -282,7 +283,11 @@ impl<'a> HydrostaticsCalculator<'a> {
         // Calculate tank displacement based on options
         let include_mass = tank_options.map(|o| o.include_mass).unwrap_or(false);
         let tank_displacement = if include_mass {
-            self.vessel.tanks().iter().map(|t| t.fluid_mass()).sum()
+            self.vessel
+                .tanks()
+                .iter()
+                .map(|t| t.read().unwrap().fluid_mass())
+                .sum()
         } else {
             0.0
         };
@@ -305,7 +310,8 @@ impl<'a> HydrostaticsCalculator<'a> {
             let mut m_z = vessel_displacement * v_cog[2];
 
             if include_mass {
-                for tank in self.vessel.tanks() {
+                for tank_arc in self.vessel.tanks() {
+                    let tank = tank_arc.read().unwrap();
                     let mass = tank.fluid_mass();
 
                     // Or should we use heeled?
@@ -512,7 +518,12 @@ impl<'a> HydrostaticsCalculator<'a> {
         // Total Disp = Ship Mass + Tank Mass
         let target_disp = if let Some(opts) = tank_options {
             if opts.include_mass {
-                let tank_mass: f64 = self.vessel.tanks().iter().map(|t| t.fluid_mass()).sum();
+                let tank_mass: f64 = self
+                    .vessel
+                    .tanks()
+                    .iter()
+                    .map(|t| t.read().unwrap().fluid_mass())
+                    .sum();
                 displacement_mass + tank_mass
             } else {
                 displacement_mass
