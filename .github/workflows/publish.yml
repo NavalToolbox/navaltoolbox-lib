@@ -105,7 +105,7 @@ jobs:
   # Build wheels for Windows ARM64
   # ============================================================================
   build-wheels-windows-arm64:
-    name: Build wheels (windows-latest, Python ${{ matrix.python }}, aarch64)
+    name: Build wheels (windows-latest, Py ${{ matrix.python }}, aarch64)
     runs-on: windows-latest
     strategy:
       fail-fast: false
@@ -114,28 +114,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
         with:
-          targets: aarch64-pc-windows-msvc
-      
-      - name: Set up Python ${{ matrix.python }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python }}
-          allow-prereleases: true
-      
-      - name: Install maturin
-        run: pip install maturin
-      
-      - name: Build wheel
-        run: cd python && maturin build --release --target aarch64-pc-windows-msvc --interpreter python${{ matrix.python }}
+          target: aarch64
+          args: --release --out dist --interpreter python${{ matrix.python }}
+          working-directory: python
       
       - name: Upload wheel
         uses: actions/upload-artifact@v4
         with:
           name: wheel-windows-arm64-py${{ matrix.python }}
-          path: rust/target/wheels/*.whl
+          path: python/dist/*.whl
 
   # ============================================================================
   # Build source distribution
