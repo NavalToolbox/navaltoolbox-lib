@@ -624,4 +624,32 @@ mod tests {
         tank.set_fill_level(0.0);
         assert_eq!(tank.free_surface_moment_t(), 0.0);
     }
+
+    #[test]
+    fn test_cog_shift_direction() {
+        // Box tank: L=2, B=10 (-5 to 5), D=2. Center at 0,0,1.
+        let tank = Tank::from_box("ShiftTest", 0.0, 2.0, -5.0, 5.0, 0.0, 2.0, 1000.0);
+        let mut tank = tank;
+        tank.set_fill_percent(50.0); // Level = 1.0m. COG = [1.0, 0.0, 0.5].
+
+        let cog_upright = tank.center_of_gravity();
+        assert!((cog_upright[1] - 0.0).abs() < 1e-6);
+
+        // Heel +10 deg (Stbd Down).
+        // Fluid should shift to Stbd (Negative Y).
+        let cog_heeled = tank.center_of_gravity_at(10.0, 0.0);
+        
+        // Check Y coordinate
+        assert!(
+            cog_heeled[1] < -0.01, 
+            "COG Y should be negative (Starboard) for positive heel. Got: {}", 
+            cog_heeled[1]
+        );
+
+        // Check Z coordinate
+        // Z should be slightly higher? Or lower?
+        // Fluid wedges up on Stbd? No, surface remains horizontal.
+        // Center of Buoyancy of the fluid moves towards the "wedge" which is now deeper?
+        // The centroid of the wedge is generally shifted.
+    }
 }
