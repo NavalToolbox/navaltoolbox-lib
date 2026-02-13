@@ -79,10 +79,7 @@ jobs:
         target: [x86_64, aarch64]
         manylinux: [2_24, 2_28]
         python: ['3.9', '3.10', '3.11', '3.12', '3.13']
-        exclude:
-          # manylinux 2.24 aarch64 is usually 2_24, but 2.28 gives better compatibility for newer distros
-          # We keep both unless user wants to prune.
-          # Note: maturin-action handles the docker image selection based on these arguments.
+
     steps:
       - uses: actions/checkout@v4
       
