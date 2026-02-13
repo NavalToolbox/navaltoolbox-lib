@@ -9,7 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **ci**: Extended compilation targets for Linux (`manylinux_2_24`, `manylinux_2_28`) on both `x86_64` and `aarch64`
-- **ci**: Added support for Windows `arm64` wheel compilation
 - **ci**: Synchronized Python versions (3.9 to 3.13) across all build platforms
 
 ## [0.6.3] - 2026-02-13

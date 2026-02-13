@@ -29,7 +29,7 @@ env:
 
 jobs:
   # ============================================================================
-  # Build wheels for all platforms
+  # Build wheels for macOS & Windows
   # ============================================================================
   build-wheels:
     name: Build wheels (${{ matrix.os }}, Python ${{ matrix.python }})
@@ -65,9 +65,6 @@ jobs:
           path: rust/target/wheels/*.whl
 
   # ============================================================================
-  # Build wheels for Linux (manylinux)
-  # ============================================================================
-  # ============================================================================
   # Build wheels for Linux (manylinux) - x86_64 & aarch64
   # ============================================================================
   build-wheels-linux:
@@ -101,31 +98,6 @@ jobs:
           name: wheels-linux-${{ matrix.manylinux }}-${{ matrix.target }}-py${{ matrix.python }}
           path: python/dist/*.whl
 
-  # ============================================================================
-  # Build wheels for Windows ARM64
-  # ============================================================================
-  build-wheels-windows-arm64:
-    name: Build wheels (windows-latest, Py ${{ matrix.python }}, aarch64)
-    runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python: ['3.9', '3.10', '3.11', '3.12', '3.13']
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Build wheels
-        uses: PyO3/maturin-action@v1
-        with:
-          target: aarch64
-          args: --release --out dist --interpreter python${{ matrix.python }}
-          working-directory: python
-      
-      - name: Upload wheel
-        uses: actions/upload-artifact@v4
-        with:
-          name: wheel-windows-arm64-py${{ matrix.python }}
-          path: python/dist/*.whl
 
   # ============================================================================
   # Build source distribution
@@ -161,7 +133,7 @@ jobs:
   # ============================================================================
   publish-testpypi:
     name: Publish to TestPyPI
-    needs: [build-wheels, build-wheels-linux, build-wheels-windows-arm64, build-sdist]
+    needs: [build-wheels, build-wheels-linux, build-sdist]
     if: |
       github.event_name == 'workflow_dispatch' && 
       github.event.inputs.environment == 'testpypi'
@@ -191,7 +163,7 @@ jobs:
   # ============================================================================
   publish-pypi:
     name: Publish to PyPI
-    needs: [build-wheels, build-wheels-linux, build-wheels-windows-arm64, build-sdist]
+    needs: [build-wheels, build-wheels-linux, build-sdist]
     if: |
       github.event_name == 'push' && 
       startsWith(github.ref, 'refs/tags/v') ||
