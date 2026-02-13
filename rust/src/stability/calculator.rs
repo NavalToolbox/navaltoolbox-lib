@@ -221,6 +221,8 @@ impl<'a> StabilityCalculator<'a> {
                     value: gz,
                     is_flooding,
                     flooded_openings,
+                    cog: Some(effective_cog),
+                    vessel_cog: Some(ship_cog),
                 }
             })
             .collect();

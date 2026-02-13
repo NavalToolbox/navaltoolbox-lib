@@ -137,6 +137,10 @@ impl ScriptEngine {
             })
             .register_fn("get_loading_condition", |ctx: &mut CriteriaContext| {
                 ctx.get_loading_condition()
+            })
+            // Helper functions
+            .register_fn("toFixed", |val: f64, digits: i64| {
+                format!("{:.1$}", val, digits as usize)
             });
 
         // Register helper functions
@@ -470,6 +474,23 @@ impl ScriptEngine {
                     color: map.get("color").and_then(|v| v.clone().into_string().ok()),
                 })
             }
+            "FilledArea" => {
+                let name = map
+                    .get("name")
+                    .and_then(|v| v.clone().into_string().ok())
+                    .unwrap_or_default();
+                let x = self.extract_f64_array(map.get("x")?)?;
+                let y_lower = self.extract_f64_array(map.get("y_lower")?)?;
+                let y_upper = self.extract_f64_array(map.get("y_upper")?)?;
+                Some(PlotElement::FilledArea {
+                    name,
+                    x,
+                    y_lower,
+                    y_upper,
+                    color: map.get("color").and_then(|v| v.clone().into_string().ok()),
+                    alpha: map.get("alpha").and_then(|v| v.as_float().ok()),
+                })
+            }
             _ => None,
         }
     }
@@ -552,5 +573,23 @@ mod tests {
             .unwrap();
 
         assert_eq!(res, 5.0);
+    }
+
+    #[test]
+    fn test_to_fixed() {
+        let engine = ScriptEngine::new();
+        let script = r#"
+            let x = 3.14159;
+            x.toFixed(2)
+        "#;
+        let result: String = engine.engine.eval(script).unwrap();
+        assert_eq!(result, "3.14");
+
+        let script2 = r#"
+            let x = 3.14159;
+            x.toFixed(0)
+        "#;
+        let result2: String = engine.engine.eval(script2).unwrap();
+        assert_eq!(result2, "3");
     }
 }
