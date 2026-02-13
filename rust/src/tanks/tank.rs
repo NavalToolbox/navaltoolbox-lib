@@ -638,11 +638,11 @@ mod tests {
         // Heel +10 deg (Stbd Down).
         // Fluid should shift to Stbd (Negative Y).
         let cog_heeled = tank.center_of_gravity_at(10.0, 0.0);
-        
+
         // Check Y coordinate
         assert!(
-            cog_heeled[1] < -0.01, 
-            "COG Y should be negative (Starboard) for positive heel. Got: {}", 
+            cog_heeled[1] < -0.01,
+            "COG Y should be negative (Starboard) for positive heel. Got: {}",
             cog_heeled[1]
         );
 
