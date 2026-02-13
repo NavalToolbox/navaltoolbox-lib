@@ -37,7 +37,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [macos-latest, windows-latest]
         python: ['3.9', '3.10', '3.11', '3.12', '3.13']
     
     steps:
@@ -62,6 +62,82 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: wheel-${{ matrix.os }}-py${{ matrix.python }}
+          path: rust/target/wheels/*.whl
+
+  # ============================================================================
+  # Build wheels for Linux (manylinux)
+  # ============================================================================
+  # ============================================================================
+  # Build wheels for Linux (manylinux) - x86_64 & aarch64
+  # ============================================================================
+  build-wheels-linux:
+    name: Build wheels (manylinux_${{ matrix.manylinux }}_${{ matrix.target }}, Py ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [x86_64, aarch64]
+        manylinux: [2_24, 2_28]
+        python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+        exclude:
+          # manylinux 2.24 aarch64 is usually 2_24, but 2.28 gives better compatibility for newer distros
+          # We keep both unless user wants to prune.
+          # Note: maturin-action handles the docker image selection based on these arguments.
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up QEMU
+        if: matrix.target == 'aarch64'
+        uses: docker/setup-qemu-action@v3
+      
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          manylinux: ${{ matrix.manylinux }}
+          args: --release --out dist --interpreter python${{ matrix.python }}
+          working-directory: python
+      
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-linux-${{ matrix.manylinux }}-${{ matrix.target }}-py${{ matrix.python }}
+          path: python/dist/*.whl
+
+  # ============================================================================
+  # Build wheels for Windows ARM64
+  # ============================================================================
+  build-wheels-windows-arm64:
+    name: Build wheels (windows-latest, Python ${{ matrix.python }}, aarch64)
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-pc-windows-msvc
+      
+      - name: Set up Python ${{ matrix.python }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          allow-prereleases: true
+      
+      - name: Install maturin
+        run: pip install maturin
+      
+      - name: Build wheel
+        run: cd python && maturin build --release --target aarch64-pc-windows-msvc --interpreter python${{ matrix.python }}
+      
+      - name: Upload wheel
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheel-windows-arm64-py${{ matrix.python }}
           path: rust/target/wheels/*.whl
 
   # ============================================================================
@@ -98,7 +174,7 @@ jobs:
   # ============================================================================
   publish-testpypi:
     name: Publish to TestPyPI
-    needs: [build-wheels, build-sdist]
+    needs: [build-wheels, build-wheels-linux, build-wheels-windows-arm64, build-sdist]
     if: |
       github.event_name == 'workflow_dispatch' && 
       github.event.inputs.environment == 'testpypi'
@@ -128,7 +204,7 @@ jobs:
   # ============================================================================
   publish-pypi:
     name: Publish to PyPI
-    needs: [build-wheels, build-sdist]
+    needs: [build-wheels, build-wheels-linux, build-wheels-windows-arm64, build-sdist]
     if: |
       github.event_name == 'push' && 
       startsWith(github.ref, 'refs/tags/v') ||

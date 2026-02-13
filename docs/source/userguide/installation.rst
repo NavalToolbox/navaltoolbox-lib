@@ -34,7 +34,7 @@ Add to your ``Cargo.toml``:
 .. code-block:: toml
 
     [dependencies]
-    navaltoolbox = "0.6.3"
+    navaltoolbox = "0.6.4"
 
 Requirements
 ------------
