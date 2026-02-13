@@ -880,6 +880,28 @@ class HydrostaticState:
         """Vertical center of gravity (Z) in meters, or None."""
         ...
     
+    @property
+    def vessel_displacement(self) -> float:
+        """Vessel displacement mass in kg (Total - Tank Contents)."""
+        ...
+    
+    @property
+    def tank_displacement(self) -> float:
+        """Tank fluid mass in kg."""
+        ...
+
+    @property
+    def vessel_cog(self) -> Tuple[float, float, float] | None:
+        """Vessel Center of Gravity (LCG, TCG, VCG) (Ship only)."""
+        ...
+
+    @property
+    def vessel_lcg(self) -> float | None: ...
+    @property
+    def vessel_tcg(self) -> float | None: ...
+    @property
+    def vessel_vcg(self) -> float | None: ...
+
     waterplane_area: float
     lcf: float
     bmt: float
@@ -1067,6 +1089,8 @@ class StabilityPoint:
     gz: float
     is_flooding: bool
     flooded_openings: List[str]
+    cog: Tuple[float, float, float] | None
+    vessel_cog: Tuple[float, float, float] | None
 
 
 class StabilityCurve:

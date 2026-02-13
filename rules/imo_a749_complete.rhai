@@ -137,6 +137,26 @@ fn calculate_roll_angle(ctx) {
 }
 
 
+// Helper to generate area data for plotting
+fn make_area_data(ctx, start_angle, end_angle, wind_arm, num_points) {
+    let x = [];
+    let y_lower = [];
+    let y_upper = [];
+    
+    let step = (end_angle - start_angle) / (num_points - 1);
+    if step < 0.0 { step = 0.0; } // Handle case where start == end
+    
+    for i in 0..num_points {
+        let angle = start_angle + i * step;
+        let gz = ctx.gz_at_angle(angle);
+        
+        x.push(angle);
+        y_lower.push(gz);
+        y_upper.push(wind_arm);
+    }
+    return #{ x: x, y_lower: y_lower, y_upper: y_upper };
+}
+
 // Main check function
 fn check(ctx) {
     let results = [];
@@ -201,6 +221,10 @@ if has_wind {
         // 3. lw2 = 1.5 * lw1
         let lw2 = 1.5 * lw1;
         
+        // 3a. phi_eq2 (first equilibrium under gust lw2)
+        let phi_eq2 = ctx.find_equilibrium_angle(lw2);
+        if phi_eq2 == () { phi_eq2 = phi_c; } // Fallback if tangent or weird, though usually it exists if phi_c exists
+
         // 4. phi1 (heeled to windward)
         let phi1 = phi0 - roll_deg;
         
@@ -215,17 +239,32 @@ if has_wind {
         if phi_c < phi2 { phi2 = phi_c; }
         if phi_flood < phi2 { phi2 = phi_flood; }
         
-        // 6. Areas
-        let area_b = ctx.area_under_curve(phi1, phi2); // Righting area
-        let area_a = lw2 * (phi2 - phi1) * 3.14159 / 180.0; // Heeling area (approx rectangular for lw2)
+        // 6. Areas (Net Areas between curves)
+        // Area A (Heeling Energy): Area between lw2 and GZ from phi1 to phi_eq2
+        // A = Integral(lw2 - GZ) dPhi
+        let area_gz_a = ctx.area_under_curve(phi1, phi_eq2);
+        let area_wind_a = lw2 * (phi_eq2 - phi1) * 3.14159 / 180.0;
+        let area_a = area_wind_a - area_gz_a; // Positive if Wind > GZ (which it is to left of eq)
+
+        // Area B (Restoring Energy): Area between GZ and lw2 from phi_eq2 to phi2
+        // B = Integral(GZ - lw2) dPhi
+        let area_gz_b = ctx.area_under_curve(phi_eq2, phi2);
+        let area_wind_b = lw2 * (phi2 - phi_eq2) * 3.14159 / 180.0;
+        let area_b = area_gz_b - area_wind_b; // Positive if GZ > Wind (which it is to right of eq)
         
+        // Ensure non-negative (logic check)
+        if area_a < 0.0 { area_a = 0.0; }
+        if area_b < 0.0 { area_b = 0.0; }
+
         let margin = area_b - area_a;
         let c_res = criterion("3.2.2.2 Weather", "Area b >= Area a", area_a, area_b, "m.rad");
         
         let calc_note = if roll_calculated { "(Calculated)" } else { "(User)" };
         c_res.notes = "Roll=" + roll_deg.toFixed(1) + "° " + calc_note;
         c_res.notes += ", lw1=" + lw1.toFixed(3) + "m";
+        c_res.notes += ", lw2=" + lw2.toFixed(3) + "m";
         c_res.notes += ", phi0=" + phi0.toFixed(1) + "°";
+        c_res.notes += ", phi_eq2=" + phi_eq2.toFixed(1) + "°";
         results.push(c_res);
         
         // Plots... (Simplified for template)
@@ -240,7 +279,36 @@ if has_wind {
         elements.push(#{ type: "HorizontalLine", name: "lw2", y: lw2, color: "red" });
         
         elements.push(#{ type: "VerticalLine", name: "phi1", x: phi1, y_max: lw2, style: "dotted" });
+        elements.push(#{ type: "VerticalLine", name: "phi_eq2", x: phi_eq2, y_max: lw2, style: "dotted" });
         elements.push(#{ type: "VerticalLine", name: "phi2", x: phi2, y_max: lw2, style: "dotted" });
+        elements.push(#{ type: "VerticalLine", name: "phi2", x: phi2, y_max: lw2, style: "dotted" });
+
+        // Add Filled Areas
+        // Area A: phi1 to phi_eq2
+        let data_a = make_area_data(ctx, phi1, phi_eq2, lw2, 20);
+        let area_a_plot = #{ 
+            type: "FilledArea", 
+            name: "Area A", 
+            x: data_a.x, 
+            y_lower: data_a.y_lower, 
+            y_upper: data_a.y_upper, 
+            color: "red", 
+            alpha: 0.3 
+        };
+        elements.push(area_a_plot);
+
+        // Area B: phi_eq2 to phi2
+        let data_b = make_area_data(ctx, phi_eq2, phi2, lw2, 20);
+        let area_b_plot = #{ 
+            type: "FilledArea", 
+            name: "Area B", 
+            x: data_b.x, 
+            y_lower: data_b.y_lower, 
+            y_upper: data_b.y_upper, 
+            color: "green", 
+            alpha: 0.3 
+        };
+        elements.push(area_b_plot);
 
         let weather_plot = #{
             id: "weather_plot", title: "Weather Criterion", x_label: "Heel", y_label: "Lever",

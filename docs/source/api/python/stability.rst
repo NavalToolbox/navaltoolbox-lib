@@ -142,6 +142,8 @@ StabilityCurve
       - ``trim``: Trim angle in degrees
       - ``gz``: GZ value (m) (alias value)
       - ``value``: GZ or KN value (m)
+      - ``cog``: Total physical Center of Gravity (LCG, TCG, VCG)
+      - ``vessel_cog``: Vessel Center of Gravity (LCG, TCG, VCG)
       - ``is_flooding``: True if any opening is submerged
       - ``flooded_openings``: List of flooded opening names
 

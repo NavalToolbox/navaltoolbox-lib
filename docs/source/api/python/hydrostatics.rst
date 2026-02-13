@@ -152,7 +152,12 @@ HydrostaticState
    .. py:attribute:: cog
       :type: tuple[float, float, float] or None
 
-      Center of Gravity (LCG, TCG, VCG) vector, if provided.
+      Center of Gravity (LCG, TCG, VCG) vector, if provided. Matches ``displacement``.
+
+   .. py:attribute:: vessel_cog
+      :type: tuple[float, float, float] or None
+
+      Vessel Center of Gravity (LCG, TCG, VCG) vector (Ship-only). Matches ``vessel_displacement``.
 
    **Waterplane Properties**
 
