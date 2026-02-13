@@ -19,6 +19,7 @@
 
 use dxf::entities::EntityType;
 use dxf::Drawing;
+use nalgebra::{Matrix4, Point3, Vector3};
 use std::fs;
 use std::path::Path;
 use thiserror::Error;
@@ -41,6 +42,35 @@ pub enum SilhouetteLoadError {
     CsvError(String),
 }
 
+/// Compute the Object Coordinate System (OCS) to World Coordinate System (WCS) transformation matrix
+/// using the Arbitrary Axis Algorithm.
+fn get_ocs_to_wcs_matrix(normal: Vector3<f64>, elevation: f64) -> Matrix4<f64> {
+    // Arbitrary Axis Algorithm
+    let threshold = 1.0 / 64.0;
+    let x_axis = if normal.x.abs() < threshold && normal.y.abs() < threshold {
+        Vector3::y().cross(&normal)
+    } else {
+        Vector3::z().cross(&normal)
+    };
+
+    let x_axis = x_axis.normalize();
+    let y_axis = normal.cross(&x_axis).normalize();
+    let z_axis = normal.normalize();
+
+    let mut matrix = Matrix4::identity();
+    matrix.set_column(0, &x_axis.to_homogeneous());
+    matrix.set_column(1, &y_axis.to_homogeneous());
+    matrix.set_column(2, &z_axis.to_homogeneous());
+
+    // The OCS origin in WCS is defined by the elevation along the Z axis (normal).
+    let origin = z_axis * elevation;
+    matrix[(0, 3)] = origin.x;
+    matrix[(1, 3)] = origin.y;
+    matrix[(2, 3)] = origin.z;
+
+    matrix
+}
+
 // Legacy alias for DxfError
 
 /// Load a silhouette from a DXF file.
@@ -59,13 +89,38 @@ pub fn load_dxf_silhouette(path: &Path) -> Result<(Vec<[f64; 3]>, String), Silho
     for entity in drawing.entities() {
         match &entity.specific {
             EntityType::LwPolyline(lwpoly) => {
-                // LwPolyline vertices are 2D (x, y) in the OCS plane.
-                // Default extrusion is (0,0,1) → x,y map to world X,Y.
-                // For silhouettes we want X-Z plane, so we map (x,y) → (x, 0, y).
-                // This is correct for the default case where the polyline
-                // is drawn in a 2D view looking down the Z axis.
-                let mut points: Vec<[f64; 3]> =
-                    lwpoly.vertices.iter().map(|v| [v.x, 0.0, v.y]).collect();
+                // Get OCS normal (extrusion direction)
+                let normal = Vector3::new(
+                    lwpoly.extrusion_direction.x,
+                    lwpoly.extrusion_direction.y,
+                    lwpoly.extrusion_direction.z,
+                );
+
+                // Note: dxf crate 0.5 LwPolyline struct seemingly doesn't expose elevation directly?
+                // For now assuming 0.0 or TODO: check if it's in a different field or needs crate update.
+                let elevation = 0.0;
+
+                let transform = get_ocs_to_wcs_matrix(normal, elevation);
+                let is_xy_plane = normal.z.abs() > 0.9; // Check if basically Top/Bottom view
+
+                let mut points: Vec<[f64; 3]> = Vec::new();
+
+                for v in &lwpoly.vertices {
+                    // LwPolyline vertices are (x, y) in OCS. Z is elevation.
+                    // Elevation is handled in the transform matrix (translation along Z axis).
+                    let p_ocs = Point3::new(v.x, v.y, 0.0);
+                    let p_wcs = transform.transform_point(&p_ocs);
+
+                    // Mapping strategy:
+                    // If the entity is in the XY plane (Top/Bottom view), we map WCS Y -> Output Z (Profile view convention).
+                    // Otherwise (Front/Side/Arbitrary), we assume WCS Z -> Output Z.
+                    // Output Y is always 0 (Centerline/Silhouette plane).
+
+                    let x = p_wcs.x;
+                    let z = if is_xy_plane { p_wcs.y } else { p_wcs.z };
+
+                    points.push([x, 0.0, z]);
+                }
 
                 let is_closed = (lwpoly.flags & 1) != 0;
                 if is_closed && !points.is_empty() && points.first() != points.last() {
@@ -82,36 +137,31 @@ pub fn load_dxf_silhouette(path: &Path) -> Result<(Vec<[f64; 3]>, String), Silho
                 }
             }
             EntityType::Polyline(poly) => {
-                // Polyline (AcDb2dPolyline) has an OCS normal vector.
-                // We need to map vertex coordinates from OCS to world X-Z plane.
-                let normal = &poly.normal;
-                let is_2d_xz_plane = normal.y.abs() > 0.9;
-                let is_2d_xy_plane = normal.z.abs() > 0.9;
+                let normal = Vector3::new(poly.normal.x, poly.normal.y, poly.normal.z);
+                // Note: Polyline struct also missing elevation in this crate version?
+                let elevation = 0.0;
+
+                let transform = get_ocs_to_wcs_matrix(normal, elevation);
+                let is_xy_plane = normal.z.abs() > 0.9;
 
                 let mut points: Vec<[f64; 3]> = Vec::new();
 
                 for vertex in poly.vertices() {
-                    let (world_x, world_z) = if is_2d_xz_plane {
-                        // OCS normal ≈ (0, ±1, 0): polyline is in world X-Z plane
-                        // OCS (x, y) → world (x, z=y)
-                        (vertex.location.x, vertex.location.y)
-                    } else if is_2d_xy_plane {
-                        // OCS normal ≈ (0, 0, ±1): polyline is in world X-Y plane
-                        // OCS (x, y) → world (x, z=y) — same mapping for silhouettes
-                        (vertex.location.x, vertex.location.y)
-                    } else {
-                        // Fallback: use x and z directly (3D polyline)
-                        log::warn!(
-                            "Polyline has unusual OCS normal ({:.2}, {:.2}, {:.2}). \
-                             Using vertex.x and vertex.z directly.",
-                            normal.x,
-                            normal.y,
-                            normal.z
-                        );
-                        (vertex.location.x, vertex.location.z)
-                    };
+                    // For AcDb2dPolyline, vertices are in OCS.
+                    // For AcDb3dPolyline, vertices are in WCS (and normal is 0,0,1 usually).
+                    // If normal is (0,1,0), it's definitely OCS-based 2D polyline.
 
-                    points.push([world_x, 0.0, world_z]);
+                    // We treat vertex location as OCS param.
+                    // Note: vertex.location.z should be 0 for 2D polyline, but if not, we include it.
+                    // Elevation is handled by the matrix translation.
+                    let p_ocs =
+                        Point3::new(vertex.location.x, vertex.location.y, vertex.location.z);
+                    let p_wcs = transform.transform_point(&p_ocs);
+
+                    let x = p_wcs.x;
+                    let z = if is_xy_plane { p_wcs.y } else { p_wcs.z };
+
+                    points.push([x, 0.0, z]);
                 }
 
                 let is_closed = (poly.flags & 1) != 0;
