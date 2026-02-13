@@ -38,7 +38,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-navaltoolbox = "0.6.1"
+navaltoolbox = "0.6.2"
 ```
 
 ## Quick Start

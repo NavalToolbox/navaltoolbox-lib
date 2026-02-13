@@ -5,13 +5,30 @@ All notable changes to NavalToolbox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.2] - 2026-02-13
+
+### Added
+- **hydrostatics**: Added `cog` (Total COG) and `vessel_cog` (Vessel COG) fields to `HydrostaticState`
+- **stability**: Added `cog` and `vessel_cog` to `StabilityPoint` for detailed center of gravity tracking (Total vs Vessel mass)
+
+### Fixed
+- **loading**: Correctly handle OCS transformation in DXF silhouettes for inverted extrusion directions (fixes coordinate inversion issue)
+
 ## [0.6.1] - 2026-02-11
+
+### Added
+- **testing**: Comprehensive integrity test suite for silhouette profiles in `python/tests`
+- **stability**: Warning notification when wind data is skipped during stability analysis
+- **loading**: Support for loading silhouettes from CSV/TXT point files
 
 ### Fixed
 - **loading**: Correctly load DXF `AcDb2dPolyline` entities with OCS normal (0,1,0) (fixes "no wind data" error)
 - **stability**: Resolve issue where `StabilityCalculator` used a stale Vessel copy, ignoring subsequently added silhouettes
-- **loading**: Add support for loading silhouettes from CSV/TXT point files
 - **validation**: Add warnings for invalid silhouette geometries (zero area, open loops)
+
+### Changed
+- **python**: Refactor `StabilityCalculator` binding to hold a reference to the `Vessel` object, ensuring dynamic updates
+- **docs**: Updated API documentation and type stubs for silhouette components
 
 ## [0.6.0] - 2026-02-11
 

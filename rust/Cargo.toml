@@ -1,6 +1,6 @@
 [package]
 name = "navaltoolbox"
-version = "0.6.1"
+version = "0.6.2"
 edition = "2021"
 description = "High-performance naval architecture library for hydrostatics, stability, and tank calculations"
 authors = ["Antoine ANCEAU"]
