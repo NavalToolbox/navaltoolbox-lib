@@ -1,4 +1,4 @@
-// IMO A.749(18) Code on Intact Stability
+// IS Code 2008 Code on Intact Stability
 // Complete Verification (Section 3.1 & 3.2)
 //
 // =============================================================================
@@ -317,7 +317,7 @@ if has_wind {
         
         // Return result
          #{
-            regulation_name: "IMO A.749(18)",
+            regulation_name: "IS Code 2008",
             vessel_name: ctx.get_vessel_name(),
             loading_condition: ctx.get_loading_condition(),
             displacement: ctx.get_displacement(),
@@ -329,11 +329,11 @@ if has_wind {
     } else {
        // Error finding equilibrium
        results.push(#{ name: "Weather Error", status: "FAIL", notes: "No equilibrium found for lw1" });
-       #{ regulation_name: "IMO A.749", criteria: results }
+       #{ regulation_name: "IS Code 2008", criteria: results }
     }
 
 } else {
     // No wind data
-    #{ regulation_name: "IMO A.749", criteria: results, notes: "No wind data" }
+    #{ regulation_name: "IS Code 2008", criteria: results, notes: "No wind data" }
 }
 }

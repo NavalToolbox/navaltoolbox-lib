@@ -1,8 +1,8 @@
 // ============================================================================
-// IMO A.749(18) General Intact Stability Criteria
+// IS Code 2008 General Intact Stability Criteria
 // ============================================================================
 //
-// Reference: IMO Resolution A.749(18), Section 3.1
+// Reference: IS Code 2008 (MSC.267(85)), Part A, Section 2.2
 //
 // This script checks the following criteria:
 // - Area 0-30°: ≥ 0.055 m·rad
@@ -15,7 +15,7 @@
 // Usage from Python:
 //   ctx = CriteriaContext.from_result(result, vessel_name="MV Example")
 //   engine = ScriptEngine()
-//   result = engine.run_script_file("rules/imo_a749_general.rhai", ctx)
+//   result = engine.run_script_file("rules/is_code_2008_general.rhai", ctx)
 //
 // ============================================================================
 
@@ -176,7 +176,7 @@ fn check(ctx) {
     
     let plot = #{
         id: plot_id,
-        title: "GZ Curve - IMO A.749",
+        title: "GZ Curve - IS Code 2008",
         x_label: "Heel (°)",
         y_label: "GZ (m)",
         elements: [
@@ -212,8 +212,8 @@ fn check(ctx) {
     }
     
     #{
-        regulation_name: "IMO A.749(18) General Intact Stability Criteria",
-        regulation_reference: "IMO Resolution A.749(18), Section 3.1",
+        regulation_name: "IS Code 2008 General Intact Stability Criteria",
+        regulation_reference: "IS Code 2008 (MSC.267(85)), Part A, Section 2.2",
         vessel_name: ctx.get_vessel_name(),
         loading_condition: ctx.get_loading_condition(),
         displacement: ctx.get_displacement(),

@@ -205,6 +205,32 @@ impl CriteriaContext {
         Dynamic::UNIT
     }
 
+    /// Get the angle where the freeboard becomes zero (deck edge immersion).
+    ///
+    /// Returns the angle or () if freeboard data is missing or never crosses zero.
+    pub fn get_deck_edge_immersion_angle(&self) -> Dynamic {
+        let points = &self.result.gz_curve.points;
+
+        for i in 0..points.len().saturating_sub(1) {
+            let p1 = &points[i];
+            let p2 = &points[i + 1];
+
+            if let (Some(f1), Some(f2)) = (p1.freeboard, p2.freeboard) {
+                if f1 >= 0.0 && f2 <= 0.0 {
+                    if (f1 - f2).abs() < f64::EPSILON {
+                        return Dynamic::from(p1.heel);
+                    }
+                    // Linear interpolation to find the exact zero crossing
+                    let fraction = f1 / (f1 - f2);
+                    let angle = p1.heel + fraction * (p2.heel - p1.heel);
+                    return Dynamic::from(angle);
+                }
+            }
+        }
+
+        Dynamic::UNIT
+    }
+
     /// Find equilibrium angle (first positive intercept) for a given heeling arm.
     pub fn find_equilibrium_angle(&self, heeling_arm: f64) -> Dynamic {
         let heels = self.result.gz_curve.heels();
@@ -449,5 +475,144 @@ impl CriteriaContext {
     /// Get the underlying CompleteStabilityResult.
     pub fn result(&self) -> &CompleteStabilityResult {
         &self.result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::hydrostatics::HydrostaticState;
+    use crate::stability::{CompleteStabilityResult, StabilityCurve, StabilityPoint};
+
+    fn create_mock_context(
+        heels: Vec<f64>,
+        gz_values: Vec<f64>,
+        flood_idx: Option<usize>,
+    ) -> CriteriaContext {
+        let points = heels
+            .into_iter()
+            .zip(gz_values.into_iter())
+            .enumerate()
+            .map(|(i, (h, gz))| StabilityPoint {
+                heel: h,
+                draft: 5.0,
+                trim: 0.0,
+                value: gz,
+                is_flooding: flood_idx.map_or(false, |idx| i >= idx),
+                flooded_openings: vec![],
+                cog: None,
+                vessel_cog: None,
+                freeboard: None,
+            })
+            .collect();
+
+        let curve = StabilityCurve {
+            curve_type: "GZ".to_string(),
+            displacement: 1000.0,
+            cog: None,
+            points,
+        };
+
+        let result = CompleteStabilityResult {
+            hydrostatics: HydrostaticState::default(),
+            gz_curve: curve,
+            wind_data: None,
+            displacement: 1000.0,
+            cog: [0.0, 0.0, 0.0],
+        };
+
+        CriteriaContext::new(result, "Test".into(), "Load".into())
+    }
+
+    #[test]
+    fn test_area_under_curve_known_values() {
+        // Linear curve: GZ = heel * 0.01
+        let ctx = create_mock_context(vec![0.0, 10.0, 20.0, 30.0], vec![0.0, 0.1, 0.2, 0.3], None);
+
+        let area = ctx.area_under_curve(0.0, 30.0);
+        let expected = 0.5 * 30.0f64.to_radians() * 0.3;
+        assert!(
+            (area - expected).abs() < 1e-4,
+            "Expected {}, got {}",
+            expected,
+            area
+        );
+
+        let area2 = ctx.area_under_curve(10.0, 20.0);
+        let expected2 = 0.5 * 10.0f64.to_radians() * 0.3;
+        assert!(
+            (area2 - expected2).abs() < 1e-4,
+            "Expected {}, got {}",
+            expected2,
+            area2
+        );
+    }
+
+    #[test]
+    fn test_gz_at_angle_interpolation() {
+        let ctx = create_mock_context(vec![0.0, 10.0, 20.0], vec![0.0, 0.1, 0.4], None);
+
+        assert_eq!(ctx.gz_at_angle(10.0), 0.1);
+        assert_eq!(ctx.gz_at_angle(15.0), 0.25);
+        assert_eq!(ctx.gz_at_angle(5.0), 0.05);
+    }
+
+    #[test]
+    fn test_find_max_gz_known_curve() {
+        let ctx = create_mock_context(
+            vec![0.0, 10.0, 20.0, 30.0, 40.0],
+            vec![0.0, 0.2, 0.5, 0.4, 0.1],
+            None,
+        );
+
+        let map = ctx.find_max_gz();
+        assert_eq!(map.get("angle").unwrap().as_float().unwrap(), 20.0);
+        assert_eq!(map.get("value").unwrap().as_float().unwrap(), 0.5);
+    }
+
+    #[test]
+    fn test_limiting_angle_with_flooding() {
+        let ctx = create_mock_context(
+            vec![0.0, 10.0, 20.0, 30.0, 40.0],
+            vec![0.0, 0.2, 0.5, 0.4, 0.1],
+            Some(3),
+        );
+
+        let limit_40 = ctx.get_limiting_angle(40.0);
+        let limit_20 = ctx.get_limiting_angle(20.0);
+
+        assert_eq!(limit_40, 30.0); // Flooding triggers earlier
+        assert_eq!(limit_20, 20.0); // Default triggers earlier
+    }
+
+    #[test]
+    fn test_vanishing_stability_angle() {
+        let ctx = create_mock_context(
+            vec![0.0, 10.0, 20.0, 30.0, 40.0, 50.0],
+            vec![0.0, 0.2, 0.4, 0.1, -0.1, -0.2],
+            None,
+        );
+
+        let vanish = ctx.find_angle_of_vanishing_stability();
+        let val = vanish.as_float().unwrap();
+        assert_eq!(val, 35.0);
+    }
+
+    #[test]
+    fn test_deck_edge_immersion_angle() {
+        let mut ctx =
+            create_mock_context(vec![0.0, 10.0, 20.0, 30.0], vec![0.0, 0.1, 0.2, 0.3], None);
+
+        ctx.result.gz_curve.points[0].freeboard = Some(2.0);
+        ctx.result.gz_curve.points[1].freeboard = Some(1.0);
+        ctx.result.gz_curve.points[2].freeboard = Some(-1.0);
+        ctx.result.gz_curve.points[3].freeboard = Some(-3.0);
+
+        let angle = ctx.get_deck_edge_immersion_angle();
+        let val = angle.as_float().unwrap();
+
+        // intersection goes from 1.0 (at 10 deg) to -1.0 (at 20 deg)
+        // middle is at 15.0
+        assert_eq!(val, 15.0);
     }
 }

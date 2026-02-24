@@ -81,6 +81,10 @@ impl ScriptEngine {
                 ctx.get_first_flooding_angle()
             })
             .register_fn(
+                "get_deck_edge_immersion_angle",
+                |ctx: &mut CriteriaContext| ctx.get_deck_edge_immersion_angle(),
+            )
+            .register_fn(
                 "find_equilibrium_angle",
                 |ctx: &mut CriteriaContext, arm: f64| ctx.find_equilibrium_angle(arm),
             )

@@ -98,10 +98,10 @@ from navaltoolbox import CriteriaContext, ScriptEngine, plotting
 # Create context
 ctx = CriteriaContext.from_result(result, "MV Example", "Departure")
 
-# Run verification script (IMO A.749)
+# Run verification script (IS Code 2008)
 engine = ScriptEngine()
 # Assuming the rule file is available in 'rules/'
-# criteria = engine.run_script_file("rules/imo_a749_general.rhai", ctx)
+# criteria = engine.run_script_file("rules/is_code_2008_general.rhai", ctx)
 
 # Plot results
 # plotting.plot_criteria_result(criteria, show=True)
