@@ -409,36 +409,43 @@ class TestDTMB5415:
             assert abs(kn_val - gz_val) < 1e-6, "KN should equal GZ(VCG=0)"
 
     def test_fixed_trim_differs_from_free_trim(self, dtmb5415_vessel):
-        """Test that fixed_trim param actively changes the convergence behavior."""
+        """Test that fixed_trim param actively changes convergence behavior."""
         from navaltoolbox import StabilityCalculator
 
         calc = StabilityCalculator(dtmb5415_vessel, 1025.0)
-        
+
         # We need a loading condition where LCG causes a large trim normally.
-        # dtmb LCG is ~71m. If we set LCG to 0.0 (the AP), the ship will heavily trim.
+        # dtmb LCG is ~71m. Set LCG to 0.0 (the AP), ship will heavily trim.
         heels = [0.0, 10.0, 20.0]
         cog_bad_trim = (0.0, 0.0, 6.5)
 
         # 1. Free trim (should result in huge trim)
         curve_free = calc.gz_curve(self.DISPLACEMENT, cog_bad_trim, heels)
-        
+
         # 2. Fixed trim (forced 0.0)
-        curve_fixed = calc.gz_curve(self.DISPLACEMENT, cog_bad_trim, heels, fixed_trim=0.0)
+        curve_fixed = calc.gz_curve(
+            self.DISPLACEMENT, cog_bad_trim, heels, fixed_trim=0.0
+        )
 
-        assert len(curve_free.get_stability_points()) == len(curve_fixed.get_stability_points())
+        assert len(curve_free.get_stability_points()) == len(
+            curve_fixed.get_stability_points()
+        )
 
-        # The points should differ drastically because the fixed trim ignores the LCG mismatch
+        # The points differ drastically because fixed trim ignores LCG mismatch
         point_free = curve_free.get_stability_points()[1]  # 10 degrees
         point_fixed = curve_fixed.get_stability_points()[1]
 
         # Free trim should be non-zero
-        assert abs(point_free.trim) > 5.0, "Free trim should be huge (unbalanced LCG)"
-        
+        assert abs(point_free.trim) > 5.0, \
+            "Free trim should be huge (unbalanced LCG)"
+
         # Fixed trim MUST remain exactly 0.0
-        assert abs(point_fixed.trim) < 1e-6, "Fixed trim should remain 0.0 exactly"
+        assert abs(point_fixed.trim) < 1e-6, \
+            "Fixed trim should remain 0.0 exactly"
 
         # The resulting GZ should be different
-        assert abs(point_free.gz - point_fixed.gz) > 0.1, "GZ should differ based on trim"
+        assert abs(point_free.gz - point_fixed.gz) > 0.1, \
+            "GZ should differ based on trim"
 
 
 class TestWallSidedFormula:
