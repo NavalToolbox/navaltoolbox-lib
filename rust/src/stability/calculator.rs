@@ -429,12 +429,14 @@ impl<'a> StabilityCalculator<'a> {
         z_min: f64,
         z_max: f64,
     ) -> (f64, f64, f64) {
-        let lcb_tolerance = 0.5;
+        let lcb_tolerance = 0.001;
         let volume_tolerance = target_volume * 1e-4;
         let max_trim_iter = 15;
         let max_draft_iter = 50;
 
         let mut trim = initial_trim;
+        let mut prev_trim = trim;
+        let mut prev_trim_err = 0.0;
         let mut best_draft = initial_draft.unwrap_or((z_min + z_max) / 2.0);
         let mut best_trim = trim;
         let mut best_gz = 0.0;
@@ -449,7 +451,7 @@ impl<'a> StabilityCalculator<'a> {
             draft_high = (init + margin).min(z_max);
         }
 
-        for _ in 0..max_trim_iter {
+        for _trim_iter in 0..max_trim_iter {
             // Find draft for target volume using bisection
             // Start draft search with current bounds
             let mut low = draft_low;
@@ -553,9 +555,30 @@ impl<'a> StabilityCalculator<'a> {
                 return (final_draft, trim, gz);
             }
 
-            // Adjust trim
-            let trim_gain = 0.05;
-            trim += (lcb - g_transformed.x) * trim_gain;
+            // Adjust trim using Secant Method
+            let current_err = g_transformed.x - lcb;
+
+            if _trim_iter == 0 {
+                // Fixed small step for first iteration
+                let trim_gain = 0.05;
+                prev_trim = trim;
+                prev_trim_err = current_err;
+                trim += (current_err * trim_gain).clamp(-1.0, 1.0);
+            } else {
+                let delta_err = current_err - prev_trim_err;
+                let delta_trim = trim - prev_trim;
+
+                prev_trim = trim;
+                prev_trim_err = current_err;
+
+                if delta_err.abs() > 1e-6 {
+                    let step = current_err * (delta_trim / delta_err);
+                    trim -= step.clamp(-1.0, 1.0);
+                } else {
+                    let trim_gain = 0.05;
+                    trim += (current_err * trim_gain).clamp(-1.0, 1.0);
+                }
+            }
             trim = trim.clamp(-10.0, 10.0);
         }
 

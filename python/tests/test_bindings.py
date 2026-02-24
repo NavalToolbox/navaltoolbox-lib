@@ -391,7 +391,9 @@ class TestDTMB5415:
 
         # Test with multiple displacements
         displacements = [self.DISPLACEMENT, self.DISPLACEMENT * 0.9]
-        curves = calc.kn_curve(displacements, heels)
+        curves = calc.kn_curve(
+            displacements, heels, lcg=self.LCG, tcg=self.TCG
+        )
 
         assert len(curves) == 2, "Should return one curve per displacement"
 
