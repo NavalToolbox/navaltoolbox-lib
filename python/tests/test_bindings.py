@@ -730,5 +730,57 @@ class TestFreeSurfaceCorrection:
         assert gmt_wet < gmt_dry, "Wet GMT should be less than dry GMT"
 
 
+class TestFreeboardImplementation:
+    """Freeboard property exposed correctly in StabilityPoint."""
+
+    def test_freeboard_with_deck_edge(self):
+        from navaltoolbox import (
+            Hull,
+            Vessel,
+            DeckEdge,
+            DeckEdgeSide,
+            StabilityCalculator,
+        )
+
+        vessel = Vessel(Hull.from_box(10.0, 10.0, 10.0))
+        # Add a deck edge at z=10.0, matching the hull bounds: x from 0 to 10
+        edge = DeckEdge.from_points(
+            "MainDeck",
+            [
+                (10.0, 5.0, 10.0),
+                (0.0, 5.0, 10.0),
+                (0.0, -5.0, 10.0),
+                (10.0, -5.0, 10.0)
+            ],
+            DeckEdgeSide.both()
+        )
+        vessel.add_deck_edge(edge)
+
+        calc = StabilityCalculator(vessel, 1025.0)
+        # Displacement for draft = 5.0m is 10 * 10 * 5.0 * 1025.0 = 512500.0 kg
+        heels = [0.0, 10.0, 20.0]
+        # Set LCG = 5.0 to align exactly with centroid and maintain 0 trim
+        curve = calc.gz_curve(512500.0, (5.0, 0.0, 5.0), heels)
+
+        points = curve.get_stability_points()
+        for point in points:
+            assert point.freeboard is not None
+
+        # At 0 heel and 0 trim, freeboard from Deck 10 should be exactly 10.0 - draft
+        expected_freeboard = 10.0 - points[0].draft
+        assert abs(points[0].freeboard - expected_freeboard) < 1e-4
+
+    def test_freeboard_without_deck_edge(self):
+        from navaltoolbox import Hull, Vessel, StabilityCalculator
+
+        vessel = Vessel(Hull.from_box(10.0, 10.0, 10.0))
+        calc = StabilityCalculator(vessel, 1025.0)
+        heels = [0.0]
+        curve = calc.gz_curve(512500.0, (0.0, 0.0, 5.0), heels)
+
+        points = curve.get_stability_points()
+        assert points[0].freeboard is None
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
