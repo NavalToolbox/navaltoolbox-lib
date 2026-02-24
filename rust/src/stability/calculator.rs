@@ -246,6 +246,8 @@ impl<'a> StabilityCalculator<'a> {
                 );
                 let is_flooding = !flooded_openings.is_empty();
 
+                let freeboard = self.vessel.get_min_freeboard(heel, trim, draft);
+
                 StabilityPoint {
                     heel,
                     draft,
@@ -255,6 +257,7 @@ impl<'a> StabilityCalculator<'a> {
                     flooded_openings,
                     cog: Some(effective_cog),
                     vessel_cog: Some(ship_cog),
+                    freeboard,
                 }
             })
             .collect();

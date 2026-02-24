@@ -36,6 +36,8 @@ pub struct StabilityPoint {
     pub cog: Option<[f64; 3]>,
     /// Vessel (Ship-only) Center of Gravity [LCG, TCG, VCG]
     pub vessel_cog: Option<[f64; 3]>,
+    /// Minimum freeboard at deck edge in meters, if deck edges defined
+    pub freeboard: Option<f64>,
 }
 
 /// A complete stability curve.

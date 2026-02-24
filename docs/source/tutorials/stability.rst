@@ -41,6 +41,19 @@ Basic GZ Calculation
     for heel, gz in zip(curve.heels(), curve.values()):
         print(f"{heel:6.1f}    {gz:+.3f}")
 
+Fixed Trim Option
+-----------------
+
+By default, the calculator finds the free-trim equilibrium for each heel angle. However, you can force a constant trim angle using the `fixed_trim` parameter:
+
+.. code-block:: python
+
+    # Calculate GZ curve maintaining exactly 0.0 degrees of trim
+    fixed_trim_curve = calc.gz_curve(displacement, cog, heels, fixed_trim=0.0)
+
+    # For cross curves (KN)
+    kn_curves_fixed = calc.kn_curve(displacements, heels, fixed_trim=0.0)
+
 Analyzing the Curve
 -------------------
 
@@ -62,6 +75,12 @@ Extract key stability metrics:
     # Check positive range
     positive_range = [h for h, gz in zip(heels, gz_values) if gz > 0]
     print(f"Positive GZ range: 0° to {max(positive_range):.0f}°")
+
+    # Read freeboard and draft at specific heels
+    points = curve.get_stability_points()
+    for pt in points:
+        if pt.freeboard is not None and pt.freeboard < 0.0:
+            print(f"Deck edge submerged at {pt.heel}°")
 
     # Initial GM (from slope at 0°)
     # GZ ≈ GM × sin(φ) for small angles

@@ -1519,6 +1519,8 @@ pub struct PyStabilityPoint {
     pub cog: Option<(f64, f64, f64)>,
     #[pyo3(get)]
     pub vessel_cog: Option<(f64, f64, f64)>,
+    #[pyo3(get)]
+    pub freeboard: Option<f64>,
 }
 
 /// A complete GZ stability curve.
@@ -1562,6 +1564,7 @@ impl PyStabilityCurve {
                 flooded_openings: p.flooded_openings.clone(),
                 cog: p.cog.map(|c| (c[0], c[1], c[2])),
                 vessel_cog: p.vessel_cog.map(|c| (c[0], c[1], c[2])),
+                freeboard: p.freeboard,
             })
             .collect()
     }
