@@ -114,8 +114,9 @@ fn test_u_shape_waterplane() {
 
     // Area = 10*2 + 2*6 + 10*2 = 20 + 12 + 20 = 52.
     let expected_area = 52.0;
+    println!("Actual area: {}", wp.area);
     assert!(
-        (wp.area - expected_area).abs() < 1.0,
+        wp.area == expected_area,
         "U-shape Area: got {:.2}, expected {:.2}",
         wp.area,
         expected_area
@@ -148,7 +149,7 @@ fn test_box_waterplane_area() {
     // Expected area = L × B = 100 m²
     let expected_area = 100.0;
     assert!(
-        (wp.area - expected_area).abs() < 1.0,
+        wp.area == expected_area,
         "Area: got {:.2}, expected {:.2}",
         wp.area,
         expected_area

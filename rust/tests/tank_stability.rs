@@ -31,7 +31,7 @@ fn test_complete_stability_with_tanks() {
     // 5. Calculate Complete Stability
     let heels = vec![0.0, 10.0, 20.0];
     let tank_opts = Some(navaltoolbox::hydrostatics::TankOptions::all());
-    let result = calc.complete_stability(ship_mass, ship_cog, &heels, tank_opts);
+    let result = calc.complete_stability(ship_mass, ship_cog, &heels, tank_opts, None);
 
     // 6. Verify Hydrostatics
     println!(
@@ -79,7 +79,7 @@ fn test_complete_stability_equilibrium_trim() {
     let ship_cog = [10.0, 0.0, 2.0];
 
     let tank_opts = Some(navaltoolbox::hydrostatics::TankOptions::all());
-    let result = calc.complete_stability(ship_mass, ship_cog, &vec![0.0], tank_opts);
+    let result = calc.complete_stability(ship_mass, ship_cog, &vec![0.0], tank_opts, None);
 
     assert!(
         result.hydrostatics.trim > 0.1,
@@ -105,7 +105,7 @@ fn test_displacement_components() {
 
     // CASE 1: Include Mass = TRUE
     let opts_all = Some(navaltoolbox::hydrostatics::TankOptions::all());
-    let res_all = calc.complete_stability(ship_mass, ship_cog, &[0.0], opts_all);
+    let res_all = calc.complete_stability(ship_mass, ship_cog, &[0.0], opts_all, None);
     let h_all = res_all.hydrostatics;
 
     println!(
@@ -134,7 +134,7 @@ fn test_displacement_components() {
 
     // CASE 2: Include Mass = FALSE
     let opts_nomass = Some(navaltoolbox::hydrostatics::TankOptions::fsm_only());
-    let res_nm = calc.complete_stability(ship_mass, ship_cog, &[0.0], opts_nomass);
+    let res_nm = calc.complete_stability(ship_mass, ship_cog, &[0.0], opts_nomass, None);
     let h_nm = res_nm.hydrostatics;
 
     println!(
@@ -157,7 +157,7 @@ fn test_displacement_components() {
     // CASE 3: Tank Options = None
     // Should behave like Case 2 (No Mass) regarding displacement, or just no tanks at all?
     // Current logic: None -> tanks ignored completely.
-    let res_none = calc.complete_stability(ship_mass, ship_cog, &[0.0], None);
+    let res_none = calc.complete_stability(ship_mass, ship_cog, &[0.0], None, None);
     let h_none = res_none.hydrostatics;
 
     assert_eq!(h_none.tank_displacement, 0.0);

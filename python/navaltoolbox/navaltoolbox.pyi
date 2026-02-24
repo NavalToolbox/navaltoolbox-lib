@@ -1232,6 +1232,7 @@ class StabilityCalculator:
         cog: tuple[float, float, float],
         heels: list[float],
         tank_options: TankOptions | None = None,
+        fixed_trim: float | None = None,
     ) -> StabilityCurve:
         """Calculate the GZ curve for a given loading condition.
         
@@ -1240,6 +1241,7 @@ class StabilityCalculator:
             cog: Center of gravity (lcg, tcg, vcg) tuple
             heels: List of heel angles in degrees
             tank_options: Optional tank configuration (mass/FSM inclusion)
+            fixed_trim: Optional fixed trim in degrees. If None, calculates free trim
             
         Returns:
             StabilityCurve object
@@ -1252,6 +1254,7 @@ class StabilityCalculator:
         heels: List[float],
         lcg: float = 0.0,
         tcg: float = 0.0,
+        fixed_trim: float | None = None,
     ) -> List[StabilityCurve]:
         """Calculate KN curves (Righting Lever from Keel) for multiple displacements.
         
@@ -1263,6 +1266,7 @@ class StabilityCalculator:
             heels: List of heel angles in degrees.
             lcg: Longitudinal Center of Gravity in meters (default 0.0).
             tcg: Transverse Center of Gravity in meters (default 0.0).
+            fixed_trim: Optional fixed trim in degrees. If None, calculates free trim.
         
         Returns:
             List[StabilityCurve]: One curve per displacement.
@@ -1275,6 +1279,7 @@ class StabilityCalculator:
         cog: tuple[float, float, float],
         heels: list[float],
         tank_options: TankOptions | None = None,
+        fixed_trim: float | None = None,
     ) -> CompleteStabilityResult:
         """Calculate complete stability analysis for a loading condition.
         
@@ -1286,6 +1291,7 @@ class StabilityCalculator:
             cog: Center of gravity (lcg, tcg, vcg) tuple
             heels: List of heel angles for GZ curve in degrees
             tank_options: Optional tank configuration (mass/FSM inclusion)
+            fixed_trim: Optional fixed trim in degrees. If None, calculates free trim
             
         Returns:
             CompleteStabilityResult with hydrostatics, GZ curve, and wind data
