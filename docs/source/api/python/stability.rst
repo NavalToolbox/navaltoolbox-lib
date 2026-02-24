@@ -13,7 +13,7 @@ StabilityCalculator
    :param vessel: The vessel to calculate stability for
    :param water_density: Water density in kg/m³
 
-   .. method:: gz_curve(displacement_mass: float, cog: tuple[float, float, float], heels: list[float], tank_options: TankOptions | None = None) -> StabilityCurve
+   .. method:: gz_curve(displacement_mass: float, cog: tuple[float, float, float], heels: list[float], tank_options: TankOptions | None = None, fixed_trim: float | None = None) -> StabilityCurve
 
       Calculate the GZ curve for a given loading condition.
 
@@ -21,9 +21,10 @@ StabilityCalculator
       :param cog: Center of gravity (lcg, tcg, vcg) tuple in meters.
       :param heels: List of heel angles in degrees.
       :param tank_options: Optional :class:`~navaltoolbox.hydrostatics.TankOptions` to configure tank mass and free surface moment inclusion.
+      :param fixed_trim: Optional fixed trim in degrees. If None, calculates free trim.
       :return: A :class:`StabilityCurve` object.
 
-   .. py:method:: kn_curve(displacements, heels, lcg=0.0, tcg=0.0)
+   .. py:method:: kn_curve(displacements, heels, lcg=0.0, tcg=0.0, fixed_trim=None)
 
       Calculates KN curves (Righting Lever from Keel) for multiple displacements.
 
@@ -33,9 +34,10 @@ StabilityCalculator
       :param heels: List of heel angles in degrees
       :param lcg: Longitudinal Center of Gravity (m)
       :param tcg: Transverse Center of Gravity (m)
+      :param fixed_trim: Optional fixed trim in degrees. If None, calculates free trim.
       :returns: List of StabilityCurve objects
 
-   .. method:: complete_stability(displacement_mass: float, cog: tuple[float, float, float], heels: list[float], tank_options: TankOptions | None = None) -> CompleteStabilityResult
+   .. method:: complete_stability(displacement_mass: float, cog: tuple[float, float, float], heels: list[float], tank_options: TankOptions | None = None, fixed_trim: float | None = None) -> CompleteStabilityResult
 
       Calculate complete stability analysis for a loading condition.
       
@@ -46,6 +48,7 @@ StabilityCalculator
       :param cog: Center of gravity (lcg, tcg, vcg) tuple in meters.
       :param heels: List of heel angles in degrees.
       :param tank_options: Optional :class:`~navaltoolbox.hydrostatics.TankOptions` to configure tank mass and free surface moment inclusion.
+      :param fixed_trim: Optional fixed trim in degrees. If None, calculates free trim.
       :return: A :class:`CompleteStabilityResult` object containing all analysis data.
 
 CompleteStabilityResult

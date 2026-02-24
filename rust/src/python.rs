@@ -1754,7 +1754,7 @@ impl PyStabilityCalculator {
     }
 
     /// Calculate the GZ curve for a given loading condition.
-    #[pyo3(signature = (displacement_mass, cog, heels, tank_options=None))]
+    #[pyo3(signature = (displacement_mass, cog, heels, tank_options=None, fixed_trim=None))]
     fn gz_curve(
         &self,
         py: Python<'_>,
@@ -1762,6 +1762,7 @@ impl PyStabilityCalculator {
         cog: (f64, f64, f64),
         heels: Vec<f64>,
         tank_options: Option<PyTankOptions>,
+        fixed_trim: Option<f64>,
     ) -> PyStabilityCurve {
         let vessel = self.vessel.borrow(py);
         let calc = RustStabCalc::new(&vessel.inner, self.water_density);
@@ -1770,6 +1771,7 @@ impl PyStabilityCalculator {
             [cog.0, cog.1, cog.2],
             &heels,
             tank_options.map(|t| t.inner),
+            fixed_trim,
         );
         PyStabilityCurve { inner: curve }
     }
@@ -1783,10 +1785,11 @@ impl PyStabilityCalculator {
     ///     lcg: Longitudinal Center of Gravity (m) (default 0.0)
     ///     tcg: Transverse Center of Gravity (m) (default 0.0)
     ///     heels: List of heel angles in degrees
+    ///     fixed_trim: Optional fixed trim in degrees. If None, calculates free trim
     ///
     /// Returns:
     ///     List[StabilityCurve]: One curve per displacement
-    #[pyo3(signature = (displacements, heels, lcg=0.0, tcg=0.0))]
+    #[pyo3(signature = (displacements, heels, lcg=0.0, tcg=0.0, fixed_trim=None))]
     fn kn_curve(
         &self,
         py: Python<'_>,
@@ -1794,10 +1797,11 @@ impl PyStabilityCalculator {
         heels: Vec<f64>,
         lcg: f64,
         tcg: f64,
+        fixed_trim: Option<f64>,
     ) -> Vec<PyStabilityCurve> {
         let vessel = self.vessel.borrow(py);
         let calc = RustStabCalc::new(&vessel.inner, self.water_density);
-        let curves = calc.kn_curve(&displacements, lcg, tcg, &heels);
+        let curves = calc.kn_curve(&displacements, lcg, tcg, &heels, fixed_trim);
         curves
             .into_iter()
             .map(|c| PyStabilityCurve { inner: c })
@@ -1813,10 +1817,12 @@ impl PyStabilityCalculator {
     ///     displacement_mass: Target displacement in kg
     ///     cog: Center of gravity (lcg, tcg, vcg) tuple
     ///     heels: List of heel angles for GZ curve in degrees
+    ///     tank_options: Optional TankOptions
+    ///     fixed_trim: Optional fixed trim in degrees. If None, calculates free trim
     ///
     /// Returns:
     ///     CompleteStabilityResult with hydrostatics, GZ curve, and wind data
-    #[pyo3(signature = (displacement_mass, cog, heels, tank_options=None))]
+    #[pyo3(signature = (displacement_mass, cog, heels, tank_options=None, fixed_trim=None))]
     fn complete_stability(
         &self,
         py: Python<'_>,
@@ -1824,6 +1830,7 @@ impl PyStabilityCalculator {
         cog: (f64, f64, f64),
         heels: Vec<f64>,
         tank_options: Option<PyTankOptions>,
+        fixed_trim: Option<f64>,
     ) -> PyCompleteStabilityResult {
         let vessel = self.vessel.borrow(py);
         let calc = RustStabCalc::new(&vessel.inner, self.water_density);
@@ -1832,6 +1839,7 @@ impl PyStabilityCalculator {
             [cog.0, cog.1, cog.2],
             &heels,
             tank_options.map(|t| t.inner),
+            fixed_trim,
         );
         result.into()
     }

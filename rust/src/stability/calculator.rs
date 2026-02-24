@@ -56,6 +56,7 @@ impl<'a> StabilityCalculator<'a> {
         cog: [f64; 3],
         heels: &[f64],
         tank_options: Option<crate::hydrostatics::TankOptions>,
+        fixed_trim: Option<f64>,
     ) -> StabilityCurve {
         use crate::hull::Hull;
         use crate::vessel::Vessel;
@@ -212,6 +213,7 @@ impl<'a> StabilityCalculator<'a> {
                     effective_cog,
                     heel,
                     0.0,
+                    fixed_trim,
                     Some(upright_draft),
                     center_x,
                     center_y,
@@ -323,12 +325,13 @@ impl<'a> StabilityCalculator<'a> {
         lcg: f64,
         tcg: f64,
         heels: &[f64],
+        fixed_trim: Option<f64>,
     ) -> Vec<StabilityCurve> {
         // KN is GZ calculated with VCG = 0 (Keel as reference).
         let cog = [lcg, tcg, 0.0];
         displacements
             .iter()
-            .map(|&disp| self.gz_curve(disp, cog, heels, None))
+            .map(|&disp| self.gz_curve(disp, cog, heels, None, fixed_trim))
             .collect()
     }
 
@@ -423,18 +426,21 @@ impl<'a> StabilityCalculator<'a> {
         cog: [f64; 3],
         heel: f64,
         initial_trim: f64,
+        fixed_trim: Option<f64>,
         initial_draft: Option<f64>,
         center_x: f64,
         center_y: f64,
         z_min: f64,
         z_max: f64,
     ) -> (f64, f64, f64) {
-        let lcb_tolerance = 0.5;
+        let lcb_tolerance = 0.001;
         let volume_tolerance = target_volume * 1e-4;
-        let max_trim_iter = 15;
+        let max_trim_iter = if fixed_trim.is_some() { 1 } else { 15 };
         let max_draft_iter = 50;
 
-        let mut trim = initial_trim;
+        let mut trim = fixed_trim.unwrap_or(initial_trim);
+        let mut prev_trim = trim;
+        let mut prev_trim_err = 0.0;
         let mut best_draft = initial_draft.unwrap_or((z_min + z_max) / 2.0);
         let mut best_trim = trim;
         let mut best_gz = 0.0;
@@ -449,7 +455,7 @@ impl<'a> StabilityCalculator<'a> {
             draft_high = (init + margin).min(z_max);
         }
 
-        for _ in 0..max_trim_iter {
+        for _trim_iter in 0..max_trim_iter {
             // Find draft for target volume using bisection
             // Start draft search with current bounds
             let mut low = draft_low;
@@ -549,13 +555,34 @@ impl<'a> StabilityCalculator<'a> {
                 draft_high = (final_draft + margin).min(z_max);
             }
 
-            if lcb_error < lcb_tolerance {
+            if fixed_trim.is_some() || lcb_error < lcb_tolerance {
                 return (final_draft, trim, gz);
             }
 
-            // Adjust trim
-            let trim_gain = 0.05;
-            trim += (lcb - g_transformed.x) * trim_gain;
+            // Adjust trim using Secant Method
+            let current_err = g_transformed.x - lcb;
+
+            if _trim_iter == 0 {
+                // Fixed small step for first iteration
+                let trim_gain = 0.05;
+                prev_trim = trim;
+                prev_trim_err = current_err;
+                trim += (current_err * trim_gain).clamp(-1.0, 1.0);
+            } else {
+                let delta_err = current_err - prev_trim_err;
+                let delta_trim = trim - prev_trim;
+
+                prev_trim = trim;
+                prev_trim_err = current_err;
+
+                if delta_err.abs() > 1e-6 {
+                    let step = current_err * (delta_trim / delta_err);
+                    trim -= step.clamp(-1.0, 1.0);
+                } else {
+                    let trim_gain = 0.05;
+                    trim += (current_err * trim_gain).clamp(-1.0, 1.0);
+                }
+            }
             trim = trim.clamp(-10.0, 10.0);
         }
 
@@ -583,6 +610,7 @@ impl<'a> StabilityCalculator<'a> {
         cog: [f64; 3],
         heels: &[f64],
         tank_options: Option<crate::hydrostatics::TankOptions>,
+        fixed_trim: Option<f64>,
     ) -> CompleteStabilityResult {
         // Handle tank options
         let include_tank_mass = tank_options.map(|o| o.include_mass).unwrap_or(false);
@@ -648,7 +676,7 @@ impl<'a> StabilityCalculator<'a> {
             .unwrap_or_default();
 
         // Calculate GZ curve
-        let gz_curve = self.gz_curve(displacement_mass, cog, heels, tank_options);
+        let gz_curve = self.gz_curve(displacement_mass, cog, heels, tank_options, fixed_trim);
 
         // Calculate wind heeling data if silhouettes exist
         let wind_data = if self.vessel.has_silhouettes() {
@@ -723,7 +751,7 @@ mod tests {
         let cog = [5.0, 0.0, 2.0]; // Center of box, low VCG
         let displacement = 500.0 * 1025.0; // 500 m³ at 5m draft
 
-        let curve = calc.gz_curve(displacement, cog, &[0.0], None);
+        let curve = calc.gz_curve(displacement, cog, &[0.0], None, None);
 
         // At zero heel for symmetric hull, GZ should be ~0
         assert!(
@@ -770,7 +798,7 @@ mod tests {
         // Calculate GZ with FSC (Wet)
         // Use TankOptions with Mass=True (default behavior before was implicit mass inclusion)
         let tank_opts = Some(crate::hydrostatics::TankOptions::all());
-        let curve_wet = calc.gz_curve(ship_mass, ship_cog, &[heel], tank_opts);
+        let curve_wet = calc.gz_curve(ship_mass, ship_cog, &[heel], tank_opts, None);
         let gz_wet = curve_wet.points[0].value;
 
         // Calculate Dry reference
@@ -783,7 +811,7 @@ mod tests {
 
         vessel.remove_tank(0);
         let calc_dry = StabilityCalculator::new(&vessel, 1025.0);
-        let curve_dry = calc_dry.gz_curve(total_mass, total_cog, &[heel], None);
+        let curve_dry = calc_dry.gz_curve(total_mass, total_cog, &[heel], None, None);
         let gz_dry = curve_dry.points[0].value;
 
         // Theoretical Reduction GG'
