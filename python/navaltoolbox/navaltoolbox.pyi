@@ -1081,6 +1081,7 @@ class StabilityPoint:
         gz: Righting arm (GZ) in meters.
         is_flooding: True if any downflooding opening is submerged.
         flooded_openings: List of names of submerged openings.
+        freeboard: Minimum freeboard at deck edge in meters, if deck edges defined.
     """
     
     heel: float
@@ -1091,6 +1092,7 @@ class StabilityPoint:
     flooded_openings: List[str]
     cog: Tuple[float, float, float] | None
     vessel_cog: Tuple[float, float, float] | None
+    freeboard: float | None
 
 
 class StabilityCurve:
