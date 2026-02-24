@@ -29,9 +29,9 @@ class TestRhaiScripting:
         hull = Hull(str(stl_path))
         return Vessel(hull)
 
-    def test_reproduce_imo_a749_error(self, dtmb5415_vessel):
+    def test_reproduce_is_code_2008_error(self, dtmb5415_vessel):
         """
-        Reproduce the 'Function not found' error for IMO A749 script.
+        Reproduce the 'Function not found' error for IS Code 2008 script.
 
         Specifically checking:
         - find_max_gz
@@ -60,11 +60,11 @@ class TestRhaiScripting:
         # 3. Initialize Engine
         engine = ScriptEngine()
 
-        # 4. Load and run IMO A749 script
+        # 4. Load and run IS Code 2008 script
         script_path = (
             Path(__file__).parent.parent.parent
             / "rules"
-            / "imo_a749_general.rhai"
+            / "is_code_2008_general.rhai"
         )
 
         if not script_path.exists():
@@ -116,6 +116,41 @@ class TestRhaiScripting:
         }
         """
         engine.run_script(script_area, ctx)
+
+    def test_is_code_2008_values_dtmb5415(self, dtmb5415_vessel):
+        """Verify numerical values of IS Code 2008 criteria on DTMB5415."""
+        displacement = 8635000.0
+        cog = (71.670, 0.0, 7.555)
+        calc = StabilityCalculator(dtmb5415_vessel, 1025.0)
+        heels = list(range(0, 70, 5))
+        result = calc.complete_stability(displacement, cog, heels)
+
+        ctx = CriteriaContext.from_result(result, "DTMB 5415", "Test")
+        engine = ScriptEngine()
+
+        script_path = (
+            Path(__file__).parent.parent.parent
+            / "rules"
+            / "is_code_2008_general.rhai"
+        )
+        
+        if not script_path.exists():
+            pytest.skip("IS Code script not found")
+            
+        res = engine.run_script_file(str(script_path), ctx)
+        
+        assert res.overall_pass is True, "DTMB5415 should pass all general criteria"
+        assert len(res.criteria) == 6
+        
+        crit_names = [c.name for c in res.criteria]
+        assert any("Area 0-30°" in n for n in crit_names)
+        assert any("GZ at 30°+" in n for n in crit_names)
+        assert any("Initial GM₀" in n for n in crit_names)
+        
+        for crit in res.criteria:
+            assert crit.status == "PASS"
+            if "GM₀" in crit.name:
+                assert abs(crit.actual_value - result.hydrostatics.gmt) < 0.01
 
     def test_run_all_rules(self, dtmb5415_vessel):
         """Verify that all scripts in rules/ directory can be executed."""

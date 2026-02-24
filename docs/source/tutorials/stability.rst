@@ -315,7 +315,7 @@ Once you have calculated stability, you can verify it against regulations using 
     # 2. Run verification script
     engine = ScriptEngine()
     # Assuming rule file is available
-    # criteria = engine.run_script_file("rules/imo_a749_general.rhai", ctx)
+    # criteria = engine.run_script_file("rules/is_code_2008_general.rhai", ctx)
 
     # 3. Plot results
     # plotting.plot_criteria_result(criteria)

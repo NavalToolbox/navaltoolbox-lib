@@ -1604,6 +1604,7 @@ class CriteriaContext:
     - `find_max_gz()` -> map with `angle` and `value`
     - `find_angle_of_vanishing_stability()` -> angle or ()
     - `get_first_flooding_angle()` -> angle or ()
+    - `get_deck_edge_immersion_angle()` -> angle or ()
     - `find_equilibrium_angle(heeling_arm)` -> angle or ()
     - `find_second_intercept(heeling_arm)` -> angle or ()
     - `get_limiting_angle(default)` -> limiting angle
@@ -1665,6 +1666,10 @@ class CriteriaContext:
     
     def get_first_flooding_angle(self) -> float | None:
         """Get the first angle where downflooding occurs, or None."""
+        ...
+
+    def get_deck_edge_immersion_angle(self) -> float | None:
+        """Get the first angle where freeboard crosses zero, or None."""
         ...
     
     def find_equilibrium_angle(self, heeling_arm: float) -> float | None:

@@ -28,7 +28,7 @@ Basic Example
     
     # 3. Run script
     engine = ScriptEngine()
-    criteria = engine.run_script_file("rules/imo_a749_general.rhai", ctx)
+    criteria = engine.run_script_file("rules/is_code_2008_general.rhai", ctx)
     
     # Check results
     if criteria.overall_pass:
