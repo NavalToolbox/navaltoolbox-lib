@@ -133,20 +133,22 @@ class TestRhaiScripting:
             / "rules"
             / "is_code_2008_general.rhai"
         )
-        
+
         if not script_path.exists():
             pytest.skip("IS Code script not found")
-            
+
         res = engine.run_script_file(str(script_path), ctx)
-        
-        assert res.overall_pass is True, "DTMB5415 should pass all general criteria"
+
+        assert res.overall_pass is True, (
+            "DTMB5415 should pass all general criteria"
+        )
         assert len(res.criteria) == 6
-        
+
         crit_names = [c.name for c in res.criteria]
         assert any("Area 0-30°" in n for n in crit_names)
         assert any("GZ at 30°+" in n for n in crit_names)
         assert any("Initial GM₀" in n for n in crit_names)
-        
+
         for crit in res.criteria:
             assert crit.status == "PASS"
             if "GM₀" in crit.name:

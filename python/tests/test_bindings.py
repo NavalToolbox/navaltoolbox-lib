@@ -766,7 +766,8 @@ class TestFreeboardImplementation:
         for point in points:
             assert point.freeboard is not None
 
-        # At 0 heel and 0 trim, freeboard from Deck 10 should be exactly 10.0 - draft
+        # At 0 heel and 0 trim, freeboard from Deck 10 should
+        # be exactly 10.0 - draft
         expected_freeboard = 10.0 - points[0].draft
         assert abs(points[0].freeboard - expected_freeboard) < 1e-4
 
