@@ -200,6 +200,33 @@ class TestTank:
         assert tank.free_surface_moment_t == 0.0, "FSM_t should be 0 when full"
         assert tank.free_surface_moment_l == 0.0, "FSM_l should be 0 when full"
 
+    def test_tank_permeability(self):
+        """Test tank permeability factor."""
+        from navaltoolbox import Tank
+
+        # 10 x 5 x 2 = 100 m³
+        tank = Tank.from_box("Test", 0.0, 10.0, 0.0, 5.0, 0.0, 2.0, 1000.0)
+
+        # Default permeability should be 1.0
+        assert abs(tank.permeability - 1.0) < 1e-6
+
+        # Initial state at 50% fill
+        tank.fill_percent = 50.0
+        orig_volume = tank.fill_volume
+        orig_mass = tank.fluid_mass
+        orig_fsm_t = tank.free_surface_moment_t
+
+        # Apply 90% permeability
+        tank.permeability = 0.9
+
+        # Property should be preserved
+        assert abs(tank.permeability - 0.9) < 1e-6
+
+        # Values should be 90% of original
+        assert abs(tank.fill_volume - orig_volume * 0.9) < 1e-6
+        assert abs(tank.fluid_mass - orig_mass * 0.9) < 1e-6
+        assert abs(tank.free_surface_moment_t - orig_fsm_t * 0.9) < 1e-6
+
 
 class TestVessel:
     """Tests for Vessel class."""

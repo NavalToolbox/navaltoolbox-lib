@@ -50,6 +50,8 @@ pub struct Tank {
     fsm_mode: FSMMode,
     /// Cached maximum FSM (transverse, longitudinal)
     max_fsm_cache: Option<(f64, f64)>,
+    /// Tank permeability (0.0 to 1.0)
+    permeability: f64,
 }
 
 /// Mode for Free Surface Moment calculation
@@ -88,6 +90,7 @@ impl Tank {
             bounds,
             fsm_mode: FSMMode::Actual,
             max_fsm_cache: None,
+            permeability: 1.0,
         }
     }
 
@@ -253,6 +256,21 @@ impl Tank {
         self.fill_level = level.clamp(0.0, 1.0);
     }
 
+    /// Returns the permeability of the tank (0.0 to 1.0).
+    pub fn permeability(&self) -> f64 {
+        self.permeability
+    }
+
+    /// Sets the permeability of the tank (0.0 to 1.0).
+    pub fn set_permeability(&mut self, permeability: f64) {
+        self.permeability = permeability.clamp(0.0, 1.0);
+        // Clear max FSM cache if permeability changes
+        if self.fsm_mode == FSMMode::Maximum {
+            self.max_fsm_cache = None;
+            self.max_fsm_cache = Some(self.calculate_max_fsm());
+        }
+    }
+
     /// Returns the fill level as a percentage (0 to 100).
     pub fn fill_percent(&self) -> f64 {
         self.fill_level * 100.0
@@ -275,7 +293,7 @@ impl Tank {
 
     /// Returns the filled volume in m³.
     pub fn fill_volume(&self) -> f64 {
-        self.total_volume * self.fill_level
+        self.total_volume * self.fill_level * self.permeability
     }
 
     /// Returns the fluid mass in kg.
@@ -448,7 +466,7 @@ impl Tank {
 
                 // Calculate waterplane properties
                 if let Some(wp) = calculate_waterplane_properties(&self.mesh, z) {
-                    wp.i_transverse
+                    wp.i_transverse * self.permeability
                 } else {
                     0.0
                 }
@@ -470,7 +488,7 @@ impl Tank {
                 let z = self.find_z_for_mesh(&self.mesh, target_volume);
 
                 if let Some(wp) = calculate_waterplane_properties(&self.mesh, z) {
-                    wp.i_longitudinal
+                    wp.i_longitudinal * self.permeability
                 } else {
                     0.0
                 }
@@ -491,7 +509,9 @@ impl Tank {
 
     /// Calculate approximate maximum FSM by sampling.
     fn calculate_max_fsm(&self) -> (f64, f64) {
-        let levels = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95];
+        let levels = [
+            0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.98, 0.99,
+        ];
         let mut max_t = 0.0;
         let mut max_l = 0.0;
 
@@ -499,11 +519,13 @@ impl Tank {
             let target_volume = self.total_volume * level;
             let z = self.find_z_for_mesh(&self.mesh, target_volume);
             if let Some(wp) = calculate_waterplane_properties(&self.mesh, z) {
-                if wp.i_transverse > max_t {
-                    max_t = wp.i_transverse;
+                let wp_it = wp.i_transverse * self.permeability;
+                if wp_it > max_t {
+                    max_t = wp_it;
                 }
-                if wp.i_longitudinal > max_l {
-                    max_l = wp.i_longitudinal;
+                let wp_il = wp.i_longitudinal * self.permeability;
+                if wp_il > max_l {
+                    max_l = wp_il;
                 }
             }
         }
@@ -623,6 +645,25 @@ mod tests {
         // Test at empty (should be 0)
         tank.set_fill_level(0.0);
         assert_eq!(tank.free_surface_moment_t(), 0.0);
+    }
+
+    #[test]
+    fn test_tank_permeability() {
+        let mut tank = Tank::from_box("Perm_Test", 0.0, 10.0, 0.0, 10.0, 0.0, 10.0, 1000.0);
+
+        // Initial state at 50% fill
+        tank.set_fill_percent(50.0);
+        let orig_volume = tank.fill_volume();
+        let orig_mass = tank.fluid_mass();
+        let orig_fsm_t = tank.free_surface_moment_t();
+
+        // Apply 90% permeability
+        tank.set_permeability(0.9);
+
+        // Values should be 90% of original
+        assert!((tank.fill_volume() - orig_volume * 0.9).abs() < 1e-6);
+        assert!((tank.fluid_mass() - orig_mass * 0.9).abs() < 1e-6);
+        assert!((tank.free_surface_moment_t() - orig_fsm_t * 0.9).abs() < 1e-6);
     }
 
     #[test]

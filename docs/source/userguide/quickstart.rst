@@ -165,8 +165,9 @@ Create and manage tanks:
     )
     vessel.add_tank(tank)
 
-    # Set fill level
+    # Set fill level and permeability
     tank.fill_percent = 75.0
+    tank.permeability = 0.95  # Optional: account for internal structure
 
     # Get tank properties
     print(f"Total volume: {tank.total_volume:.1f} m³")

@@ -180,6 +180,7 @@ Free surface effects reduce effective GM:
     #     fluid_density=850.0, name="DB_1C"
     # )
     fuel_tank.fill_percent = 50  # Partial fill = free surface
+    fuel_tank.permeability = 0.95 # Account for internal structure
 
     vessel.add_tank(fuel_tank)
 
