@@ -1423,6 +1423,16 @@ class Tank:
         ...
     
     @property
+    def permeability(self) -> float:
+        """Returns the permeability as a fraction (0-1)."""
+        ...
+        
+    @permeability.setter
+    def permeability(self, permeability: float) -> None:
+        """Sets the permeability as a fraction (0-1)."""
+        ...
+    
+    @property
     def fill_volume(self) -> float:
         """Returns the filled volume in m³."""
         ...

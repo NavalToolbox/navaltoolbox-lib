@@ -1975,6 +1975,18 @@ impl PyTank {
         self.inner.write().unwrap().set_fill_percent(percent);
     }
 
+    /// Returns the permeability (0.0 to 1.0).
+    #[getter]
+    fn permeability(&self) -> f64 {
+        self.inner.read().unwrap().permeability()
+    }
+
+    /// Sets the permeability (0.0 to 1.0).
+    #[setter]
+    fn set_permeability(&mut self, permeability: f64) {
+        self.inner.write().unwrap().set_permeability(permeability);
+    }
+
     /// Returns the filled volume in m³.
     #[getter]
     fn fill_volume(&self) -> f64 {
@@ -2018,10 +2030,11 @@ impl PyTank {
     fn __repr__(&self) -> String {
         let tank = self.inner.read().unwrap();
         format!(
-            "Tank(name='{}', volume={:.2}m³, fill={:.1}%)",
+            "Tank(name='{}', volume={:.2}m³, fill={:.1}%, permeability={:.1}%)",
             tank.name(),
             tank.total_volume(),
-            tank.fill_percent()
+            tank.fill_percent(),
+            tank.permeability() * 100.0
         )
     }
 
