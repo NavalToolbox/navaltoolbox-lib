@@ -115,7 +115,7 @@ The calculator computes accurate waterplane properties and applies Free Surface 
 Handling Tank Options
 ---------------------
 
-You can control how tanks affect hydrostatic calculations using ``TankOptions``. This allows you to include tank fluid mass in the displacement and apply Free Surface Moment (FSM) corrections to GM.
+You can control how tanks affect hydrostatic calculations using ``TankOptions``. This allows you to include tank fluid mass in the displacement and apply Free Surface Moment (FSM) corrections to GM. Note that any ``permeability`` values set on your tanks will automatically scale these fluid masses and Free Surface Moments (except for FSM in fixed mode).
 
 .. code-block:: python
 

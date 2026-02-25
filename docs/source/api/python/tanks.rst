@@ -65,6 +65,11 @@ Tank
 
       Fill level as fraction (0.0 to 1.0).
 
+   .. py:attribute:: permeability
+      :type: float
+
+      Permeability fraction of the tank's contents (0.0 to 1.0). Defaults to 1.0.
+
    .. py:attribute:: fill_percent
       :type: float
 
