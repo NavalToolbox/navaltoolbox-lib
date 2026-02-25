@@ -5,6 +5,17 @@ All notable changes to NavalToolbox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-02-24
+
+### Added
+- **stability**: Included support for IMO IS Code 2008 Passenger Ships Stability (Part A, Chapter 3).
+- **stability**: Included support for French Division 222 intact stability criteria.
+- **stability**: Included support for HSC Code 2000 (Annex 8) monohull intact stability criteria.
+- **scripting**: Exposed `get_deck_edge_immersion_angle()` on `CriteriaContext` for use in Rhai scripts.
+
+### Changed
+- **rules**: Re-organized and renamed existing IMO stability scripts to properly reflect IS Code 2008 standards (`is_code_2008_general.rhai` and `is_code_2008_complete.rhai`).
+
 ## [0.6.4] - 2026-02-13
 
 ### Added
