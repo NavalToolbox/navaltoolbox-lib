@@ -78,6 +78,15 @@ class Hull:
             A tuple (xmin, xmax, ymin, ymax, zmin, zmax) in meters.
         """
         ...
+        
+    @property
+    def thickness(self) -> float | None:
+        """Returns the hull plate thickness."""
+        ...
+        
+    @thickness.setter
+    def thickness(self, value: float | None) -> None:
+        ...
     
     @staticmethod
     def from_box(
@@ -198,6 +207,11 @@ class Vessel:
             hull: The main hull geometry.
         """
         ...
+        
+    @staticmethod
+    def from_hulls(hulls: list[Hull]) -> Vessel:
+        """Create a vessel from multiple hulls."""
+        ...
     
     def get_bounds(self) -> Tuple[float, float, float, float, float, float]:
         """Returns the bounding box of all hulls.
@@ -205,6 +219,14 @@ class Vessel:
         Returns:
             A tuple (xmin, xmax, ymin, ymax, zmin, zmax) in meters.
         """
+        ...
+        
+    def get_hull_thickness(self, index: int) -> float | None:
+        """Returns the hull plate thickness for a specific hull by index."""
+        ...
+        
+    def set_hull_thickness(self, index: int, thickness: float | None) -> None:
+        """Sets the hull plate thickness for a specific hull by index."""
         ...
     
     @property
@@ -815,6 +837,8 @@ class HydrostaticState:
         bwl: Waterline breadth in meters.
         los: Length overall submerged in meters.
         wetted_surface_area: Wetted surface area in m².
+        thickness_volume: Volume added by the hull plate thickness in m³.
+        contact_surface_area: Shared area between hulls excluded from wetted surface in m².
         midship_area: Midship section area in m².
         cm: Midship coefficient.
         cb: Block coefficient.
@@ -931,6 +955,8 @@ class HydrostaticState:
     bwl: float
     los: float
     wetted_surface_area: float
+    thickness_volume: float
+    contact_surface_area: float
     midship_area: float
     cm: float
     cb: float
