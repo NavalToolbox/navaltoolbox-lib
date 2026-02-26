@@ -177,6 +177,22 @@ Hydrostatics change with heel angle:
         state = calc.from_draft(6.15, 0.0, heel, 7.555)
         print(f"Heel {heel:2d}°: Vol={state.volume:.1f}m³, VCB={state.vcb:.2f}m")
 
+Handling Hull Thickness
+-----------------------
+
+NavalToolbox can account for the hull plate thickness, which adds buoyancy to the vessel. The added volume is calculated automatically based on the wetted surface area and the provided thickness. For multi-hull vessels, contact zones between hulls are excluded.
+
+.. code-block:: python
+
+    # Set thickness to 10mm (0.01m)
+    hull.thickness = 0.01
+    
+    # Or set it on the vessel if keeping track of multiple hulls
+    # vessel.set_hull_thickness(0, 0.01)
+
+    state_with_thickness = calc.from_draft(6.15)
+    print(f"Added volume: {state_with_thickness.thickness_volume:.2f} m³")
+
 Working with Appendages
 -----------------------
 

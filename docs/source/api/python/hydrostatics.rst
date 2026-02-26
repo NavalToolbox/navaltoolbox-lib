@@ -229,6 +229,16 @@ HydrostaticState
 
       Wetted Surface Area (m²).
 
+   .. py:attribute:: thickness_volume
+      :type: float
+
+      Volume added by the hull plate thickness (m³).
+
+   .. py:attribute:: contact_surface_area
+      :type: float
+
+      Shared area between hulls excluded from wetted surface (m²).
+
    .. py:attribute:: midship_area
       :type: float
 
