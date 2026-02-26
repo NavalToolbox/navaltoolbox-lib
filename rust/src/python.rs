@@ -76,6 +76,26 @@ impl PyHull {
         Self { inner: hull }
     }
 
+    /// Returns the hull plate thickness.
+    ///
+    /// The thickness model (WSA × t) is designed for thin plates (e.g. 15mm steel).
+    /// It adds displacement volume correctly but does not widen the waterplane geometry.
+    /// Warning: Using unrealistic meter-scale thicknesses will lead to incorrect
+    /// stability calculations since waterplane inertia (BM) is not updated.
+    #[getter]
+    fn get_thickness(&self) -> Option<f64> {
+        self.inner.thickness()
+    }
+
+    /// Sets the hull plate thickness.
+    ///
+    /// Warning: The thickness model is an approximation for thin plates (e.g. 15mm).
+    /// It does not alter waterplane width. Metrical offsets are not supported.
+    #[setter]
+    fn set_thickness(&mut self, thickness: Option<f64>) {
+        self.inner.set_thickness(thickness);
+    }
+
     /// Returns the bounding box (xmin, xmax, ymin, ymax, zmin, zmax).
     fn get_bounds(&self) -> (f64, f64, f64, f64, f64, f64) {
         self.inner.get_bounds()
@@ -191,6 +211,34 @@ impl PyVessel {
         Self {
             inner: RustVessel::new(hull.inner.clone()),
         }
+    }
+
+    /// Create a vessel from multiple hulls.
+    #[staticmethod]
+    fn from_hulls(hulls: Vec<pyo3::PyRef<'_, PyHull>>) -> PyResult<Self> {
+        let rust_hulls: Vec<_> = hulls.into_iter().map(|h| h.inner.clone()).collect();
+        match RustVessel::new_multi(rust_hulls) {
+            Ok(v) => Ok(Self { inner: v }),
+            Err(e) => Err(pyo3::exceptions::PyValueError::new_err(e)),
+        }
+    }
+
+    /// Returns the hull plate thickness for a specific hull by index.
+    fn get_hull_thickness(&self, index: usize) -> PyResult<Option<f64>> {
+        if index < self.inner.hulls().len() {
+            Ok(self.inner.get_hull_thickness(index))
+        } else {
+            Err(pyo3::exceptions::PyValueError::new_err(
+                "Hull index out of bounds",
+            ))
+        }
+    }
+
+    /// Sets the hull plate thickness for a specific hull by index.
+    fn set_hull_thickness(&mut self, index: usize, thickness: Option<f64>) -> PyResult<()> {
+        self.inner
+            .set_hull_thickness(index, thickness)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e))
     }
 
     /// Returns the bounding box of all hulls.
@@ -1149,6 +1197,10 @@ pub struct PyHydrostaticState {
     #[pyo3(get)]
     pub wetted_surface_area: f64,
     #[pyo3(get)]
+    pub thickness_volume: f64,
+    #[pyo3(get)]
+    pub contact_surface_area: f64,
+    #[pyo3(get)]
     pub midship_area: f64,
     #[pyo3(get)]
     pub cm: f64,
@@ -1196,6 +1248,8 @@ impl From<RustHydroState> for PyHydrostaticState {
             bwl: state.bwl,
             los: state.los,
             wetted_surface_area: state.wetted_surface_area,
+            thickness_volume: state.thickness_volume,
+            contact_surface_area: state.contact_surface_area,
             midship_area: state.midship_area,
             cm: state.cm,
             cb: state.cb,

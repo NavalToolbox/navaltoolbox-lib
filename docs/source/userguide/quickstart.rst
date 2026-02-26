@@ -23,6 +23,16 @@ Load a hull geometry from an STL file:
     print(f"LOA: {loa:.2f}m, BOA: {boa:.2f}m")
     print(f"Triangles: {hull.num_triangles()}")
 
+Setting Hull Thickness
+----------------------
+
+You can assign a plate thickness to the hull, which NavalToolbox uses to automatically add the corresponding volume to the hydrostatic calculations:
+
+.. code-block:: python
+
+    # Set 15mm thickness
+    hull.thickness = 0.015
+
 Creating a Vessel
 -----------------
 

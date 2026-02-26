@@ -33,6 +33,11 @@ Hull
       :returns: (xmin, xmax, ymin, ymax, zmin, zmax)
       :rtype: tuple[float, float, float, float, float, float]
 
+   .. py:attribute:: thickness
+      :type: float or None
+
+      The hull plate thickness in meters. If set, it adds volume to the hydrostatic calculations based on the wetted surface area.
+
    .. py:method:: num_triangles()
 
       Returns the number of triangles in the mesh.
@@ -132,6 +137,24 @@ Vessel
    .. py:method:: get_bounds()
 
       Returns the combined bounding box of all hulls.
+
+   .. py:method:: get_hull_thickness(index)
+
+      Returns the hull plate thickness for a specific hull by index.
+
+      :param index: Hull index
+      :type index: int
+      :returns: Hull thickness in meters, or None
+      :rtype: float or None
+
+   .. py:method:: set_hull_thickness(index, thickness)
+
+      Sets the hull plate thickness for a specific hull by index.
+
+      :param index: Hull index
+      :type index: int
+      :param thickness: Hull thickness in meters, or None to remove
+      :type thickness: float or None
 
    .. py:method:: num_hulls()
 

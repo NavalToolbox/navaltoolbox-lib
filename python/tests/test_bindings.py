@@ -110,6 +110,125 @@ class TestHullLoading:
             Path(temp_path).unlink(missing_ok=True)
 
 
+class TestHullThickness:
+    """Tests for hull thickness feature."""
+
+    def test_thickness_properties(self):
+        from navaltoolbox import Hull, Vessel
+        hull = Hull.from_box(length=10.0, breadth=5.0, depth=2.0)
+
+        # Test default is None
+        assert hull.thickness is None
+
+        # Test setter
+        hull.thickness = 0.015
+        assert hull.thickness == 0.015
+
+        # Test Vessel methods
+        vessel = Vessel(hull)
+        assert vessel.get_hull_thickness(0) == 0.015
+        vessel.set_hull_thickness(0, 0.02)
+        assert vessel.get_hull_thickness(0) == 0.02
+
+    def test_thickness_volume_addition(self):
+        from navaltoolbox import Hull, Vessel, HydrostaticsCalculator
+        hull = Hull.from_box(length=10.0, breadth=10.0, depth=10.0)
+        vessel = Vessel(hull)
+        calc1 = HydrostaticsCalculator(vessel, 1000.0)
+
+        # Draft of 5m -> Wetted surface area = Bottom + 4 sides
+        # Bottom = 10 * 10 = 100
+        # 4 Sides = 4 * (10 * 5) = 200
+        # Total WSA = 300 m^2
+        state_no_thickness = calc1.from_draft(5.0)
+        assert state_no_thickness.thickness_volume == 0.0
+
+        vessel.set_hull_thickness(0, 0.01)
+        calc2 = HydrostaticsCalculator(vessel, 1000.0)
+        state_with_thickness = calc2.from_draft(5.0)
+
+        expected_added_volume = 300.0 * 0.01
+        actual_added = state_with_thickness.thickness_volume
+        assert abs(actual_added - expected_added_volume) < 1e-4
+
+        expected_total = state_no_thickness.volume + expected_added_volume
+        assert abs(state_with_thickness.volume - expected_total) < 1e-4
+
+    def test_thickness_equivalence_gz_and_hydro(self):
+        """Test realistic hull thickness on displacement and GZ."""
+        from navaltoolbox import (
+            Hull,
+            Vessel,
+            HydrostaticsCalculator,
+            StabilityCalculator,
+        )
+
+        # 10m x 4m x 5m box.
+        hull_thick = Hull.from_box(length=10.0, breadth=4.0, depth=5.0)
+        vessel_thick = Vessel(hull_thick)
+        vessel_thick.set_hull_thickness(0, 0.015)  # 15mm realistic thickness
+
+        hull_ref = Hull.from_box(length=10.0, breadth=4.0, depth=5.0)
+        vessel_ref = Vessel(hull_ref)
+
+        calc_thick = HydrostaticsCalculator(vessel_thick, 1000.0)
+
+        # For a 10x4x5 box at 2m draft:
+        # Bare Volume = 10 * 4 * 2 = 80 m^3
+        # WSA = 10*4 (bottom) + 2*(10*2) + 2*(4*2) = 40 + 40 + 16 = 96 m^2
+        # Added Volume = 96 * 0.015 = 1.44 m^3
+        # Total Volume = 81.44 m^3
+        state_thick = calc_thick.from_draft(2.0)
+        assert abs(state_thick.volume - 81.44) < 1e-4
+
+        # Test GZ equivalence at same target displacement.
+        # This ensures both models submerge to roughly the same draft.
+        disp = 81440.0
+        cog = (5.0, 0.0, 1.0)  # center of 10m box
+        heels = [0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0]
+
+        stab_thick = StabilityCalculator(vessel_thick, 1000.0)
+        stab_ref = StabilityCalculator(vessel_ref, 1000.0)
+
+        gz_thick = stab_thick.gz_curve(disp, cog, heels)
+        gz_ref = stab_ref.gz_curve(disp, cog, heels)
+
+        # The thickness model adds volume but does not widen the waterplane.
+        # For a realistic 15mm plate, the GZ curve should be nearly identical.
+        for pt_t, pt_r in zip(gz_thick.points(), gz_ref.points()):
+            assert abs(pt_t[3] - pt_r[3]) < 0.015, f"GZ mismatch at {pt_t[0]}°"
+
+    def test_contact_area_wetted_surface(self):
+        """Test contact surface detection between two adjacent boxes."""
+        from navaltoolbox import Hull, Vessel, HydrostaticsCalculator
+
+        # Box 1: 10x5x10, shifted to Y=-2.5
+        hull1 = Hull.from_box(length=10.0, breadth=5.0, depth=10.0)
+        hull1.transform((0.0, -2.5, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
+        # Box 2: 10x5x10, shifted to Y=+2.5
+        hull2 = Hull.from_box(length=10.0, breadth=5.0, depth=10.0)
+        hull2.transform((0.0, 2.5, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
+
+        # Together they form a 10x10x10 box
+        # Face at Y=0 is shared (10x10)
+
+        vessel = Vessel.from_hulls([hull1, hull2])
+        vessel.set_hull_thickness(0, 0.1)
+        vessel.set_hull_thickness(1, 0.1)
+
+        calc = HydrostaticsCalculator(vessel, 1000.0)
+
+        # Submerge to 5m draft
+        # Each box has submerged surface = Bottom(50) + 2*Ends(50) +
+        # 2*Sides(100) = 200
+        # The shared side (10x5=50) should be excluded twice (once per hull)
+        state = calc.from_draft(5.0)
+
+        # Total raw wetted surface of two separate boxes = 400
+        # Contact surface should be detected as 50
+        assert abs(state.contact_surface_area - 50.0) < 1e-4
+
+
 class TestTank:
     """Tests for Tank class."""
 

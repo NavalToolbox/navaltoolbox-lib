@@ -49,6 +49,8 @@ pub struct Hull {
     mesh: TriMesh,
     /// Original file path (if loaded from file)
     file_path: Option<String>,
+    /// Optional hull plate thickness in meters (adds volume to hydrostatics)
+    thickness: Option<f64>,
 }
 
 impl Hull {
@@ -57,6 +59,7 @@ impl Hull {
         Self {
             mesh,
             file_path: None,
+            thickness: None,
         }
     }
 
@@ -116,6 +119,7 @@ impl Hull {
         Ok(Self {
             mesh,
             file_path: Some(path.display().to_string()),
+            thickness: None,
         })
     }
 
@@ -135,6 +139,7 @@ impl Hull {
         Ok(Self {
             mesh,
             file_path: Some(path.display().to_string()),
+            thickness: None,
         })
     }
 
@@ -159,6 +164,21 @@ impl Hull {
     /// Returns (xmin, xmax, ymin, ymax, zmin, zmax).
     pub fn get_bounds(&self) -> (f64, f64, f64, f64, f64, f64) {
         get_bounds(&self.mesh)
+    }
+
+    /// Returns the hull plate thickness if defined.
+    pub fn thickness(&self) -> Option<f64> {
+        self.thickness
+    }
+
+    /// Applies a uniform shell thickness to the hull.
+    ///
+    /// **Limitation**: This uses a `WSA × t` volume approximation suitable for thin plates
+    /// (e.g. 5-30mm scale) to compute additional displacement. It does not geometrically
+    /// offset the mesh, meaning waterplane inertia properties remain those of the core hull.
+    /// Using meter-scale thicknesses will lead to severely underestimated GZ values.
+    pub fn set_thickness(&mut self, thickness: Option<f64>) {
+        self.thickness = thickness;
     }
 
     /// Returns the underlying TriMesh (for internal calculations).
@@ -430,6 +450,7 @@ impl std::fmt::Debug for Hull {
             .field("triangles", &self.num_triangles())
             .field("vertices", &self.num_vertices())
             .field("bounds", &bounds)
+            .field("thickness", &self.thickness)
             .field("file_path", &self.file_path)
             .finish()
     }

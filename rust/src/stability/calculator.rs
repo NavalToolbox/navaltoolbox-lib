@@ -222,11 +222,9 @@ impl<'a> StabilityCalculator<'a> {
                 );
 
                 // 3. Calculate Exact GZ (using ORIGINAL/SELF calculator)
-                let mut gz = if simplified_vessel_storage.is_some() {
-                    self.compute_gz_at_state(draft, trim, heel, effective_cog, center_x, center_y)
-                } else {
-                    _approx_gz // Already computed on full mesh
-                };
+                // We ALWAYS recompute at the end to include exact contact area subtraction in thickness volume
+                let mut gz =
+                    self.compute_gz_at_state(draft, trim, heel, effective_cog, center_x, center_y);
 
                 // Apply GG' correction if accumulated (for Maximum/Fixed modes)
                 // GZ_fluid = GZ_solid - (FSM / Displacement) * sin(heel)
@@ -281,20 +279,68 @@ impl<'a> StabilityCalculator<'a> {
         let mut total_volume = 0.0;
         let mut total_moment = [0.0f64; 3];
 
+        struct HullData {
+            clipped: parry3d_f64::shape::TriMesh,
+            thickness: Option<f64>,
+            raw_wetted_surface: f64,
+            vol: f64,
+            cob: Point3<f64>,
+        }
+        let mut hull_list: Vec<HullData> = Vec::new();
+
         for hull in self.vessel.hulls() {
             let transformed = transform_mesh(hull.mesh(), heel, trim, pivot);
-            let (clipped, _) = clip_at_waterline(&transformed, draft);
+            let (clipped_opt, aw) = clip_at_waterline(&transformed, draft);
 
-            if let Some(mesh) = clipped {
+            if let Some(mesh) = clipped_opt {
                 let mass_props = mesh.mass_properties(1.0);
                 let vol = mass_props.mass();
-                let com = mass_props.local_com;
+                let cob = mass_props.local_com;
+                let raw_wetted_surface =
+                    (crate::hydrostatics::calculate_mesh_area(&mesh) - aw).max(0.0);
 
-                total_volume += vol;
-                total_moment[0] += vol * com.x;
-                total_moment[1] += vol * com.y;
-                total_moment[2] += vol * com.z;
+                hull_list.push(HullData {
+                    clipped: mesh,
+                    thickness: hull.thickness(),
+                    raw_wetted_surface,
+                    vol,
+                    cob,
+                });
             }
+        }
+
+        let mut net_wetted_surfaces = vec![0.0; hull_list.len()];
+        for i in 0..hull_list.len() {
+            net_wetted_surfaces[i] = hull_list[i].raw_wetted_surface;
+        }
+
+        if hull_list.len() > 1 {
+            for i in 0..hull_list.len() {
+                for j in (i + 1)..hull_list.len() {
+                    let contact_ij = crate::hydrostatics::detect_contact_area(
+                        &hull_list[i].clipped,
+                        &hull_list[j].clipped,
+                        0.1,
+                    );
+                    net_wetted_surfaces[i] = (net_wetted_surfaces[i] - contact_ij).max(0.0);
+                    net_wetted_surfaces[j] = (net_wetted_surfaces[j] - contact_ij).max(0.0);
+                }
+            }
+        }
+
+        for (i, hd) in hull_list.iter().enumerate() {
+            let mut vol_i = hd.vol;
+            let com = hd.cob;
+
+            if let Some(t) = hd.thickness {
+                let added_vol = net_wetted_surfaces[i] * t;
+                vol_i += added_vol;
+            }
+
+            total_volume += vol_i;
+            total_moment[0] += vol_i * com.x;
+            total_moment[1] += vol_i * com.y;
+            total_moment[2] += vol_i * com.z;
         }
 
         if total_volume <= 0.0 {
@@ -382,7 +428,14 @@ impl<'a> StabilityCalculator<'a> {
             for hull in self.vessel.hulls() {
                 let transformed = transform_mesh(hull.mesh(), heel, trim, pivot);
                 if let (Some(mesh), aw) = clip_at_waterline(&transformed, mid) {
-                    total_volume += mesh.mass_properties(1.0).mass();
+                    let mut vol = mesh.mass_properties(1.0).mass();
+
+                    if let Some(t) = hull.thickness() {
+                        let wetted_surface =
+                            (crate::hydrostatics::calculate_mesh_area(&mesh) - aw).max(0.0);
+                        vol += wetted_surface * t;
+                    }
+                    total_volume += vol;
                     total_aw += aw;
                 }
             }
@@ -483,8 +536,15 @@ impl<'a> StabilityCalculator<'a> {
                     let transformed = transform_mesh(hull.mesh(), heel, trim, pivot);
                     if let (Some(mesh), aw) = clip_at_waterline(&transformed, mid) {
                         let mass_props = mesh.mass_properties(1.0);
-                        let vol = mass_props.mass();
+                        let mut vol = mass_props.mass();
                         let com = mass_props.local_com;
+
+                        if let Some(t) = hull.thickness() {
+                            let wetted_surface =
+                                (crate::hydrostatics::calculate_mesh_area(&mesh) - aw).max(0.0);
+                            let added_vol = wetted_surface * t;
+                            vol += added_vol;
+                        }
 
                         total_volume += vol;
                         total_moment[0] += vol * com.x;

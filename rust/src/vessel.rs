@@ -113,6 +113,29 @@ impl Vessel {
         self.hulls.len() > 1
     }
 
+    /// Sets the hull plate thickness for a specific hull by index.
+    pub fn set_hull_thickness(
+        &mut self,
+        index: usize,
+        thickness: Option<f64>,
+    ) -> Result<(), &'static str> {
+        if index < self.hulls.len() {
+            self.hulls[index].set_thickness(thickness);
+            Ok(())
+        } else {
+            Err("Hull index out of bounds")
+        }
+    }
+
+    /// Returns the hull plate thickness for a specific hull by index.
+    pub fn get_hull_thickness(&self, index: usize) -> Option<f64> {
+        if index < self.hulls.len() {
+            self.hulls[index].thickness()
+        } else {
+            None
+        }
+    }
+
     /// Returns the list of tanks.
     pub fn tanks(&self) -> &[SharedTank] {
         &self.tanks
