@@ -155,7 +155,7 @@ class TestHullThickness:
         assert abs(state_with_thickness.volume - expected_total) < 1e-4
 
     def test_thickness_equivalence_gz_and_hydro(self):
-        """Test that a 2x8m box with 1m thickness behaves like a 4x10m box."""
+        """Test realistic hull thickness on displacement and GZ."""
         from navaltoolbox import (
             Hull,
             Vessel,
@@ -163,39 +163,28 @@ class TestHullThickness:
             StabilityCalculator,
         )
 
-        # Original core 2m x 8m x 4m draft (depth=10)
-        # With 1m thickness all around:
-        # Breadth: 2 + 1 (port) + 1 (stbd) = 4m
-        # Length: 8 + 1 (fwd) + 1 (aft) = 10m
-        # Draft impact: Bottom gets 1m thickness. To match a flat 4x10 box
-        # at 4m draft, the core's draft needs to be 4m. The added volume on the
-        # bottom will act as extra displacement. Is it exactly equivalent?
-        # Actually, navaltoolbox applies thickness * wetted_surface_area.
-        # Let's test hydrostatics first.
-        hull_thick = Hull.from_box(length=8.0, breadth=2.0, depth=10.0)
+        # 10m x 4m x 5m box.
+        hull_thick = Hull.from_box(length=10.0, breadth=4.0, depth=5.0)
         vessel_thick = Vessel(hull_thick)
-        vessel_thick.set_hull_thickness(0, 1.0)
+        vessel_thick.set_hull_thickness(0, 0.015)  # 15mm realistic thickness
 
-        hull_ref = Hull.from_box(length=10.0, breadth=4.0, depth=10.0)
+        hull_ref = Hull.from_box(length=10.0, breadth=4.0, depth=5.0)
         vessel_ref = Vessel(hull_ref)
 
         calc_thick = HydrostaticsCalculator(vessel_thick, 1000.0)
-        calc_ref = HydrostaticsCalculator(vessel_ref, 1000.0)
 
-        # For the thickness model, if we submerge it to draft=4.0:
-        # WSA = (8*2)[bottom] + 2*(8*4)[sides] + 2*(2*4)[ends] = 16+64+16 = 96
-        # Added Volume = 96 * 1 = 96
-        # Core Volume = 8 * 2 * 4 = 64
-        # Total Volume = 64 + 96 = 160
-        # For the ref model at draft=4.0: Volume = 10 * 4 * 4 = 160
-        state_thick = calc_thick.from_draft(4.0)
-        state_ref = calc_ref.from_draft(4.0)
+        # For a 10x4x5 box at 2m draft:
+        # Bare Volume = 10 * 4 * 2 = 80 m^3
+        # WSA = 10*4 (bottom) + 2*(10*2) + 2*(4*2) = 40 + 40 + 16 = 96 m^2
+        # Added Volume = 96 * 0.015 = 1.44 m^3
+        # Total Volume = 81.44 m^3
+        state_thick = calc_thick.from_draft(2.0)
+        assert abs(state_thick.volume - 81.44) < 1e-4
 
-        assert abs(state_thick.volume - state_ref.volume) < 1e-4
-
-        # Test GZ equivalence at specific displacement (160m3 -> 160,000kg)
-        disp = 160000.0
-        cog = (4.0, 0.0, 2.0)  # center of box, 2m high
+        # Test GZ equivalence at same target displacement.
+        # This ensures both models submerge to roughly the same draft.
+        disp = 81440.0
+        cog = (5.0, 0.0, 1.0)  # center of 10m box
         heels = [0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0]
 
         stab_thick = StabilityCalculator(vessel_thick, 1000.0)
@@ -204,13 +193,10 @@ class TestHullThickness:
         gz_thick = stab_thick.gz_curve(disp, cog, heels)
         gz_ref = stab_ref.gz_curve(disp, cog, heels)
 
-        # They should evaluate to roughly the same GZ values
-        # (Note: thickness calculation is WSA * t, which is an
-        # approximation of offset surfaces. At high heel angles, the edges
-        # might differ slightly from a pure boolean offset box, but volumes
-        # and GZ should be very close).
+        # The thickness model adds volume but does not widen the waterplane.
+        # For a realistic 15mm plate, the GZ curve should be nearly identical.
         for pt_t, pt_r in zip(gz_thick.points(), gz_ref.points()):
-            assert abs(pt_t[3] - pt_r[3]) < 3.0, f"GZ mismatch at {pt_t[0]}°"
+            assert abs(pt_t[3] - pt_r[3]) < 0.015, f"GZ mismatch at {pt_t[0]}°"
 
     def test_contact_area_wetted_surface(self):
         """Test contact surface detection between two adjacent boxes."""

@@ -171,7 +171,12 @@ impl Hull {
         self.thickness
     }
 
-    /// Sets the hull plate thickness.
+    /// Applies a uniform shell thickness to the hull.
+    ///
+    /// **Limitation**: This uses a `WSA × t` volume approximation suitable for thin plates
+    /// (e.g. 5-30mm scale) to compute additional displacement. It does not geometrically
+    /// offset the mesh, meaning waterplane inertia properties remain those of the core hull.
+    /// Using meter-scale thicknesses will lead to severely underestimated GZ values.
     pub fn set_thickness(&mut self, thickness: Option<f64>) {
         self.thickness = thickness;
     }

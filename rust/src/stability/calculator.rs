@@ -330,15 +330,10 @@ impl<'a> StabilityCalculator<'a> {
 
         for (i, hd) in hull_list.iter().enumerate() {
             let mut vol_i = hd.vol;
-            let mut com = hd.cob;
+            let com = hd.cob;
 
             if let Some(t) = hd.thickness {
                 let added_vol = net_wetted_surfaces[i] * t;
-                // Center of buoyancy roughly equivalent to volume's center
-                com.x = (com.x * hd.vol + com.x * added_vol) / (hd.vol + added_vol);
-                com.y = (com.y * hd.vol + com.y * added_vol) / (hd.vol + added_vol);
-                com.z = (com.z * hd.vol + com.z * added_vol) / (hd.vol + added_vol);
-
                 vol_i += added_vol;
             }
 

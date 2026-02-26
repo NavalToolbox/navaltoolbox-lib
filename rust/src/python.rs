@@ -77,12 +77,20 @@ impl PyHull {
     }
 
     /// Returns the hull plate thickness.
+    ///
+    /// The thickness model (WSA × t) is designed for thin plates (e.g. 15mm steel).
+    /// It adds displacement volume correctly but does not widen the waterplane geometry.
+    /// Warning: Using unrealistic meter-scale thicknesses will lead to incorrect
+    /// stability calculations since waterplane inertia (BM) is not updated.
     #[getter]
     fn get_thickness(&self) -> Option<f64> {
         self.inner.thickness()
     }
 
     /// Sets the hull plate thickness.
+    ///
+    /// Warning: The thickness model is an approximation for thin plates (e.g. 15mm).
+    /// It does not alter waterplane width. Metrical offsets are not supported.
     #[setter]
     fn set_thickness(&mut self, thickness: Option<f64>) {
         self.inner.set_thickness(thickness);
