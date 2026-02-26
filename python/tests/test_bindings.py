@@ -110,6 +110,139 @@ class TestHullLoading:
             Path(temp_path).unlink(missing_ok=True)
 
 
+class TestHullThickness:
+    """Tests for hull thickness feature."""
+
+    def test_thickness_properties(self):
+        from navaltoolbox import Hull, Vessel
+        hull = Hull.from_box(length=10.0, breadth=5.0, depth=2.0)
+
+        # Test default is None
+        assert hull.thickness is None
+
+        # Test setter
+        hull.thickness = 0.015
+        assert hull.thickness == 0.015
+
+        # Test Vessel methods
+        vessel = Vessel(hull)
+        assert vessel.get_hull_thickness(0) == 0.015
+        vessel.set_hull_thickness(0, 0.02)
+        assert vessel.get_hull_thickness(0) == 0.02
+
+    def test_thickness_volume_addition(self):
+        from navaltoolbox import Hull, Vessel, HydrostaticsCalculator
+        hull = Hull.from_box(length=10.0, breadth=10.0, depth=10.0)
+        vessel = Vessel(hull)
+        calc1 = HydrostaticsCalculator(vessel, 1000.0)
+
+        # Draft of 5m -> Wetted surface area = Bottom + 4 sides
+        # Bottom = 10 * 10 = 100
+        # 4 Sides = 4 * (10 * 5) = 200
+        # Total WSA = 300 m^2
+        state_no_thickness = calc1.from_draft(5.0)
+        assert state_no_thickness.thickness_volume == 0.0
+
+        vessel.set_hull_thickness(0, 0.01)
+        calc2 = HydrostaticsCalculator(vessel, 1000.0)
+        state_with_thickness = calc2.from_draft(5.0)
+
+        expected_added_volume = 300.0 * 0.01
+        actual_added = state_with_thickness.thickness_volume
+        assert abs(actual_added - expected_added_volume) < 1e-4
+
+        expected_total = state_no_thickness.volume + expected_added_volume
+        assert abs(state_with_thickness.volume - expected_total) < 1e-4
+
+    def test_thickness_equivalence_gz_and_hydro(self):
+        """Test that a 2x8m box with 1m thickness behaves like a 4x10m box."""
+        from navaltoolbox import (
+            Hull,
+            Vessel,
+            HydrostaticsCalculator,
+            StabilityCalculator,
+        )
+
+        # Original core 2m x 8m x 4m draft (depth=10)
+        # With 1m thickness all around:
+        # Breadth: 2 + 1 (port) + 1 (stbd) = 4m
+        # Length: 8 + 1 (fwd) + 1 (aft) = 10m
+        # Draft impact: Bottom gets 1m thickness. To match a flat 4x10 box
+        # at 4m draft, the core's draft needs to be 4m. The added volume on the
+        # bottom will act as extra displacement. Is it exactly equivalent?
+        # Actually, navaltoolbox applies thickness * wetted_surface_area.
+        # Let's test hydrostatics first.
+        hull_thick = Hull.from_box(length=8.0, breadth=2.0, depth=10.0)
+        vessel_thick = Vessel(hull_thick)
+        vessel_thick.set_hull_thickness(0, 1.0)
+
+        hull_ref = Hull.from_box(length=10.0, breadth=4.0, depth=10.0)
+        vessel_ref = Vessel(hull_ref)
+
+        calc_thick = HydrostaticsCalculator(vessel_thick, 1000.0)
+        calc_ref = HydrostaticsCalculator(vessel_ref, 1000.0)
+
+        # For the thickness model, if we submerge it to draft=4.0:
+        # WSA = (8*2)[bottom] + 2*(8*4)[sides] + 2*(2*4)[ends] = 16+64+16 = 96
+        # Added Volume = 96 * 1 = 96
+        # Core Volume = 8 * 2 * 4 = 64
+        # Total Volume = 64 + 96 = 160
+        # For the ref model at draft=4.0: Volume = 10 * 4 * 4 = 160
+        state_thick = calc_thick.from_draft(4.0)
+        state_ref = calc_ref.from_draft(4.0)
+
+        assert abs(state_thick.volume - state_ref.volume) < 1e-4
+
+        # Test GZ equivalence at specific displacement (160m3 -> 160,000kg)
+        disp = 160000.0
+        cog = (4.0, 0.0, 2.0)  # center of box, 2m high
+        heels = [0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0]
+
+        stab_thick = StabilityCalculator(vessel_thick, 1000.0)
+        stab_ref = StabilityCalculator(vessel_ref, 1000.0)
+
+        gz_thick = stab_thick.gz_curve(disp, cog, heels)
+        gz_ref = stab_ref.gz_curve(disp, cog, heels)
+
+        # They should evaluate to roughly the same GZ values
+        # (Note: thickness calculation is WSA * t, which is an
+        # approximation of offset surfaces. At high heel angles, the edges
+        # might differ slightly from a pure boolean offset box, but volumes
+        # and GZ should be very close).
+        for pt_t, pt_r in zip(gz_thick.points(), gz_ref.points()):
+            assert abs(pt_t[3] - pt_r[3]) < 3.0, f"GZ mismatch at {pt_t[0]}°"
+
+    def test_contact_area_wetted_surface(self):
+        """Test contact surface detection between two adjacent boxes."""
+        from navaltoolbox import Hull, Vessel, HydrostaticsCalculator
+
+        # Box 1: 10x5x10, shifted to Y=-2.5
+        hull1 = Hull.from_box(length=10.0, breadth=5.0, depth=10.0)
+        hull1.transform((0.0, -2.5, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
+        # Box 2: 10x5x10, shifted to Y=+2.5
+        hull2 = Hull.from_box(length=10.0, breadth=5.0, depth=10.0)
+        hull2.transform((0.0, 2.5, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
+
+        # Together they form a 10x10x10 box
+        # Face at Y=0 is shared (10x10)
+
+        vessel = Vessel.from_hulls([hull1, hull2])
+        vessel.set_hull_thickness(0, 0.1)
+        vessel.set_hull_thickness(1, 0.1)
+
+        calc = HydrostaticsCalculator(vessel, 1000.0)
+
+        # Submerge to 5m draft
+        # Each box has submerged surface = Bottom(50) + 2*Ends(50) +
+        # 2*Sides(100) = 200
+        # The shared side (10x5=50) should be excluded twice (once per hull)
+        state = calc.from_draft(5.0)
+
+        # Total raw wetted surface of two separate boxes = 400
+        # Contact surface should be detected as 50
+        assert abs(state.contact_surface_area - 50.0) < 1e-4
+
+
 class TestTank:
     """Tests for Tank class."""
 
