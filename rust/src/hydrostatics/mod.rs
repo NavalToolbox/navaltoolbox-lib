@@ -24,3 +24,5 @@ mod dataclasses;
 pub use crate::mesh::{calculate_waterplane_properties, WaterplaneProperties};
 pub use calculator::HydrostaticsCalculator;
 pub use dataclasses::{HydrostaticState, TankOptions};
+
+pub(crate) use calculator::{calculate_mesh_area, detect_contact_area};

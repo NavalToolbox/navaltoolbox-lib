@@ -25,6 +25,99 @@ use crate::vessel::Vessel;
 use nalgebra::{Point3, Rotation3, Vector3};
 use parry3d_f64::shape::Shape;
 
+/// Computes the approximate contact surface area between two meshes.
+pub(crate) fn detect_contact_area(
+    mesh_a: &parry3d_f64::shape::TriMesh,
+    mesh_b: &parry3d_f64::shape::TriMesh,
+    distance_threshold: f64,
+) -> f64 {
+    let bounds_a = crate::mesh::get_bounds(mesh_a);
+    let bounds_b = crate::mesh::get_bounds(mesh_b);
+
+    // Fast rejection if bounds do not overlap within threshold
+    let t = distance_threshold;
+    if bounds_a.0 > bounds_b.1 + t
+        || bounds_a.1 < bounds_b.0 - t
+        || bounds_a.2 > bounds_b.3 + t
+        || bounds_a.3 < bounds_b.2 - t
+        || bounds_a.4 > bounds_b.5 + t
+        || bounds_a.5 < bounds_b.4 - t
+    {
+        return 0.0;
+    }
+
+    let verts_a = mesh_a.vertices();
+    let faces_a = mesh_a.indices();
+    let verts_b = mesh_b.vertices();
+    let faces_b = mesh_b.indices();
+
+    struct FaceData {
+        centroid: nalgebra::Point3<f64>,
+        normal: nalgebra::Vector3<f64>,
+        area: f64,
+        used: bool,
+    }
+    let mut b_data: Vec<FaceData> = faces_b
+        .iter()
+        .map(|f| {
+            let v0 = verts_b[f[0] as usize];
+            let v1 = verts_b[f[1] as usize];
+            let v2 = verts_b[f[2] as usize];
+            let cross = (v1 - v0).cross(&(v2 - v0));
+            let area = cross.norm() / 2.0;
+            let normal = if area > 0.0 {
+                cross / (area * 2.0)
+            } else {
+                nalgebra::Vector3::zeros()
+            };
+            let centroid = nalgebra::Point3::from((v0.coords + v1.coords + v2.coords) / 3.0);
+            FaceData {
+                centroid,
+                normal,
+                area,
+                used: false,
+            }
+        })
+        .collect();
+
+    let mut contact_area = 0.0;
+
+    for f in faces_a {
+        let v0 = verts_a[f[0] as usize];
+        let v1 = verts_a[f[1] as usize];
+        let v2 = verts_a[f[2] as usize];
+        let cross = (v1 - v0).cross(&(v2 - v0));
+        let area = cross.norm() / 2.0;
+        if area == 0.0 {
+            continue;
+        }
+        let normal = cross / (area * 2.0);
+        let centroid = nalgebra::Point3::from((v0.coords + v1.coords + v2.coords) / 3.0);
+
+        let mut matched = false;
+        for fb in b_data.iter_mut() {
+            if fb.used || fb.area == 0.0 {
+                continue;
+            }
+            let plane_dist = ((centroid.coords - fb.centroid.coords).dot(&fb.normal)).abs();
+            if plane_dist < distance_threshold && normal.dot(&fb.normal) < -0.9 {
+                let dist_sq = nalgebra::distance_squared(&centroid, &fb.centroid);
+                let allowed_dist = area.sqrt() + fb.area.sqrt() + distance_threshold + 1.0;
+                if dist_sq < allowed_dist * allowed_dist {
+                    matched = true;
+                    // Intentionally not setting fb.used = true to allow multiple partial matches
+                    break;
+                }
+            }
+        }
+        if matched {
+            contact_area += area;
+        }
+    }
+
+    contact_area
+}
+
 /// Calculator for hydrostatic properties.
 pub struct HydrostaticsCalculator<'a> {
     vessel: &'a Vessel,
@@ -105,6 +198,15 @@ impl<'a> HydrostaticsCalculator<'a> {
         let mut min_x_submerged = f64::MAX;
         let mut max_x_submerged = f64::MIN;
 
+        struct HullData {
+            clipped: parry3d_f64::shape::TriMesh,
+            thickness: Option<f64>,
+            raw_wetted_surface: f64,
+            vol: f64,
+            cob: nalgebra::Point3<f64>,
+        }
+        let mut hull_list: Vec<HullData> = Vec::new();
+
         // Process each hull
         for hull in self.vessel.hulls() {
             // Transform hull
@@ -116,11 +218,6 @@ impl<'a> HydrostaticsCalculator<'a> {
                 let mass_props = clipped.mass_properties(1.0);
                 let vol = mass_props.mass();
                 let cob = mass_props.local_com;
-
-                total_volume += vol;
-                total_moment[0] += vol * cob.x;
-                total_moment[1] += vol * cob.y;
-                total_moment[2] += vol * cob.z;
 
                 // Update LOS bounds from clipped mesh vertices
                 for v in clipped.vertices() {
@@ -134,11 +231,12 @@ impl<'a> HydrostaticsCalculator<'a> {
 
                 // Wetted Surface Area: Area(ClippedMesh) - Area(WaterplaneCap)
                 let mesh_area = calculate_mesh_area(&clipped);
+                let mut raw_wetted_surface = mesh_area;
 
                 // Waterplane Properties
                 if let Some(wp) = crate::mesh::calculate_waterplane_properties(&transformed, draft)
                 {
-                    total_wetted_surface += (mesh_area - wp.area).max(0.0);
+                    raw_wetted_surface = (mesh_area - wp.area).max(0.0);
 
                     combined_wp_area += wp.area;
                     combined_wp_moment_x += wp.area * wp.centroid[0];
@@ -155,15 +253,63 @@ impl<'a> HydrostaticsCalculator<'a> {
                     max_x = max_x.max(wp.max_x);
                     min_y = min_y.min(wp.min_y);
                     max_y = max_y.max(wp.max_y);
-                } else {
-                    total_wetted_surface += mesh_area;
                 }
+
+                hull_list.push(HullData {
+                    clipped,
+                    thickness: hull.thickness(),
+                    raw_wetted_surface,
+                    vol,
+                    cob,
+                });
 
                 // Midship Area: Slice at X = (bounds.0 + bounds.1) / 2.0
                 let mid_x = (bounds.0 + bounds.1) / 2.0;
-                let ma = calculate_section_area(&clipped, mid_x);
+                let ma = calculate_section_area(&hull_list.last().unwrap().clipped, mid_x);
                 total_midship_area += ma;
             }
+        }
+
+        let mut total_contact_area = 0.0;
+        let mut thickness_volume = 0.0;
+        let mut net_wetted_surfaces = vec![0.0; hull_list.len()];
+
+        for i in 0..hull_list.len() {
+            net_wetted_surfaces[i] = hull_list[i].raw_wetted_surface;
+        }
+
+        // Only compute contact areas for multi-hull vessels
+        if hull_list.len() > 1 {
+            for i in 0..hull_list.len() {
+                for j in (i + 1)..hull_list.len() {
+                    let contact_ij = detect_contact_area(
+                        &hull_list[i].clipped,
+                        &hull_list[j].clipped,
+                        0.1, // 10cm threshold for finding shared plates between hulls
+                    );
+
+                    // Subtract from both hulls' wetted surfaces
+                    net_wetted_surfaces[i] = (net_wetted_surfaces[i] - contact_ij).max(0.0);
+                    net_wetted_surfaces[j] = (net_wetted_surfaces[j] - contact_ij).max(0.0);
+                    total_contact_area += contact_ij;
+                }
+            }
+        }
+
+        for (i, hd) in hull_list.iter().enumerate() {
+            total_wetted_surface += net_wetted_surfaces[i];
+
+            let mut vol_i = hd.vol;
+            if let Some(t) = hd.thickness {
+                let added_vol = net_wetted_surfaces[i] * t;
+                thickness_volume += added_vol;
+                vol_i += added_vol;
+            }
+
+            total_volume += vol_i;
+            total_moment[0] += vol_i * hd.cob.x;
+            total_moment[1] += vol_i * hd.cob.y;
+            total_moment[2] += vol_i * hd.cob.z;
         }
 
         if total_volume <= 1e-9 {
@@ -365,6 +511,8 @@ impl<'a> HydrostaticsCalculator<'a> {
             cm,
             cb,
             cp,
+            thickness_volume,
+            contact_surface_area: total_contact_area,
             stiffness_matrix: k,
             los: if max_x_submerged > min_x_submerged {
                 max_x_submerged - min_x_submerged
@@ -1062,7 +1210,7 @@ impl<'a> HydrostaticsCalculator<'a> {
 }
 
 /// Calculate total surface area of a mesh
-fn calculate_mesh_area(mesh: &parry3d_f64::shape::TriMesh) -> f64 {
+pub(crate) fn calculate_mesh_area(mesh: &parry3d_f64::shape::TriMesh) -> f64 {
     let vertices = mesh.vertices();
     let indices = mesh.indices();
     let mut area = 0.0;

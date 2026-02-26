@@ -143,6 +143,11 @@ pub struct HydrostaticState {
     /// Prismatic coefficient
     pub cp: f64,
 
+    /// Volume added by the hull plate thickness (m³)
+    pub thickness_volume: f64,
+    /// Shared area between hulls excluded from wetted surface (m²)
+    pub contact_surface_area: f64,
+
     /// Transverse free surface correction (meters)
     pub free_surface_correction_t: f64,
     /// Longitudinal free surface correction (meters)
@@ -236,6 +241,8 @@ impl Default for HydrostaticState {
             cm: 0.0,
             cb: 0.0,
             cp: 0.0,
+            thickness_volume: 0.0,
+            contact_surface_area: 0.0,
             free_surface_correction_t: 0.0,
             free_surface_correction_l: 0.0,
             stiffness_matrix: [0.0; 36],
