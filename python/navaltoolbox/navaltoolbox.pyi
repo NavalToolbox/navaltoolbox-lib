@@ -603,8 +603,14 @@ class DeckEdge:
         ...
         
     @staticmethod
-    def from_file(name: str, file_path: str) -> "DeckEdge":
-        """Load a deck edge from a DXF or VTK file."""
+    def from_file(name: str, file_path: str, side: "DeckEdgeSide" | None = None) -> "DeckEdge":
+        """Load a deck edge from a DXF or VTK file.
+        
+        Args:
+            name: Identifier for the deck edge.
+            file_path: Path to the DXF or VTK file.
+            side: Optional side of the deck edge (Port, Starboard, or Both). If None, auto-detects based on Y coordinates.
+        """
         ...
     
     @property
@@ -800,54 +806,10 @@ class DownfloodingOpening:
 
 
 class HydrostaticState:
-    """Result of hydrostatic calculations.
+    """Hydrostatic calculations result at a given draft/trim/heel.
     
-    Contains the hydrostatic properties at a specific floating condition.
-    
-    
-    Attributes:
-        draft: Draft at midship in meters.
-        trim: Trim angle in degrees.
-        heel: Heel angle in degrees.
-        draft_ap: Draft at Aft Perpendicular in meters.
-        draft_fp: Draft at Forward Perpendicular in meters.
-        draft_mp: Draft at Midship Perpendicular in meters.
-        volume: Submerged volume in m³.
-        displacement: Total displacement mass in kg (Vessel + Tanks).
-        vessel_displacement: Vessel displacement mass in kg (Total - Tanks).
-        tank_displacement: Tank fluid displacement mass in kg.
-
-        cob: Center of buoyancy as tuple (lcb, tcb, vcb).
-        cog: Center of gravity as tuple (lcg, tcg, vcg) if specified, None otherwise.
-        lcb: Longitudinal center of buoyancy (X) in meters.
-        tcb: Transverse center of buoyancy (Y) in meters.
-        vcb: Vertical center of buoyancy (Z) in meters.
-        lcg: Longitudinal center of gravity (X) in meters, or None.
-        tcg: Transverse center of gravity (Y) in meters, or None.
-        vcg: Vertical center of gravity (Z) in meters, or None.
-        waterplane_area: Waterplane area in m².
-        lcf: Longitudinal center of floatation (X) in meters.
-        bmt: Transverse metacentric radius in meters.
-        bml: Longitudinal metacentric radius in meters.
-        gmt: Transverse metacentric height with FSC in meters, or None.
-        gml: Longitudinal metacentric height with FSC in meters, or None.
-        gmt_dry: Transverse metacentric height without FSC in meters, or None.
-        gml_dry: Longitudinal metacentric height without FSC in meters, or None.
-        lwl: Waterline length in meters.
-        bwl: Waterline breadth in meters.
-        los: Length overall submerged in meters.
-        wetted_surface_area: Wetted surface area in m².
-        thickness_volume: Volume added by the hull plate thickness in m³.
-        contact_surface_area: Shared area between hulls excluded from wetted surface in m².
-        midship_area: Midship section area in m².
-        cm: Midship coefficient.
-        cb: Block coefficient.
-        cp: Prismatic coefficient.
-        free_surface_correction_t: Transverse FSC in meters.
-        free_surface_correction_l: Longitudinal FSC in meters.
-        stiffness_matrix: 6x6 hydrostatic stiffness matrix (flattened).
-        sectional_areas: List of (x, area) pairs representing the sectional area curve.
-        freeboard: Minimum freeboard in meters, or None.
+    Contains all computed hydrostatic characteristics, form coefficients,
+    and free surface corrections for a specific floating condition.
     """
     
     draft: float
@@ -866,12 +828,12 @@ class HydrostaticState:
     
     @property
     def cob(self) -> Tuple[float, float, float]:
-        """Center of buoyancy (lcb, tcb, vcb) in meters."""
+        """Center of buoyancy [LCB, TCB, VCB] in meters (TCB: positive = port)."""
         ...
     
     @property
     def cog(self) -> Tuple[float, float, float] | None:
-        """Center of gravity (lcg, tcg, vcg) if specified, None otherwise."""
+        """Total Center of gravity [LCG, TCG, VCG] in meters (Ship + Tanks) (TCG: positive = port)."""
         ...
     
     @property
@@ -911,12 +873,12 @@ class HydrostaticState:
     
     @property
     def tank_displacement(self) -> float:
-        """Tank fluid mass in kg."""
+        """Tank fluid mass in kg (sum of all tank fluid masses)."""
         ...
 
     @property
     def vessel_cog(self) -> Tuple[float, float, float] | None:
-        """Vessel Center of Gravity (LCG, TCG, VCG) (Ship only)."""
+        """Vessel (Ship-only) Center of gravity [LCG, TCG, VCG] in meters (TCG: positive = port)."""
         ...
 
     @property
@@ -1001,9 +963,9 @@ class HydrostaticsCalculator:
         """Calculate hydrostatics at a given draft, trim, and heel.
         
         Args:
-            draft: Draft at reference point in meters.
-            trim: Trim angle in degrees (default 0.0).
-            heel: Heel angle in degrees (default 0.0).
+            draft: Draft at reference point in meters (measured at Mid Perpendicular).
+            trim: Trim angle in degrees (positive = bow down, default 0.0).
+            heel: Heel angle in degrees (positive = starboard down, default 0.0).
             vcg: Optional vertical center of gravity for GM calculation.
             num_stations: Optional number of stations for sectional area curve (default 21).
             tank_options: Optional TankOptions.
