@@ -76,7 +76,11 @@ impl DeckEdge {
     }
 
     /// Load a deck edge from a DXF or VTK file.
-    pub fn from_file(name: &str, path: &Path) -> Result<Self, DeckEdgeLoadError> {
+    pub fn from_file(
+        name: &str,
+        path: &Path,
+        side: Option<DeckEdgeSide>,
+    ) -> Result<Self, DeckEdgeLoadError> {
         let ext = path
             .extension()
             .and_then(|e| e.to_str())
@@ -98,13 +102,13 @@ impl DeckEdge {
             return Err(DeckEdgeLoadError::NoGeometry);
         }
 
-        // Auto-detect side based on Y coordinates
-        let side = Self::detect_side(&points);
+        // Use provided side or auto-detect
+        let edge_side = side.unwrap_or_else(|| Self::detect_side(&points));
 
         Ok(Self {
             name: name.to_string(),
             points,
-            side,
+            side: edge_side,
         })
     }
 
