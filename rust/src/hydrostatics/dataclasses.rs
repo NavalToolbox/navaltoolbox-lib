@@ -72,11 +72,11 @@ impl TankOptions {
 /// Result of hydrostatic calculations at a given draft/trim/heel.
 #[derive(Debug, Clone)]
 pub struct HydrostaticState {
-    /// Draft at reference point in meters
+    /// Draft at reference point in meters (measured at Mid Perpendicular)
     pub draft: f64,
-    /// Trim angle in degrees
+    /// Trim angle in degrees (positive = bow down)
     pub trim: f64,
-    /// Heel angle in degrees
+    /// Heel angle in degrees (positive = starboard down)
     pub heel: f64,
     /// Draft at Aft Perpendicular in meters
     pub draft_ap: f64,
@@ -97,12 +97,12 @@ pub struct HydrostaticState {
     /// If TankOptions.include_mass is false, this will be 0.0.
     pub tank_displacement: f64,
 
-    /// Center of buoyancy [LCB, TCB, VCB] in meters
+    /// Center of buoyancy [LCB, TCB, VCB] in meters (TCB: positive = port)
     pub cob: [f64; 3],
 
-    /// Total Center of gravity [LCG, TCG, VCG] in meters (Ship + Tanks)
+    /// Total Center of gravity [LCG, TCG, VCG] in meters (Ship + Tanks) (TCG: positive = port)
     pub cog: Option<[f64; 3]>,
-    /// Vessel (Ship-only) Center of gravity [LCG, TCG, VCG] in meters
+    /// Vessel (Ship-only) Center of gravity [LCG, TCG, VCG] in meters (TCG: positive = port)
     pub vessel_cog: Option<[f64; 3]>,
 
     /// Waterplane area in m²

@@ -22,7 +22,7 @@
 pub struct StabilityPoint {
     /// Heel angle in degrees
     pub heel: f64,
-    /// Draft at equilibrium in meters
+    /// Draft at equilibrium in meters (measured at Mid Perpendicular)
     pub draft: f64,
     /// Trim angle at equilibrium in degrees
     pub trim: f64,

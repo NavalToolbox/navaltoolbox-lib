@@ -811,9 +811,11 @@ impl PyDeckEdge {
 
     /// Load a deck edge from a DXF or VTK file.
     #[staticmethod]
-    fn from_file(name: &str, file_path: &str) -> PyResult<Self> {
+    #[pyo3(signature = (name, file_path, side=None))]
+    fn from_file(name: &str, file_path: &str, side: Option<PyDeckEdgeSide>) -> PyResult<Self> {
         let path = Path::new(file_path);
-        let deck_edge = RustDeckEdge::from_file(name, path)
+        let rust_side = side.map(|s| s.inner);
+        let deck_edge = RustDeckEdge::from_file(name, path, rust_side)
             .map_err(|e| PyIOError::new_err(format!("Failed to load deck edge: {}", e)))?;
         Ok(Self { inner: deck_edge })
     }
@@ -1404,9 +1406,9 @@ impl PyHydrostaticsCalculator {
     /// Calculate hydrostatics at a given draft, trim, and heel.
     ///
     /// Args:
-    ///     draft: Draft at reference point in meters
-    ///     trim: Trim angle in degrees (default 0.0)
-    ///     heel: Heel angle in degrees (default 0.0)
+    ///     draft: Draft at reference point in meters (measured at Mid Perpendicular)
+    ///     trim: Trim angle in degrees (positive = bow down, default 0.0)
+    ///     heel: Heel angle in degrees (positive = starboard down, default 0.0)
     ///     vcg: Optional vertical center of gravity for GM calculation
     ///     num_stations: Optional number of stations for sectional area curve (default 21)
     ///     tank_options: Optional TankOptions
