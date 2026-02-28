@@ -264,10 +264,10 @@ mod tests {
 
     #[test]
     fn test_submerged_at_heel() {
-        // Opening on starboard side at y=5, z=10
+        // Opening on starboard side at y=-5, z=10 (Starboard = Y < 0)
         let opening = DownfloodingOpening::from_point(
             "Starboard Vent".to_string(),
-            [50.0, 5.0, 10.0],
+            [50.0, -5.0, 10.0],
             OpeningType::Vent,
         );
 
@@ -279,7 +279,7 @@ mod tests {
         // Get the rotated Z at 45° to debug
         let z_at_45 = opening.get_lowest_z(45.0, 0.0, pivot);
 
-        // At 45° heel, starboard side goes down
+        // At 45° heel, starboard side goes down (positive heel)
         // The rotated z should be lower than before
         // Check if it goes below a higher waterline (z=8)
         assert!(
