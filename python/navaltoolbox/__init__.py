@@ -44,6 +44,7 @@ Example:
 from .navaltoolbox import (
     Hull,
     Vessel,
+    ContactSurface,
     Silhouette,
     OpeningType,
     DownfloodingOpening,
@@ -67,6 +68,7 @@ from .navaltoolbox import (
 __all__ = [
     "Hull",
     "Vessel",
+    "ContactSurface",
     "Silhouette",
     "OpeningType",
     "DownfloodingOpening",
