@@ -228,6 +228,52 @@ class TestHullThickness:
         # Contact surface should be detected as 50
         assert abs(state.contact_surface_area - 50.0) < 1e-4
 
+    def test_precomputed_contact_surfaces(self):
+        """Test the pre-computation of contact surfaces between hulls."""
+        from navaltoolbox import Hull, Vessel, HydrostaticsCalculator
+
+        # Box 1: 10x5x10, shifted to Y=-2.5
+        hull1 = Hull.from_box(length=10.0, breadth=5.0, depth=10.0)
+        hull1.transform((0.0, -2.5, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
+        # Box 2: 10x5x10, shifted to Y=+2.5
+        hull2 = Hull.from_box(length=10.0, breadth=5.0, depth=10.0)
+        hull2.transform((0.0, 2.5, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
+
+        # create multi-hull vessel, which auto-computes contact surfaces
+        vessel = Vessel.from_hulls([hull1, hull2])
+
+        assert vessel.has_contact_surfaces()
+        assert vessel.num_contact_surfaces() == 1
+
+        surfaces = vessel.get_contact_surfaces()
+        assert len(surfaces) == 1
+
+        cs = surfaces[0]
+        assert cs.hull_i == 0
+        assert cs.hull_j == 1
+        # The two hulls touch on a 10x10 surface, so 100 m^2
+        assert abs(cs.total_area - 100.0) < 1e-4
+        assert cs.num_faces_i > 0
+        assert cs.num_faces_j > 0
+
+        # Submerge to 5m draft and check contact surface calculation (50 m^2)
+        calc = HydrostaticsCalculator(vessel, 1000.0)
+        state = calc.from_draft(5.0)
+        assert abs(state.contact_surface_area - 50.0) < 1e-4
+
+        # Clear surfaces
+        vessel.clear_contact_surfaces()
+        assert not vessel.has_contact_surfaces()
+        assert vessel.num_contact_surfaces() == 0
+
+        # Run hydrostatics again. Fallback should be identical
+        state2 = calc.from_draft(5.0)
+        assert abs(state2.contact_surface_area - 50.0) < 1e-4
+
+        # Re-compute
+        vessel.compute_contact_surfaces()
+        assert vessel.has_contact_surfaces()
+
 
 class TestTank:
     """Tests for Tank class."""
