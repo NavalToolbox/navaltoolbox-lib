@@ -23,8 +23,28 @@ use crate::appendage::Appendage;
 use crate::deckedge::DeckEdge;
 use crate::downflooding::DownfloodingOpening;
 use crate::hull::Hull;
+use crate::mesh::get_bounds;
 use crate::silhouette::Silhouette;
 use crate::tanks::SharedTank;
+
+/// Pre-computed contact surface between two hulls.
+///
+/// Stores the face indices from each hull that are in contact,
+/// along with the total contact area. This avoids expensive O(N×M)
+/// runtime detection in hydrostatic and stability calculations.
+#[derive(Clone, Debug)]
+pub struct ContactSurface {
+    /// Index of the first hull
+    pub hull_i: usize,
+    /// Index of the second hull
+    pub hull_j: usize,
+    /// Indices of faces in hull_i that are in contact
+    pub face_indices_i: Vec<usize>,
+    /// Indices of faces in hull_j that are in contact
+    pub face_indices_j: Vec<usize>,
+    /// Total pre-computed contact area in m²
+    pub total_area: f64,
+}
 
 /// Represents a vessel containing hull geometries, tanks, and vessel-level properties.
 ///
@@ -50,6 +70,8 @@ pub struct Vessel {
     silhouettes: Vec<Silhouette>,
     /// Downflooding openings for θf calculation
     downflooding_openings: Vec<DownfloodingOpening>,
+    /// Pre-computed contact surfaces between hull pairs
+    contact_surfaces: Vec<ContactSurface>,
 }
 
 impl Vessel {
@@ -64,6 +86,7 @@ impl Vessel {
             fp: None,
             silhouettes: Vec::new(),
             downflooding_openings: Vec::new(),
+            contact_surfaces: Vec::new(),
         }
     }
 
@@ -72,7 +95,7 @@ impl Vessel {
         if hulls.is_empty() {
             return Err("At least one hull must be provided");
         }
-        Ok(Self {
+        let mut vessel = Self {
             hulls,
             tanks: Vec::new(),
             appendages: Vec::new(),
@@ -81,7 +104,11 @@ impl Vessel {
             fp: None,
             silhouettes: Vec::new(),
             downflooding_openings: Vec::new(),
-        })
+            contact_surfaces: Vec::new(),
+        };
+        // Auto-compute contact surfaces for multi-hull vessels
+        vessel.compute_contact_surfaces();
+        Ok(vessel)
     }
 
     /// Creates a new Vessel with perpendicular positions.
@@ -95,6 +122,7 @@ impl Vessel {
             fp: Some(fp),
             silhouettes: Vec::new(),
             downflooding_openings: Vec::new(),
+            contact_surfaces: Vec::new(),
         }
     }
 
@@ -560,6 +588,253 @@ impl Vessel {
     /// Removes all downflooding openings from the vessel.
     pub fn clear_downflooding_openings(&mut self) {
         self.downflooding_openings.clear();
+    }
+
+    // =========================================================================
+    // Contact Surfaces Management
+    // =========================================================================
+
+    /// Pre-computes contact surfaces between all hull pairs.
+    ///
+    /// Uses an adaptive distance threshold based on the average cell size
+    /// in the overlap zone between each hull pair. This makes the detection
+    /// scale-independent.
+    ///
+    /// This is automatically called when creating a multi-hull vessel
+    /// via `new_multi()`.
+    pub fn compute_contact_surfaces(&mut self) {
+        self.contact_surfaces.clear();
+        if self.hulls.len() < 2 {
+            return;
+        }
+
+        for i in 0..self.hulls.len() {
+            for j in (i + 1)..self.hulls.len() {
+                let mesh_a = self.hulls[i].mesh();
+                let mesh_b = self.hulls[j].mesh();
+
+                let bounds_a = get_bounds(mesh_a);
+                let bounds_b = get_bounds(mesh_b);
+
+                // Compute adaptive threshold from average edge length
+                // in the bounding-box overlap zone
+                let threshold = Self::adaptive_threshold(mesh_a, mesh_b, bounds_a, bounds_b);
+                if threshold <= 0.0 {
+                    continue;
+                }
+
+                // Detect contact faces using the adaptive threshold
+                let (faces_i, faces_j, total_area) =
+                    Self::detect_contact_faces(mesh_a, mesh_b, threshold);
+
+                if !faces_i.is_empty() {
+                    self.contact_surfaces.push(ContactSurface {
+                        hull_i: i,
+                        hull_j: j,
+                        face_indices_i: faces_i,
+                        face_indices_j: faces_j,
+                        total_area,
+                    });
+                }
+            }
+        }
+    }
+
+    /// Returns the pre-computed contact surfaces.
+    pub fn contact_surfaces(&self) -> &[ContactSurface] {
+        &self.contact_surfaces
+    }
+
+    /// Returns true if contact surfaces have been pre-computed.
+    pub fn has_contact_surfaces(&self) -> bool {
+        !self.contact_surfaces.is_empty()
+    }
+
+    /// Clears all pre-computed contact surfaces.
+    pub fn clear_contact_surfaces(&mut self) {
+        self.contact_surfaces.clear();
+    }
+
+    /// Computes an adaptive distance threshold based on the average cell size
+    /// in the overlap zone between two meshes.
+    fn adaptive_threshold(
+        mesh_a: &parry3d_f64::shape::TriMesh,
+        mesh_b: &parry3d_f64::shape::TriMesh,
+        bounds_a: (f64, f64, f64, f64, f64, f64),
+        bounds_b: (f64, f64, f64, f64, f64, f64),
+    ) -> f64 {
+        // Find the overlap bounding box (with a small margin)
+        let margin = 1.0; // 1m margin to catch faces near the boundary
+        let ox_min = bounds_a.0.max(bounds_b.0) - margin;
+        let ox_max = bounds_a.1.min(bounds_b.1) + margin;
+        let oy_min = bounds_a.2.max(bounds_b.2) - margin;
+        let oy_max = bounds_a.3.min(bounds_b.3) + margin;
+        let oz_min = bounds_a.4.max(bounds_b.4) - margin;
+        let oz_max = bounds_a.5.min(bounds_b.5) + margin;
+
+        // No overlap
+        if ox_min > ox_max || oy_min > oy_max || oz_min > oz_max {
+            return 0.0;
+        }
+
+        // Compute average edge length for faces whose centroids are in the overlap zone
+        let mut total_edge_len = 0.0;
+        let mut count = 0usize;
+
+        for mesh in [mesh_a, mesh_b] {
+            let verts = mesh.vertices();
+            for f in mesh.indices() {
+                let v0 = verts[f[0] as usize];
+                let v1 = verts[f[1] as usize];
+                let v2 = verts[f[2] as usize];
+                let cx = (v0.x + v1.x + v2.x) / 3.0;
+                let cy = (v0.y + v1.y + v2.y) / 3.0;
+                let cz = (v0.z + v1.z + v2.z) / 3.0;
+
+                if cx >= ox_min
+                    && cx <= ox_max
+                    && cy >= oy_min
+                    && cy <= oy_max
+                    && cz >= oz_min
+                    && cz <= oz_max
+                {
+                    // Average of 3 edge lengths
+                    let e0 = nalgebra::distance(&v0, &v1);
+                    let e1 = nalgebra::distance(&v1, &v2);
+                    let e2 = nalgebra::distance(&v2, &v0);
+                    total_edge_len += (e0 + e1 + e2) / 3.0;
+                    count += 1;
+                }
+            }
+        }
+
+        if count == 0 {
+            return 0.0;
+        }
+
+        // Threshold = fraction of the average edge length
+        let avg_edge = total_edge_len / count as f64;
+        avg_edge * 0.5
+    }
+
+    /// Detects contact faces between two meshes.
+    ///
+    /// Returns (face_indices_a, face_indices_b, total_contact_area).
+    fn detect_contact_faces(
+        mesh_a: &parry3d_f64::shape::TriMesh,
+        mesh_b: &parry3d_f64::shape::TriMesh,
+        distance_threshold: f64,
+    ) -> (Vec<usize>, Vec<usize>, f64) {
+        let verts_a = mesh_a.vertices();
+        let faces_a = mesh_a.indices();
+        let verts_b = mesh_b.vertices();
+        let faces_b = mesh_b.indices();
+
+        struct FaceData {
+            centroid: nalgebra::Point3<f64>,
+            normal: nalgebra::Vector3<f64>,
+            area: f64,
+        }
+
+        let b_data: Vec<FaceData> = faces_b
+            .iter()
+            .map(|f| {
+                let v0 = verts_b[f[0] as usize];
+                let v1 = verts_b[f[1] as usize];
+                let v2 = verts_b[f[2] as usize];
+                let cross = (v1 - v0).cross(&(v2 - v0));
+                let area = cross.norm() / 2.0;
+                let normal = if area > 0.0 {
+                    cross / (area * 2.0)
+                } else {
+                    nalgebra::Vector3::zeros()
+                };
+                let centroid = nalgebra::Point3::from((v0.coords + v1.coords + v2.coords) / 3.0);
+                FaceData {
+                    centroid,
+                    normal,
+                    area,
+                }
+            })
+            .collect();
+
+        let mut contact_faces_a = Vec::new();
+        let mut contact_faces_b_set = std::collections::HashSet::new();
+        let mut total_area = 0.0;
+
+        for (idx_a, f) in faces_a.iter().enumerate() {
+            let v0 = verts_a[f[0] as usize];
+            let v1 = verts_a[f[1] as usize];
+            let v2 = verts_a[f[2] as usize];
+            let cross = (v1 - v0).cross(&(v2 - v0));
+            let area = cross.norm() / 2.0;
+            if area == 0.0 {
+                continue;
+            }
+            let normal = cross / (area * 2.0);
+            let centroid = nalgebra::Point3::from((v0.coords + v1.coords + v2.coords) / 3.0);
+
+            for (idx_b, fb) in b_data.iter().enumerate() {
+                if fb.area == 0.0 {
+                    continue;
+                }
+                let plane_dist = ((centroid.coords - fb.centroid.coords).dot(&fb.normal)).abs();
+                if plane_dist < distance_threshold && normal.dot(&fb.normal) < -0.9 {
+                    let dist_sq = nalgebra::distance_squared(&centroid, &fb.centroid);
+                    let allowed_dist = area.sqrt() + fb.area.sqrt() + distance_threshold + 1.0;
+                    if dist_sq < allowed_dist * allowed_dist {
+                        contact_faces_a.push(idx_a);
+                        contact_faces_b_set.insert(idx_b);
+                        total_area += area;
+                        break;
+                    }
+                }
+            }
+        }
+
+        let contact_faces_b: Vec<usize> = contact_faces_b_set.into_iter().collect();
+        (contact_faces_a, contact_faces_b, total_area)
+    }
+
+    /// Returns the pre-computed contact area for a specific hull pair.
+    ///
+    /// Returns 0.0 if no contact was found for this pair.
+    pub fn get_contact_area_for_pair(&self, hull_i: usize, hull_j: usize) -> f64 {
+        let (lo, hi) = if hull_i <= hull_j {
+            (hull_i, hull_j)
+        } else {
+            (hull_j, hull_i)
+        };
+        self.contact_surfaces
+            .iter()
+            .find(|cs| cs.hull_i == lo && cs.hull_j == hi)
+            .map(|cs| cs.total_area)
+            .unwrap_or(0.0)
+    }
+
+    /// Returns the contact face indices for hull_i within a specific pair.
+    ///
+    /// Returns None if no contact was found for this pair.
+    pub fn get_contact_face_indices(
+        &self,
+        hull_i: usize,
+        hull_j: usize,
+    ) -> Option<(&[usize], &[usize])> {
+        let (lo, hi) = if hull_i <= hull_j {
+            (hull_i, hull_j)
+        } else {
+            (hull_j, hull_i)
+        };
+        self.contact_surfaces
+            .iter()
+            .find(|cs| cs.hull_i == lo && cs.hull_j == hi)
+            .map(|cs| {
+                if hull_i <= hull_j {
+                    (cs.face_indices_i.as_slice(), cs.face_indices_j.as_slice())
+                } else {
+                    (cs.face_indices_j.as_slice(), cs.face_indices_i.as_slice())
+                }
+            })
     }
 }
 
