@@ -138,6 +138,37 @@ Vessel
 
       Returns the combined bounding box of all hulls.
 
+   .. py:method:: compute_contact_surfaces()
+
+      Pre-compute contact surfaces between all hull pairs.
+
+      Uses an adaptive distance threshold based on the average cell size in the overlap zone between each hull pair. This makes the detection scale-independent.
+
+      Note: This is automatically called when creating a vessel from multiple hulls via :py:meth:`from_hulls`. Calling it again will refresh the contact surfaces (e.g. after transforming hulls).
+
+   .. py:method:: has_contact_surfaces()
+
+      Returns true if contact surfaces have been pre-computed.
+
+      :rtype: bool
+
+   .. py:method:: num_contact_surfaces()
+
+      Returns the number of contact surface pairs found.
+
+      :rtype: int
+
+   .. py:method:: get_contact_surfaces()
+
+      Get all pre-computed contact surfaces.
+
+      :returns: List of ContactSurface objects
+      :rtype: list[ContactSurface]
+
+   .. py:method:: clear_contact_surfaces()
+
+      Removes all pre-computed contact surfaces.
+
    .. py:method:: get_hull_thickness(index)
 
       Returns the hull plate thickness for a specific hull by index.
@@ -339,6 +370,52 @@ Vessel
       :type waterline_z: float
       :returns: Minimum freeboard distance in meters, or None if no deck edges
       :rtype: float or None
+
+ContactSurface
+--------------
+
+.. py:class:: ContactSurface
+
+   A pre-computed contact surface between two hulls safely ignoring overlap internally.
+
+   Pre-computed during vessel construction for multi-hull vessels. Avoids expensive O(N×M) face-to-face contact detection at each hydrostatic/stability calculation.
+
+   .. py:attribute:: hull_i
+      :type: int
+
+      Index of the first hull.
+
+   .. py:attribute:: hull_j
+      :type: int
+
+      Index of the second hull.
+
+   .. py:attribute:: total_area
+      :type: float
+
+      Total pre-computed contact area in m².
+
+   .. py:attribute:: num_faces_i
+      :type: int
+
+      Number of contact faces in hull i.
+
+   .. py:attribute:: num_faces_j
+      :type: int
+
+      Number of contact faces in hull j.
+
+   .. py:method:: get_face_indices_i()
+
+      Returns the face indices of hull i that are in contact.
+
+      :rtype: list[int]
+
+   .. py:method:: get_face_indices_j()
+
+      Returns the face indices of hull j that are in contact.
+
+      :rtype: list[int]
 
 Silhouette
 ----------
