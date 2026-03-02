@@ -26,6 +26,7 @@ from typing import List, Tuple
 __all__ = [
     "Hull",
     "Vessel",
+    "ContactSurface",
     "Silhouette",
     "Appendage",
     "DeckEdge",
@@ -418,6 +419,82 @@ class Vessel:
         
     def get_min_freeboard(self, heel: float, trim: float, waterline_z: float) -> float | None:
         """Calculate minimum freeboard across all deck edges."""
+        ...
+
+    # Contact Surfaces methods
+
+    def compute_contact_surfaces(self) -> None:
+        """Pre-compute contact surfaces between all hull pairs.
+
+        Uses an adaptive distance threshold based on the average cell size
+        in the overlap zone between each hull pair.
+
+        Note: This is automatically called when creating a vessel from
+        multiple hulls via ``Vessel.from_hulls()``. Call again to refresh
+        after transforming hulls.
+        """
+        ...
+
+    def has_contact_surfaces(self) -> bool:
+        """Returns true if contact surfaces have been pre-computed."""
+        ...
+
+    def num_contact_surfaces(self) -> int:
+        """Returns the number of contact surface pairs found."""
+        ...
+
+    def get_contact_surfaces(self) -> List["ContactSurface"]:
+        """Get all pre-computed contact surfaces.
+
+        Returns:
+            List of ContactSurface objects.
+        """
+        ...
+
+    def clear_contact_surfaces(self) -> None:
+        """Removes all pre-computed contact surfaces."""
+        ...
+
+
+class ContactSurface:
+    """A pre-computed contact surface between two hulls.
+
+    Pre-computed during vessel construction for multi-hull vessels.
+    Avoids expensive O(N×M) face-to-face contact detection at each
+    hydrostatic/stability calculation.
+    """
+
+    @property
+    def hull_i(self) -> int:
+        """Index of the first hull."""
+        ...
+
+    @property
+    def hull_j(self) -> int:
+        """Index of the second hull."""
+        ...
+
+    @property
+    def total_area(self) -> float:
+        """Total pre-computed contact area in m²."""
+        ...
+
+    @property
+    def num_faces_i(self) -> int:
+        """Number of contact faces in hull i."""
+        ...
+
+    @property
+    def num_faces_j(self) -> int:
+        """Number of contact faces in hull j."""
+        ...
+
+    def get_face_indices_i(self) -> List[int]:
+        """Returns the face indices of hull i that are in contact."""
+        ...
+
+    def get_face_indices_j(self) -> List[int]:
+        """Returns the face indices of hull j that are in contact."""
         ...
 
 

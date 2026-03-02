@@ -470,6 +470,47 @@ impl PyVessel {
         self.inner.get_min_freeboard(heel, trim, waterline_z)
     }
 
+    // =========================================================================
+    // Contact Surfaces methods
+    // =========================================================================
+
+    /// Pre-compute contact surfaces between all hull pairs.
+    ///
+    /// Uses an adaptive distance threshold based on the average cell size
+    /// in the overlap zone between each hull pair. This makes the detection
+    /// scale-independent.
+    ///
+    /// Note: This is automatically called when creating a vessel from multiple
+    /// hulls via `Vessel.from_hulls()`. Calling it again will refresh the
+    /// contact surfaces (e.g. after transforming hulls).
+    fn compute_contact_surfaces(&mut self) {
+        self.inner.compute_contact_surfaces();
+    }
+
+    /// Returns true if contact surfaces have been pre-computed.
+    fn has_contact_surfaces(&self) -> bool {
+        self.inner.has_contact_surfaces()
+    }
+
+    /// Returns the number of contact surface pairs found.
+    fn num_contact_surfaces(&self) -> usize {
+        self.inner.contact_surfaces().len()
+    }
+
+    /// Get all pre-computed contact surfaces.
+    fn get_contact_surfaces(&self) -> Vec<PyContactSurface> {
+        self.inner
+            .contact_surfaces()
+            .iter()
+            .map(|cs| PyContactSurface { inner: cs.clone() })
+            .collect()
+    }
+
+    /// Removes all pre-computed contact surfaces.
+    fn clear_contact_surfaces(&mut self) {
+        self.inner.clear_contact_surfaces();
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "Vessel(hulls={}, tanks={}, silhouettes={}, appendages={}, deck_edges={}, lbp={:.2}m)",
@@ -479,6 +520,72 @@ impl PyVessel {
             self.inner.num_appendages(),
             self.inner.num_deck_edges(),
             self.inner.lbp()
+        )
+    }
+}
+
+// ============================================================================
+// ContactSurface Python Wrapper
+// ============================================================================
+
+use crate::vessel::ContactSurface as RustContactSurface;
+
+/// A pre-computed contact surface between two hulls.
+#[pyclass(name = "ContactSurface")]
+pub struct PyContactSurface {
+    inner: RustContactSurface,
+}
+
+#[pymethods]
+impl PyContactSurface {
+    /// Index of the first hull.
+    #[getter]
+    fn hull_i(&self) -> usize {
+        self.inner.hull_i
+    }
+
+    /// Index of the second hull.
+    #[getter]
+    fn hull_j(&self) -> usize {
+        self.inner.hull_j
+    }
+
+    /// Total pre-computed contact area in m².
+    #[getter]
+    fn total_area(&self) -> f64 {
+        self.inner.total_area
+    }
+
+    /// Number of contact faces in hull i.
+    #[getter]
+    fn num_faces_i(&self) -> usize {
+        self.inner.face_indices_i.len()
+    }
+
+    /// Number of contact faces in hull j.
+    #[getter]
+    fn num_faces_j(&self) -> usize {
+        self.inner.face_indices_j.len()
+    }
+
+    /// Returns the face indices of hull i that are in contact.
+    fn get_face_indices_i(&self) -> Vec<usize> {
+        self.inner.face_indices_i.clone()
+    }
+
+    /// Returns the face indices of hull j that are in contact.
+    fn get_face_indices_j(&self) -> Vec<usize> {
+        self.inner.face_indices_j.clone()
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "ContactSurface(hulls=({}, {}), area={:.3}m², faces=({}, {}))",
+            self.inner.hull_i,
+            self.inner.hull_j,
+            self.inner.total_area,
+            self.inner.face_indices_i.len(),
+            self.inner.face_indices_j.len(),
         )
     }
 }
@@ -2417,6 +2524,7 @@ fn navaltoolbox(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyDeckEdge>()?;
     m.add_class::<PyOpeningType>()?;
     m.add_class::<PyDownfloodingOpening>()?;
+    m.add_class::<PyContactSurface>()?;
     m.add_class::<PyHydrostaticState>()?;
     m.add_class::<PyTankOptions>()?;
     m.add_class::<PyHydrostaticsCalculator>()?;

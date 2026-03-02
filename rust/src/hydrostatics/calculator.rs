@@ -118,6 +118,95 @@ pub(crate) fn detect_contact_area(
     contact_area
 }
 
+/// Pre-computed contact face data (centroid + normal) for fast matching after clipping.
+pub(crate) struct ContactFaceRef {
+    pub centroid: nalgebra::Point3<f64>,
+    pub normal: nalgebra::Vector3<f64>,
+    pub area: f64,
+}
+
+/// Builds contact face reference data for the given face indices of an original mesh.
+pub(crate) fn build_contact_face_refs(
+    mesh: &parry3d_f64::shape::TriMesh,
+    face_indices: &[usize],
+) -> Vec<ContactFaceRef> {
+    let verts = mesh.vertices();
+    let faces = mesh.indices();
+    face_indices
+        .iter()
+        .filter_map(|&idx| {
+            if idx >= faces.len() {
+                return None;
+            }
+            let f = faces[idx];
+            let v0 = verts[f[0] as usize];
+            let v1 = verts[f[1] as usize];
+            let v2 = verts[f[2] as usize];
+            let cross = (v1 - v0).cross(&(v2 - v0));
+            let area = cross.norm() / 2.0;
+            if area == 0.0 {
+                return None;
+            }
+            let normal = cross / (area * 2.0);
+            let centroid = nalgebra::Point3::from((v0.coords + v1.coords + v2.coords) / 3.0);
+            Some(ContactFaceRef {
+                centroid,
+                normal,
+                area,
+            })
+        })
+        .collect()
+}
+
+/// Computes the contact area on a clipped mesh by matching its faces against
+/// pre-computed contact face references from the original mesh.
+///
+/// This is O(N_clipped × N_contact_refs) — much faster than the O(N×M) brute-force
+/// `detect_contact_area` when N_contact_refs is small relative to the full mesh.
+pub(crate) fn compute_contact_area_from_precomputed(
+    clipped_mesh: &parry3d_f64::shape::TriMesh,
+    contact_refs: &[ContactFaceRef],
+    distance_threshold: f64,
+) -> f64 {
+    if contact_refs.is_empty() {
+        return 0.0;
+    }
+
+    let verts = clipped_mesh.vertices();
+    let faces = clipped_mesh.indices();
+    let mut contact_area = 0.0;
+
+    for f in faces {
+        let v0 = verts[f[0] as usize];
+        let v1 = verts[f[1] as usize];
+        let v2 = verts[f[2] as usize];
+        let cross = (v1 - v0).cross(&(v2 - v0));
+        let area = cross.norm() / 2.0;
+        if area == 0.0 {
+            continue;
+        }
+        let normal = cross / (area * 2.0);
+        let centroid = nalgebra::Point3::from((v0.coords + v1.coords + v2.coords) / 3.0);
+
+        // Check if this clipped face matches any pre-computed contact face
+        for cr in contact_refs {
+            let plane_dist = ((centroid.coords - cr.centroid.coords).dot(&cr.normal)).abs();
+            // Same direction (not opposite — these are from the same hull)
+            if plane_dist < distance_threshold && normal.dot(&cr.normal) > 0.9 {
+                // For same-hull matching: check proximity
+                let dist_sq = nalgebra::distance_squared(&centroid, &cr.centroid);
+                let allowed_dist = area.sqrt() + cr.area.sqrt() + distance_threshold;
+                if dist_sq < allowed_dist * allowed_dist {
+                    contact_area += area;
+                    break;
+                }
+            }
+        }
+    }
+
+    contact_area
+}
+
 /// Calculator for hydrostatic properties.
 pub struct HydrostaticsCalculator<'a> {
     vessel: &'a Vessel,
@@ -204,11 +293,13 @@ impl<'a> HydrostaticsCalculator<'a> {
             raw_wetted_surface: f64,
             vol: f64,
             cob: nalgebra::Point3<f64>,
+            /// Index of this hull in the vessel's hull list
+            hull_index: usize,
         }
         let mut hull_list: Vec<HullData> = Vec::new();
 
         // Process each hull
-        for hull in self.vessel.hulls() {
+        for (hull_idx, hull) in self.vessel.hulls().iter().enumerate() {
             // Transform hull
             let transformed = transform_mesh(hull.mesh(), heel, trim, pivot);
             let bounds = get_bounds(&transformed);
@@ -261,6 +352,7 @@ impl<'a> HydrostaticsCalculator<'a> {
                     raw_wetted_surface,
                     vol,
                     cob,
+                    hull_index: hull_idx,
                 });
 
                 // Midship Area: Slice at X = (bounds.0 + bounds.1) / 2.0
@@ -280,18 +372,62 @@ impl<'a> HydrostaticsCalculator<'a> {
 
         // Only compute contact areas for multi-hull vessels
         if hull_list.len() > 1 {
-            for i in 0..hull_list.len() {
-                for j in (i + 1)..hull_list.len() {
-                    let contact_ij = detect_contact_area(
-                        &hull_list[i].clipped,
-                        &hull_list[j].clipped,
-                        0.1, // 10cm threshold for finding shared plates between hulls
-                    );
+            if self.vessel.has_contact_surfaces() {
+                // Use pre-computed contact surfaces (fast path)
+                for i in 0..hull_list.len() {
+                    for j in (i + 1)..hull_list.len() {
+                        let hi = hull_list[i].hull_index;
+                        let hj = hull_list[j].hull_index;
 
-                    // Subtract from both hulls' wetted surfaces
-                    net_wetted_surfaces[i] = (net_wetted_surfaces[i] - contact_ij).max(0.0);
-                    net_wetted_surfaces[j] = (net_wetted_surfaces[j] - contact_ij).max(0.0);
-                    total_contact_area += contact_ij;
+                        if let Some((face_idx_i, face_idx_j)) =
+                            self.vessel.get_contact_face_indices(hi, hj)
+                        {
+                            // Build contact refs from original meshes
+                            let refs_i =
+                                build_contact_face_refs(self.vessel.hulls()[hi].mesh(), face_idx_i);
+                            let refs_j =
+                                build_contact_face_refs(self.vessel.hulls()[hj].mesh(), face_idx_j);
+
+                            // Use adaptive threshold (half average cell size)
+                            let threshold = refs_i
+                                .iter()
+                                .chain(refs_j.iter())
+                                .map(|r| r.area.sqrt())
+                                .sum::<f64>()
+                                / (refs_i.len() + refs_j.len()).max(1) as f64
+                                * 0.5;
+                            let threshold = threshold.max(0.01);
+
+                            // Compute contact area from clipped mesh i against contact refs of hull i
+                            let contact_i = compute_contact_area_from_precomputed(
+                                &hull_list[i].clipped,
+                                &refs_i,
+                                threshold,
+                            );
+                            // Compute contact area from clipped mesh j against contact refs of hull j
+                            let contact_j = compute_contact_area_from_precomputed(
+                                &hull_list[j].clipped,
+                                &refs_j,
+                                threshold,
+                            );
+
+                            net_wetted_surfaces[i] = (net_wetted_surfaces[i] - contact_i).max(0.0);
+                            net_wetted_surfaces[j] = (net_wetted_surfaces[j] - contact_j).max(0.0);
+                            total_contact_area += (contact_i + contact_j) / 2.0;
+                        }
+                    }
+                }
+            } else {
+                // Fallback: runtime O(N×M) detection
+                for i in 0..hull_list.len() {
+                    for j in (i + 1)..hull_list.len() {
+                        let contact_ij =
+                            detect_contact_area(&hull_list[i].clipped, &hull_list[j].clipped, 0.1);
+
+                        net_wetted_surfaces[i] = (net_wetted_surfaces[i] - contact_ij).max(0.0);
+                        net_wetted_surfaces[j] = (net_wetted_surfaces[j] - contact_ij).max(0.0);
+                        total_contact_area += contact_ij;
+                    }
                 }
             }
         }

@@ -285,10 +285,11 @@ impl<'a> StabilityCalculator<'a> {
             raw_wetted_surface: f64,
             vol: f64,
             cob: Point3<f64>,
+            hull_index: usize,
         }
         let mut hull_list: Vec<HullData> = Vec::new();
 
-        for hull in self.vessel.hulls() {
+        for (hull_idx, hull) in self.vessel.hulls().iter().enumerate() {
             let transformed = transform_mesh(hull.mesh(), heel, trim, pivot);
             let (clipped_opt, aw) = clip_at_waterline(&transformed, draft);
 
@@ -305,6 +306,7 @@ impl<'a> StabilityCalculator<'a> {
                     raw_wetted_surface,
                     vol,
                     cob,
+                    hull_index: hull_idx,
                 });
             }
         }
@@ -315,15 +317,64 @@ impl<'a> StabilityCalculator<'a> {
         }
 
         if hull_list.len() > 1 {
-            for i in 0..hull_list.len() {
-                for j in (i + 1)..hull_list.len() {
-                    let contact_ij = crate::hydrostatics::detect_contact_area(
-                        &hull_list[i].clipped,
-                        &hull_list[j].clipped,
-                        0.1,
-                    );
-                    net_wetted_surfaces[i] = (net_wetted_surfaces[i] - contact_ij).max(0.0);
-                    net_wetted_surfaces[j] = (net_wetted_surfaces[j] - contact_ij).max(0.0);
+            if self.vessel.has_contact_surfaces() {
+                // Use pre-computed contact surfaces (fast path)
+                for i in 0..hull_list.len() {
+                    for j in (i + 1)..hull_list.len() {
+                        let hi = hull_list[i].hull_index;
+                        let hj = hull_list[j].hull_index;
+
+                        if let Some((face_idx_i, face_idx_j)) =
+                            self.vessel.get_contact_face_indices(hi, hj)
+                        {
+                            let refs_i = crate::hydrostatics::build_contact_face_refs(
+                                self.vessel.hulls()[hi].mesh(),
+                                face_idx_i,
+                            );
+                            let refs_j = crate::hydrostatics::build_contact_face_refs(
+                                self.vessel.hulls()[hj].mesh(),
+                                face_idx_j,
+                            );
+
+                            let threshold = refs_i
+                                .iter()
+                                .chain(refs_j.iter())
+                                .map(|r| r.area.sqrt())
+                                .sum::<f64>()
+                                / (refs_i.len() + refs_j.len()).max(1) as f64
+                                * 0.5;
+                            let threshold = threshold.max(0.01);
+
+                            let contact_i =
+                                crate::hydrostatics::compute_contact_area_from_precomputed(
+                                    &hull_list[i].clipped,
+                                    &refs_i,
+                                    threshold,
+                                );
+                            let contact_j =
+                                crate::hydrostatics::compute_contact_area_from_precomputed(
+                                    &hull_list[j].clipped,
+                                    &refs_j,
+                                    threshold,
+                                );
+
+                            net_wetted_surfaces[i] = (net_wetted_surfaces[i] - contact_i).max(0.0);
+                            net_wetted_surfaces[j] = (net_wetted_surfaces[j] - contact_j).max(0.0);
+                        }
+                    }
+                }
+            } else {
+                // Fallback: runtime O(N×M) detection
+                for i in 0..hull_list.len() {
+                    for j in (i + 1)..hull_list.len() {
+                        let contact_ij = crate::hydrostatics::detect_contact_area(
+                            &hull_list[i].clipped,
+                            &hull_list[j].clipped,
+                            0.1,
+                        );
+                        net_wetted_surfaces[i] = (net_wetted_surfaces[i] - contact_ij).max(0.0);
+                        net_wetted_surfaces[j] = (net_wetted_surfaces[j] - contact_ij).max(0.0);
+                    }
                 }
             }
         }
