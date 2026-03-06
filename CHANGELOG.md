@@ -5,6 +5,21 @@ All notable changes to NavalToolbox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-03-06
+
+### Added
+- **core**: Implement `ContactSurface` pre-computation with adaptive threshold for multi-hull vessels.
+- **hydrostatics**: Implement hull plate thickness approximation and dynamic contact area calculation in hydrostatics.
+- **tanks**: Add `permeability` parameter to `Tank` structure and volumetric calculations.
+- **tanks**: Add 98% and 99% fill level evaluations to maximum Free Surface Moment (FSM) calculations.
+- **deckedge**: Add optional `side` parameter to `DeckEdge::from_file`.
+- **python**: Expose `ContactSurface` API, `permeability` property, `hull thickness` properties, and `Vessel.from_hulls` to Python bindings.
+- **docs**: Explicitly document trim, heel, COG sign conventions, hull thickness limitations, and multihull creation.
+
+### Fixed
+- **downflooding**: Correct starboard Y coordinate sign in downflooding tests.
+- **hydrostatics**: Clean up unused variables, dead CoB code, and update GZ equivalence tests for realism.
+
 ## [0.7.0] - 2026-02-24
 
 ### Added
