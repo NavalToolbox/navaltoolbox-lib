@@ -2771,6 +2771,26 @@ impl PyLoadingCondition {
         (cog[0], cog[1], cog[2])
     }
 
+    /// Returns the displacement of mass items only (excluding tank fluids) in kg.
+    fn item_displacement(&self) -> f64 {
+        self.inner.item_displacement()
+    }
+
+    /// Returns the center of gravity of mass items only (lcg, tcg, vcg) in meters.
+    fn item_cog(&self) -> (f64, f64, f64) {
+        let cog = self.inner.item_cog();
+        (cog[0], cog[1], cog[2])
+    }
+
+    /// Returns (item_displacement, (lcg, tcg, vcg)) in a single call.
+    ///
+    /// Use this for stability calculations (like `gz_curve`) that already
+    /// include tank logic, to avoid double-counting the tank masses.
+    fn resolve_items(&self) -> (f64, (f64, f64, f64)) {
+        let (disp, cog) = self.inner.resolve_items();
+        (disp, (cog[0], cog[1], cog[2]))
+    }
+
     /// Returns (total_displacement, (lcg, tcg, vcg)) in a single call.
     ///
     /// Must be called after apply() so tank fill levels are current.

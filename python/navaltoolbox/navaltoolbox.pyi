@@ -1800,6 +1800,21 @@ class LoadingCondition:
         Call after apply() so tank fill levels are current.
         """
         ...
+        
+    def item_displacement(self) -> float:
+        """Returns the displacement of mass items only (excluding tank fluids) in kg."""
+        ...
+        
+    def item_cog(self) -> Tuple[float, float, float]:
+        """Returns the center of gravity of mass items only (lcg, tcg, vcg) in meters."""
+        ...
+        
+    def resolve_items(self) -> Tuple[float, Tuple[float, float, float]]:
+        """Returns (item_displacement, (lcg, tcg, vcg)) in a single call.
+        
+        Use this for stability calculations to avoid double-counting tank masses.
+        """
+        ...
     
     # ── Serialization ────────────────────────────────────
     
