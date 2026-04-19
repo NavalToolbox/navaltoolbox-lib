@@ -1,6 +1,5 @@
 """Tests for LoadingCondition feature."""
 
-import pytest
 import json
 import tempfile
 from pathlib import Path
@@ -31,7 +30,12 @@ class TestMassItem:
 
     def test_create_with_category(self):
         from navaltoolbox import MassItem, MassCategory
-        item = MassItem("Lightship", 5_000_000.0, (45.0, 0.0, 4.5), MassCategory.lightship())
+        item = MassItem(
+            "Lightship",
+            5_000_000.0,
+            (45.0, 0.0, 4.5),
+            MassCategory.lightship(),
+        )
         assert item.name == "Lightship"
         assert item.mass == 5_000_000.0
 
@@ -49,7 +53,9 @@ class TestLoadingCondition:
     def test_add_masses(self):
         from navaltoolbox import LoadingCondition, MassCategory
         lc = LoadingCondition("Test")
-        lc.add_mass_simple("Lightship", 5_000_000, (45.0, 0.0, 4.5), MassCategory.lightship())
+        lc.add_mass_simple(
+            "Lightship", 5_000_000, (45.0, 0.0, 4.5), MassCategory.lightship()
+        )
         lc.add_mass_simple("Crew", 3_000, (35.0, 0.0, 8.0))
         assert lc.num_masses() == 2
         masses = lc.get_masses()
@@ -63,9 +69,9 @@ class TestLoadingCondition:
         lc.add_mass_simple("A", 1000, (0.0, 0.0, 0.0))
         lc.add_mass_simple("B", 2000, (0.0, 0.0, 0.0))
         assert lc.num_masses() == 2
-        assert lc.remove_mass("A") == True
+        assert lc.remove_mass("A") is True
         assert lc.num_masses() == 1
-        assert lc.remove_mass("X") == False
+        assert lc.remove_mass("X") is False
 
     def test_tank_fill_overrides(self):
         from navaltoolbox import LoadingCondition
@@ -135,7 +141,9 @@ class TestLoadingCondition:
         from navaltoolbox import LoadingCondition, MassCategory
 
         lc = LoadingCondition("Departure")
-        lc.add_mass_simple("Lightship", 5_000_000, (45.0, 0.0, 4.5), MassCategory.lightship())
+        lc.add_mass_simple(
+            "Lightship", 5_000_000, (45.0, 0.0, 4.5), MassCategory.lightship()
+        )
         lc.add_mass_simple("Crew", 3_000, (35.0, 0.0, 8.0))
         lc.set_tank_fill_percent("FO_1P", 95.0)
         lc.set_tank_fill("FW_1", 0.5)
