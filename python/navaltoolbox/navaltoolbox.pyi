@@ -45,6 +45,9 @@ __all__ = [
     "CriteriaResult",
     "CriteriaContext",
     "ScriptEngine",
+    "MassCategory",
+    "MassItem",
+    "LoadingCondition",
 ]
 
 
@@ -1607,6 +1610,220 @@ class TankOptions:
         ...
     
     def __repr__(self) -> str: ...
+
+
+class MassCategory:
+    """Category of a mass item.
+    
+    Use static methods to create:
+    - MassCategory.lightship()
+    - MassCategory.deadweight()
+    - MassCategory.other()
+    """
+    
+    @staticmethod
+    def lightship() -> "MassCategory":
+        """Creates a Lightship category."""
+        ...
+    
+    @staticmethod
+    def deadweight() -> "MassCategory":
+        """Creates a Deadweight category."""
+        ...
+    
+    @staticmethod
+    def other() -> "MassCategory":
+        """Creates an Other category (default)."""
+        ...
+
+
+class MassItem:
+    """A single mass item with name, mass, position, and optional category.
+    
+    Example:
+        >>> item = MassItem("Lightship", 5_000_000, (45.0, 0.0, 4.5), MassCategory.lightship())
+    """
+    
+    def __init__(
+        self,
+        name: str,
+        mass: float,
+        cog: Tuple[float, float, float],
+        category: MassCategory | None = None,
+    ) -> None:
+        """Create a mass item.
+        
+        Args:
+            name: Identifier for the mass item.
+            mass: Mass in kg.
+            cog: Center of gravity (lcg, tcg, vcg) in meters.
+            category: Optional MassCategory (default: Other).
+        """
+        ...
+    
+    @property
+    def name(self) -> str:
+        """The mass item name."""
+        ...
+    
+    @property
+    def mass(self) -> float:
+        """Mass in kg."""
+        ...
+    
+    @property
+    def cog(self) -> Tuple[float, float, float]:
+        """Center of gravity (lcg, tcg, vcg) in meters."""
+        ...
+    
+    @property
+    def category(self) -> MassCategory:
+        """The mass category."""
+        ...
+
+
+class LoadingCondition:
+    """A complete loading condition with mass items and tank fill overrides.
+    
+    Example:
+        >>> lc = LoadingCondition("Departure — Full Load")
+        >>> lc.add_mass_simple("Lightship", 5_000_000, (45.0, 0.0, 4.5), MassCategory.lightship())
+        >>> lc.set_tank_fill_percent("FO_1P", 95.0)
+        >>> lc.apply(vessel)
+        >>> displacement, cog = lc.resolve(vessel)
+    """
+    
+    def __init__(self, name: str) -> None:
+        """Create a new empty loading condition.
+        
+        Args:
+            name: Name of the loading condition.
+        """
+        ...
+    
+    @property
+    def name(self) -> str:
+        """The loading condition name."""
+        ...
+    
+    @name.setter
+    def name(self, value: str) -> None:
+        ...
+    
+    # ── Mass management ──────────────────────────────────
+    
+    def add_mass(self, item: MassItem) -> None:
+        """Add a mass item."""
+        ...
+    
+    def add_mass_simple(
+        self,
+        name: str,
+        mass: float,
+        cog: Tuple[float, float, float],
+        category: MassCategory | None = None,
+    ) -> None:
+        """Add a mass item by parameters (convenience).
+        
+        Args:
+            name: Identifier for the mass item.
+            mass: Mass in kg.
+            cog: Center of gravity (lcg, tcg, vcg) in meters.
+            category: Optional MassCategory (default: Other).
+        """
+        ...
+    
+    def remove_mass(self, name: str) -> bool:
+        """Remove a mass item by name. Returns True if found."""
+        ...
+    
+    def get_masses(self) -> List[MassItem]:
+        """Returns all mass items."""
+        ...
+    
+    def num_masses(self) -> int:
+        """Returns the number of mass items."""
+        ...
+    
+    # ── Tank fill overrides ──────────────────────────────
+    
+    def set_tank_fill(self, tank_name: str, fill_level: float) -> None:
+        """Set a tank fill override by fill level (0.0 to 1.0)."""
+        ...
+    
+    def set_tank_fill_percent(self, tank_name: str, fill_percent: float) -> None:
+        """Set a tank fill override by percentage (0 to 100)."""
+        ...
+    
+    def remove_tank_fill(self, tank_name: str) -> bool:
+        """Remove a tank fill override. Returns True if found."""
+        ...
+    
+    def num_tank_overrides(self) -> int:
+        """Returns the number of tank fill overrides."""
+        ...
+    
+    def get_tank_fills(self) -> dict[str, float]:
+        """Returns tank fill overrides as dict {name: fill_level}."""
+        ...
+    
+    # ── Application & calculation ────────────────────────
+    
+    def apply(self, vessel: "Vessel") -> None:
+        """Apply tank fill overrides to the vessel's tanks.
+        
+        Only tanks listed in tank_fills are modified.
+        Other tanks keep their current fill level.
+        
+        Args:
+            vessel: The vessel to configure.
+        """
+        ...
+    
+    def total_displacement(self, vessel: "Vessel") -> float:
+        """Returns the total displacement (masses + tanks) in kg.
+        
+        Call after apply() so tank fill levels are current.
+        """
+        ...
+    
+    def total_cog(self, vessel: "Vessel") -> Tuple[float, float, float]:
+        """Returns the combined center of gravity (lcg, tcg, vcg) in meters.
+        
+        Call after apply() so tank fill levels are current.
+        """
+        ...
+    
+    def resolve(self, vessel: "Vessel") -> Tuple[float, Tuple[float, float, float]]:
+        """Returns (total_displacement, (lcg, tcg, vcg)) in a single call.
+        
+        Call after apply() so tank fill levels are current.
+        """
+        ...
+    
+    # ── Serialization ────────────────────────────────────
+    
+    def to_json(self) -> str:
+        """Serialize to JSON string."""
+        ...
+    
+    @staticmethod
+    def from_json(json: str) -> "LoadingCondition":
+        """Deserialize from JSON string."""
+        ...
+    
+    def save_json(self, path: str) -> None:
+        """Save to JSON file."""
+        ...
+    
+    @staticmethod
+    def load_json(path: str) -> "LoadingCondition":
+        """Load from JSON file."""
+        ...
+    
+    def copy(self, name: str | None = None) -> "LoadingCondition":
+        """Create a copy, optionally with a new name."""
+        ...
 
 
 class CriterionResult:
