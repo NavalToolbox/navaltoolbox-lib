@@ -24,6 +24,15 @@ StabilityCalculator
       :param fixed_trim: Optional fixed trim in degrees. If None, calculates free trim.
       :return: A :class:`StabilityCurve` object.
 
+   .. method:: gz_curve_from_loading(loading: LoadingCondition, heels: list[float], fixed_trim: float | None = None) -> StabilityCurve
+
+      Calculate the GZ curve directly from a LoadingCondition. Automatically applies tank fill overrides, uses solid displacement, and restores original fill levels.
+
+      :param loading: The LoadingCondition defining mass and tank fills.
+      :param heels: List of heel angles in degrees.
+      :param fixed_trim: Optional fixed trim in degrees.
+      :return: A :class:`StabilityCurve` object.
+
    .. py:method:: kn_curve(displacements, heels, lcg=0.0, tcg=0.0, fixed_trim=None)
 
       Calculates KN curves (Righting Lever from Keel) for multiple displacements.
@@ -49,6 +58,15 @@ StabilityCalculator
       :param heels: List of heel angles in degrees.
       :param tank_options: Optional :class:`~navaltoolbox.hydrostatics.TankOptions` to configure tank mass and free surface moment inclusion.
       :param fixed_trim: Optional fixed trim in degrees. If None, calculates free trim.
+      :return: A :class:`CompleteStabilityResult` object containing all analysis data.
+
+   .. method:: complete_stability_from_loading(loading: LoadingCondition, heels: list[float], fixed_trim: float | None = None) -> CompleteStabilityResult
+
+      Calculate complete stability analysis directly from a LoadingCondition. Automatically applies tank overrides, calculates equilibrium, and restores original states.
+
+      :param loading: The LoadingCondition defining mass and tank fills.
+      :param heels: List of heel angles in degrees.
+      :param fixed_trim: Optional fixed trim in degrees.
       :return: A :class:`CompleteStabilityResult` object containing all analysis data.
 
 CompleteStabilityResult

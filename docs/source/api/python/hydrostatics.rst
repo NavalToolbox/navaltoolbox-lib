@@ -91,6 +91,16 @@ HydrostaticsCalculator
          is interpreted as the mass of the vessel **excluding** the fluid in the tanks.
          The total displacement used for calculation will be ``displacement_mass + tank_fluid_mass``.
 
+   .. py:method:: from_loading(loading, num_stations=None)
+
+      Calculates hydrostatics for a given LoadingCondition.
+      
+      This method automatically applies the given loading condition (including tank fill overrides), calculates the equilibrium based on total displacement and combined COG, and restores the original tank fill levels.
+
+      :param loading: :class:`~navaltoolbox.LoadingCondition` to analyze.
+      :param num_stations: Number of stations (optional).
+      :returns: HydrostaticState with all properties.
+
 
 HydrostaticState
 ----------------

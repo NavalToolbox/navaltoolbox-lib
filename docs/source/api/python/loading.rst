@@ -187,6 +187,9 @@ LoadingCondition
    .. py:method:: resolve_items()
 
       Returns (item_displacement, (lcg, tcg, vcg)) in a single call. Use this for stability calculations to avoid double-counting tank masses.
+      
+      .. note::
+         It is highly recommended to use the convenience methods directly on the calculators: :py:meth:`~navaltoolbox.StabilityCalculator.gz_curve_from_loading` and :py:meth:`~navaltoolbox.HydrostaticsCalculator.from_loading`. These methods automatically handle the save/restore process for tank configurations.
 
       :rtype: tuple[float, tuple[float, float, float]]
 

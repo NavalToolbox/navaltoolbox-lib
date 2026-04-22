@@ -78,27 +78,17 @@ from navaltoolbox import LoadingCondition, MassCategory
 
 lc = LoadingCondition("Departure")
 lc.add_mass_simple("Lightship", 5000000.0, (40.0, 0.0, 5.0), MassCategory.lightship())
-lc.apply(vessel)
-disp, combined_cog = lc.resolve(vessel)
-item_disp, item_cog = lc.resolve_items()
 
-# Calculate GZ curve (pass only the mass items, tanks are auto-included by StabilityCalculator)
+# Calculate GZ curve directly from LoadingCondition
 stab = StabilityCalculator(vessel, water_density=1025.0)
 heels = [0, 10, 20, 30, 40, 50, 60]
-curve = stab.gz_curve(
-    displacement_mass=item_disp,
-    cog=item_cog,
-    heels=heels
-)
+
+curve = stab.gz_curve_from_loading(lc, heels)
 for heel, gz in zip(curve.heels(), curve.values()):
     print(f"Heel: {heel}°, GZ: {gz:.3f}m")
 
 # Complete stability analysis (hydrostatics + GZ + wind data)
-result = stab.complete_stability(
-    displacement_mass=item_disp,
-    cog=item_cog,
-    heels=heels
-)
+result = stab.complete_stability_from_loading(lc, heels)
 print(f"GM0: {result.gm0:.3f}m")
 print(f"Max GZ: {result.max_gz:.3f}m at {result.heel_at_max_gz}°")
 

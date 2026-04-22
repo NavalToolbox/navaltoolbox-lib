@@ -127,17 +127,16 @@ lc = LoadingCondition("Arrival")
 lc.add_mass_simple("Lightship", 5000000.0, (40.0, 0.0, 5.0), MassCategory.lightship())
 lc.set_tank_fill_percent("FO_1", 50.0)
 
-# Apply and resolve
-lc.apply(vessel)
-disp, cog = lc.resolve(vessel)
-item_disp, item_cog = lc.resolve_items()
+# Use convenience methods directly to seamlessly merge the solid masses and tank configurations:
+from navaltoolbox import StabilityCalculator, HydrostaticsCalculator
 
-print(f"Total Combined Displacement: {disp:.0f} kg")
-print(f"Combined COG: {cog}")
-print(f"Solid items only: {item_disp:.0f} kg at {item_cog}")
+stab_calc = StabilityCalculator(vessel)
+curve = stab_calc.gz_curve_from_loading(lc, heels=[0, 10, 20, 30])
+print(f"Calculated GZ max: {max(curve.values()):.3f} m")
 
-# Use item_disp and item_cog for stability calculations
-# as the StabilityCalculator handles tanks intrinsically.
+hydro_calc = HydrostaticsCalculator(vessel)
+state = hydro_calc.from_loading(lc)
+print(f"Equilibrium Draft: {state.draft:.3f} m")
 ```
 
 ## Documentation
