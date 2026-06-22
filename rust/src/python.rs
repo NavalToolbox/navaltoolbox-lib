@@ -1787,6 +1787,7 @@ pub struct PyWindHeelingData {
     #[pyo3(get)]
     pub emerged_area: f64,
     emerged_centroid_internal: [f64; 2],
+    submerged_centroid_internal: [f64; 2],
     #[pyo3(get)]
     pub wind_lever_arm: f64,
     #[pyo3(get)]
@@ -1798,6 +1799,7 @@ impl From<RustWindHeelingData> for PyWindHeelingData {
         Self {
             emerged_area: data.emerged_area,
             emerged_centroid_internal: data.emerged_centroid,
+            submerged_centroid_internal: data.submerged_centroid,
             wind_lever_arm: data.wind_lever_arm,
             waterline_z: data.waterline_z,
         }
@@ -1815,6 +1817,19 @@ impl PyWindHeelingData {
         )
     }
 
+    /// Returns the centroid of submerged lateral area [x, z].
+    ///
+    /// Together with `emerged_centroid`, this defines the exact Z lever
+    /// per IMO 2008 IS Code §2.3.2:
+    /// Z = emerged_centroid.z - submerged_centroid.z = `wind_lever_arm`
+    #[getter]
+    fn submerged_centroid(&self) -> (f64, f64) {
+        (
+            self.submerged_centroid_internal[0],
+            self.submerged_centroid_internal[1],
+        )
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "WindHeelingData(emerged_area={:.2}m², lever_arm={:.2}m)",
@@ -1822,6 +1837,7 @@ impl PyWindHeelingData {
         )
     }
 }
+
 
 // ============================================================================
 // CompleteStabilityResult Python Wrapper

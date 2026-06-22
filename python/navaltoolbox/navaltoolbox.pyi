@@ -1224,16 +1224,43 @@ class StabilityCurve:
 
 
 class WindHeelingData:
-    """Wind heeling data from silhouette calculation."""
-    
+    """Wind heeling data from silhouette calculation.
+
+    Computes wind moment quantities per IMO 2008 IS Code §2.3.2.
+    The lever arm Z is the exact vertical distance between the centroid of the
+    emerged lateral area (A) and the centroid of the submerged lateral area.
+    """
+
     @property
-    def emerged_area(self) -> float: ...
+    def emerged_area(self) -> float:
+        """Total emerged lateral area above waterline (m²)."""
+        ...
     @property
-    def emerged_centroid(self) -> Tuple[float, float]: ...
+    def emerged_centroid(self) -> Tuple[float, float]:
+        """Centroid of emerged lateral area (x, z) in meters."""
+        ...
     @property
-    def wind_lever_arm(self) -> float: ...
+    def submerged_centroid(self) -> Tuple[float, float]:
+        """Centroid of submerged lateral area (x, z) in meters.
+
+        Together with `emerged_centroid`, defines the exact Z lever per
+        IMO 2008 IS Code §2.3.2:
+        ``wind_lever_arm = emerged_centroid[1] - submerged_centroid[1]``
+        """
+        ...
     @property
-    def waterline_z(self) -> float: ...
+    def wind_lever_arm(self) -> float:
+        """Vertical distance Z from emerged centroid to submerged centroid (m).
+
+        Computed as: emerged_centroid.z - submerged_centroid.z
+        Per IMO 2008 IS Code §2.3.2.
+        """
+        ...
+    @property
+    def waterline_z(self) -> float:
+        """Waterline Z coordinate at which calculations were performed (m)."""
+        ...
+
 
 
 class CompleteStabilityResult:
