@@ -384,7 +384,7 @@ def plot_hydrostatic_condition(
 
     Args:
         vessel: The vessel to visualize.
-        draft: Draft at midship (or reference point) in meters.
+        draft: Draft at the aft perpendicular in meters.
         trim: Trim angle in degrees (positive = stern down usually).
         heel: Heel angle in degrees (positive = starboard down usually).
         show_hulls: Whether to show hull meshes.
@@ -428,7 +428,10 @@ def plot_hydrostatic_condition(
     def transform_points(points):
         if len(points) == 0:
             return []
-        pts = np.array(points)
+        
+        # Points relative to the aft perpendicular
+        pts = np.array(points) - [vessel.ap, 0.0, 0.0]
+        
         # Apply rotation (pts is Nx3, R_total is 3x3)
         # (R @ v)^T = v^T @ R^T
         rotated = pts @ R_total.T
