@@ -200,6 +200,8 @@ WindHeelingData
 
       Centroid of submerged lateral area (x, z) in meters.
 
+      Note: If the silhouettes represent only the emerged windage area (i.e. the submerged area is negligible, < 1% of emerged area), this falls back to the IMO approximation: ``z = T/2`` (half the draft).
+
    .. py:attribute:: wind_lever_arm
       :type: float
 

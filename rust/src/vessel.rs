@@ -388,6 +388,14 @@ impl Vessel {
             .sum()
     }
 
+    /// Calculates the total submerged area from all silhouettes.
+    pub fn get_total_submerged_area(&self, waterline_z: f64) -> f64 {
+        self.silhouettes
+            .iter()
+            .map(|s| s.get_submerged_area(waterline_z))
+            .sum()
+    }
+
     /// Calculates the combined centroid of all emerged areas.
     pub fn get_combined_emerged_centroid(&self, waterline_z: f64) -> [f64; 2] {
         let total_area = self.get_total_emerged_area(waterline_z);

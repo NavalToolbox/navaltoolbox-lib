@@ -798,7 +798,34 @@ impl<'a> StabilityCalculator<'a> {
             let waterline_z = hydrostatics.draft;
             let emerged_area = self.vessel.get_total_emerged_area(waterline_z);
             let emerged_centroid = self.vessel.get_combined_emerged_centroid(waterline_z);
-            let submerged_centroid = self.vessel.get_combined_submerged_centroid(waterline_z);
+
+            // Determine submerged centroid using two-stage threshold:
+            //   1. Absolute: submerged area < 1e-9 m²  (handled inside get_combined_submerged_centroid)
+            //   2. Relative: submerged area < 1% of emerged area → silhouette is above-waterline-only
+            //
+            // When the silhouette represents only the windage profile (starting at the waterline),
+            // clip_below() produces a degenerate near-zero strip whose centroid is at z ≈ waterline
+            // rather than the true underwater centroid. In that case we fall back to the IMO
+            // approximation: submerged centroid z = T/2 (half the draft), per IS Code §2.3.2.
+            const RELATIVE_SUBMERGED_THRESHOLD: f64 = 0.01; // 1 % of emerged area
+            let submerged_area = self.vessel.get_total_submerged_area(waterline_z);
+            let submerged_centroid = if emerged_area > 0.0
+                && submerged_area < RELATIVE_SUBMERGED_THRESHOLD * emerged_area
+            {
+                log::debug!(
+                    "Submerged lateral area ({:.6} m²) is less than {}% of emerged area \
+                         ({:.6} m²). Silhouette appears to represent above-waterline windage only. \
+                         Falling back to T/2 approximation for submerged centroid z.",
+                    submerged_area,
+                    RELATIVE_SUBMERGED_THRESHOLD * 100.0,
+                    emerged_area
+                );
+                // x = longitudinal centroid of emerged area (symmetric for most vessels)
+                // z = T/2  (centroid of a rectangular underwater lateral area)
+                [emerged_centroid[0], waterline_z / 2.0]
+            } else {
+                self.vessel.get_combined_submerged_centroid(waterline_z)
+            };
 
             if emerged_area > 0.0 {
                 Some(WindHeelingData::new(

@@ -169,15 +169,25 @@ impl Silhouette {
             return [0.0, 0.0];
         }
 
-        let area = self.get_area();
-        if area < 1e-9 {
+        // Compute signed area (positive = CCW, negative = CW)
+        let mut signed_area = 0.0;
+        let n = self.points.len();
+        for i in 0..n {
+            let j = (i + 1) % n;
+            let xi = self.points[i][0];
+            let zi = self.points[i][2];
+            let xj = self.points[j][0];
+            let zj = self.points[j][2];
+            signed_area += xi * zj - xj * zi;
+        }
+        signed_area /= 2.0;
+
+        if signed_area.abs() < 1e-9 {
             return [0.0, 0.0];
         }
 
         let mut cx = 0.0;
         let mut cz = 0.0;
-        let n = self.points.len();
-
         for i in 0..n {
             let j = (i + 1) % n;
             let xi = self.points[i][0];
@@ -189,8 +199,9 @@ impl Silhouette {
             cz += (zi + zj) * cross;
         }
 
-        let factor = 1.0 / (6.0 * area);
-        [cx.abs() * factor, cz.abs() * factor]
+        // Divide by signed area (not abs) so sign is handled consistently
+        let factor = 1.0 / (6.0 * signed_area);
+        [cx * factor, cz * factor]
     }
 
     /// Get the bounding box of the silhouette.
@@ -349,20 +360,30 @@ impl Silhouette {
     }
 
     /// Calculate centroid of a 2D polygon.
+    ///
+    /// Uses the signed-area form of the shoelace centroid formula.
+    /// Handles both CW and CCW winding correctly.
     fn polygon_centroid(points: &[[f64; 2]]) -> [f64; 2] {
         if points.len() < 3 {
             return [0.0, 0.0];
         }
 
-        let area = Self::polygon_area(points);
-        if area < 1e-9 {
+        let n = points.len();
+
+        // Compute signed area (positive = CCW, negative = CW)
+        let mut signed_area = 0.0;
+        for i in 0..n {
+            let j = (i + 1) % n;
+            signed_area += points[i][0] * points[j][1] - points[j][0] * points[i][1];
+        }
+        signed_area /= 2.0;
+
+        if signed_area.abs() < 1e-9 {
             return [0.0, 0.0];
         }
 
         let mut cx = 0.0;
         let mut cy = 0.0;
-        let n = points.len();
-
         for i in 0..n {
             let j = (i + 1) % n;
             let cross = points[i][0] * points[j][1] - points[j][0] * points[i][1];
@@ -370,8 +391,9 @@ impl Silhouette {
             cy += (points[i][1] + points[j][1]) * cross;
         }
 
-        let factor = 1.0 / (6.0 * area);
-        [cx.abs() * factor, cy.abs() * factor]
+        // Divide by signed area (not abs) so sign is handled consistently
+        let factor = 1.0 / (6.0 * signed_area);
+        [cx * factor, cy * factor]
     }
 }
 
@@ -479,6 +501,64 @@ mod tests {
             "Fully emerged centroid ({:?}) should equal fully submerged centroid ({:?})",
             emerged_centroid,
             submerged_centroid
+        );
+    }
+
+    /// Regression test: submerged centroid of a rectangle fully below the waterline.
+    ///
+    /// For a 20 × 1.6 rectangle (keel at z=0, top at z=1.6) with waterline at z=1.6
+    /// the centroid must be at (10.0, 0.8) — not at the waterline.
+    #[test]
+    fn test_submerged_centroid_full_rectangle() {
+        let rect = create_rectangle(0.0, 20.0, 0.0, 1.6);
+        let centroid = rect.get_submerged_centroid(1.6);
+        assert!(
+            (centroid[0] - 10.0).abs() < 1e-4,
+            "Expected x=10.0, got {}",
+            centroid[0]
+        );
+        assert!(
+            (centroid[1] - 0.8).abs() < 1e-4,
+            "Expected z=0.8, got {}",
+            centroid[1]
+        );
+    }
+
+    /// Regression test: windage-only silhouette (starts at the waterline).
+    ///
+    /// When the silhouette spans only z ∈ [draft, depth] the submerged area must
+    /// be negligibly small (no meaningful part of the silhouette is below the waterline).
+    /// Before the fix, clip_below() returned a hair-thin strip whose centroid was
+    /// erroneously reported at z ≈ draft instead of 0.
+    #[test]
+    fn test_submerged_area_windage_only_silhouette() {
+        // Silhouette from z=1.6 (waterline) to z=2.0 (deck) — above water only
+        let windage = create_rectangle(0.0, 20.0, 1.6, 2.0);
+        let submerged_area = windage.get_submerged_area(1.6);
+        assert!(
+            submerged_area < 1e-3,
+            "Windage-only silhouette should have negligible submerged area, got {} m²",
+            submerged_area
+        );
+    }
+
+    /// Regression test: polygon_centroid is correct for a plain CCW rectangle.
+    ///
+    /// This catches the historical bug where `.abs()` was applied to cx/cz
+    /// individually rather than dividing by the signed area.
+    #[test]
+    fn test_centroid_rectangle_ccw() {
+        let rect = create_rectangle(0.0, 20.0, 0.0, 1.6);
+        let centroid = rect.get_centroid();
+        assert!(
+            (centroid[0] - 10.0).abs() < 1e-6,
+            "Expected x=10.0, got {}",
+            centroid[0]
+        );
+        assert!(
+            (centroid[1] - 0.8).abs() < 1e-6,
+            "Expected z=0.8, got {}",
+            centroid[1]
         );
     }
 }

@@ -876,4 +876,54 @@ mod complete_stability_tests {
         assert!(result.gm0().is_some(), "GM0 should be computed");
         assert!(result.max_gz().is_some(), "Max GZ should be found");
     }
+
+    #[test]
+    fn test_complete_stability_with_windage_only_silhouette() {
+        // This test corresponds to the bug reported where the silhouette starts
+        // exactly at the waterline (windage only). The submerged_centroid should
+        // fallback to T/2 (draft/2).
+        let mut vessel = create_test_box();
+
+        let calc = StabilityCalculator::new(&vessel, 1025.0);
+        let displacement = 500.0 * 1025.0; // Expected draft is ~5.0m
+        let cog = [0.0, 0.0, 2.0];
+        let heels: Vec<f64> = vec![0.0];
+
+        // We run a first calculation to get the exact draft
+        let initial_result = calc.complete_stability(displacement, cog, &heels, None, None);
+        let draft = initial_result.hydrostatics.draft;
+
+        // Add a windage-only silhouette starting at the draft (waterline) up to depth=10.0
+        let silhouette_points = vec![
+            [-5.0, 0.0, draft],
+            [5.0, 0.0, draft],
+            [5.0, 0.0, 10.0],
+            [-5.0, 0.0, 10.0],
+            [-5.0, 0.0, draft], // close
+        ];
+        let silhouette = Silhouette::new(silhouette_points, "Windage".to_string());
+        vessel.add_silhouette(silhouette);
+
+        let calc_with_sil = StabilityCalculator::new(&vessel, 1025.0);
+        let result = calc_with_sil.complete_stability(displacement, cog, &heels, None, None);
+
+        assert!(
+            result.has_wind_data(),
+            "Wind data should be available with windage silhouette"
+        );
+
+        let wind_data = result.wind_data.unwrap();
+
+        // The submerged centroid z should be T/2 (draft / 2.0)
+        let expected_submerged_z = draft / 2.0;
+        let diff = (wind_data.submerged_centroid[1] - expected_submerged_z).abs();
+
+        assert!(
+            diff < 1e-4,
+            "Submerged centroid z should be T/2 ({}), but got {}. Difference: {}",
+            expected_submerged_z,
+            wind_data.submerged_centroid[1],
+            diff
+        );
+    }
 }

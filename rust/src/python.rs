@@ -1819,6 +1819,10 @@ impl PyWindHeelingData {
 
     /// Returns the centroid of submerged lateral area [x, z].
     ///
+    /// Note: If the silhouettes represent only the emerged windage area
+    /// (i.e. the submerged area is negligible, < 1% of emerged area),
+    /// this falls back to the IMO approximation: z = T/2 (half the draft).
+    ///
     /// Together with `emerged_centroid`, this defines the exact Z lever
     /// per IMO 2008 IS Code §2.3.2:
     /// Z = emerged_centroid.z - submerged_centroid.z = `wind_lever_arm`

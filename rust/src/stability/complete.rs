@@ -30,7 +30,11 @@ pub struct WindHeelingData {
     pub emerged_area: f64,
     /// Centroid of emerged area [x, z] in meters
     pub emerged_centroid: [f64; 2],
-    /// Centroid of submerged lateral area [x, z] in meters
+    /// Centroid of submerged lateral area [x, z] in meters.
+    ///
+    /// Note: If the silhouettes represent only the emerged windage area
+    /// (i.e. the submerged area is negligible, < 1% of emerged area),
+    /// this falls back to the IMO approximation: z = T/2 (half the draft).
     pub submerged_centroid: [f64; 2],
     /// Lever arm Z per IS Code 2008 §2.3.2:
     /// vertical distance from centre of emerged area to centre of underwater lateral area (m)
