@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-06-29
+
+### Fixed
+- **visualization**: Align Python visualization transforms with Rust core (rot_y * rot_x, bounding box center pivot, exact waterplane level).
+- **stability**: Fallback to T/2 for submerged centroid with windage-only silhouettes.
+- **silhouette**: Correctly compute polygon centroid using signed area.
+
 ## [0.9.1] - 2026-06-22
 
 ### Added
