@@ -149,6 +149,8 @@ impl ScriptEngine {
 
         // Register helper functions
         engine.register_fn("criterion", Self::create_criterion);
+        // Overload with explicit comparison operator: "<=", ">=", "<", ">", "=="
+        engine.register_fn("criterion", Self::create_criterion_with_op);
 
         Self { engine }
     }
@@ -156,6 +158,8 @@ impl ScriptEngine {
     /// Helper to create a criterion result map from Rust.
     ///
     /// Usage in Rhai: `criterion("Name", "Desc", required, actual, "unit")`
+    ///
+    /// The implicit comparison operator is `>=` (actual >= required → PASS).
     fn create_criterion(
         name: &str,
         description: &str,
@@ -163,8 +167,47 @@ impl ScriptEngine {
         actual: f64,
         unit: &str,
     ) -> rhai::Map {
+        Self::build_criterion_map(name, description, required, actual, unit, ">=")
+    }
+
+    /// Overload with an explicit comparison operator.
+    ///
+    /// Usage in Rhai: `criterion("Name", "Desc", required, actual, "unit", "op")`
+    ///
+    /// Supported operators: `"<="`, `">="`, `"<"`, `">"`, `"=="`
+    ///
+    /// The criterion PASSES when `actual <op> required` is true.
+    /// Example: `criterion("Heel", "Steady wind heel <= 16 deg", 16.0, phi0, "deg", "<=")`
+    fn create_criterion_with_op(
+        name: &str,
+        description: &str,
+        required: f64,
+        actual: f64,
+        unit: &str,
+        op: &str,
+    ) -> rhai::Map {
+        Self::build_criterion_map(name, description, required, actual, unit, op)
+    }
+
+    /// Internal builder shared by all `criterion` overloads.
+    fn build_criterion_map(
+        name: &str,
+        description: &str,
+        required: f64,
+        actual: f64,
+        unit: &str,
+        op: &str,
+    ) -> rhai::Map {
+        let passes = match op {
+            "<=" => actual <= required,
+            "<"  => actual <  required,
+            ">"  => actual >  required,
+            "==" => (actual - required).abs() < f64::EPSILON,
+            _    => actual >= required, // default: ">="
+        };
+        let status = if passes { "PASS" } else { "FAIL" };
+        // Margin is always actual − required (positive = actual is larger).
         let margin = actual - required;
-        let status = if actual >= required { "PASS" } else { "FAIL" };
 
         let mut map = rhai::Map::new();
         map.insert("name".into(), rhai::Dynamic::from(name.to_string()));
@@ -175,6 +218,7 @@ impl ScriptEngine {
         map.insert("required".into(), rhai::Dynamic::from(required));
         map.insert("actual".into(), rhai::Dynamic::from(actual));
         map.insert("unit".into(), rhai::Dynamic::from(unit.to_string()));
+        map.insert("op".into(), rhai::Dynamic::from(op.to_string()));
         map.insert("status".into(), rhai::Dynamic::from(status.to_string()));
         map.insert("margin".into(), rhai::Dynamic::from(margin));
         map
