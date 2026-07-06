@@ -26,6 +26,6 @@ pub use calculator::HydrostaticsCalculator;
 pub use dataclasses::{HydrostaticState, TankOptions};
 
 pub(crate) use calculator::{
-    build_contact_face_refs, calculate_mesh_area, compute_contact_area_from_precomputed,
-    detect_contact_area,
+    build_contact_face_refs, calculate_mesh_area, calculate_section_breadth_range,
+    compute_contact_area_from_precomputed, detect_contact_area,
 };

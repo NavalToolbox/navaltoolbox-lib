@@ -111,6 +111,9 @@ impl ScriptEngine {
             .register_fn("get_cp", |ctx: &mut CriteriaContext| ctx.get_cp())
             .register_fn("get_lwl", |ctx: &mut CriteriaContext| ctx.get_lwl())
             .register_fn("get_bwl", |ctx: &mut CriteriaContext| ctx.get_bwl())
+            .register_fn("get_moulded_breadth", |ctx: &mut CriteriaContext| {
+                ctx.get_moulded_breadth()
+            })
             .register_fn("get_vcb", |ctx: &mut CriteriaContext| ctx.get_vcb())
             // Wind data
             .register_fn("has_wind_data", |ctx: &mut CriteriaContext| {
@@ -631,6 +634,7 @@ mod tests {
             wind_data: None,
             displacement: 1000.0,
             cog: [0.0, 0.0, 0.0],
+            moulded_breadth: None,
         };
 
         let ctx = CriteriaContext::new(result, "Test".into(), "Load".into());

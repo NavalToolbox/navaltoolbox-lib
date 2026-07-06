@@ -21,7 +21,7 @@
 
 use super::complete::{CompleteStabilityResult, WindHeelingData};
 use super::{StabilityCurve, StabilityPoint};
-use crate::hydrostatics::HydrostaticsCalculator;
+use crate::hydrostatics::{calculate_section_breadth_range, HydrostaticsCalculator};
 use crate::loading::LoadingCondition;
 use crate::mesh::{clip_at_waterline, transform_mesh, transform_point};
 use crate::vessel::Vessel;
@@ -845,7 +845,31 @@ impl<'a> StabilityCalculator<'a> {
             None
         };
 
-        CompleteStabilityResult::new(hydrostatics, gz_curve, wind_data, displacement_mass, cog)
+        // Compute moulded breadth at amidships per IS Code §2.13.
+        // Use the full (unclipped) hull mesh at x = (AP + FP) / 2 so the measurement
+        // is independent of the current loading condition (draft, trim, heel).
+        let mp_x = (self.vessel.ap() + self.vessel.fp()) / 2.0;
+        let (mb_ymin, mb_ymax) = self.vessel.hulls().iter().fold(
+            (f64::INFINITY, f64::NEG_INFINITY),
+            |(ymin, ymax), hull| {
+                let (lo, hi) = calculate_section_breadth_range(hull.mesh(), mp_x);
+                (ymin.min(lo), ymax.max(hi))
+            },
+        );
+        let moulded_breadth = if mb_ymax > mb_ymin {
+            Some(mb_ymax - mb_ymin)
+        } else {
+            None
+        };
+
+        CompleteStabilityResult::new(
+            hydrostatics,
+            gz_curve,
+            wind_data,
+            displacement_mass,
+            cog,
+            moulded_breadth,
+        )
     }
 
     /// Calculate the GZ curve for a given LoadingCondition.

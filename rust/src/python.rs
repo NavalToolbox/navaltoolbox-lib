@@ -1924,6 +1924,17 @@ impl PyCompleteStabilityResult {
         self.inner.has_wind_data()
     }
 
+    /// Returns the moulded breadth at amidships in meters (IS Code §2.13).
+    ///
+    /// This is the maximum breadth of the ship measured at the midship section
+    /// (x = (AP + FP) / 2) to the moulded line of the frame, computed from the
+    /// hull mesh geometry. Returns ``None`` if the hull geometry was unavailable
+    /// during computation.
+    #[getter]
+    fn moulded_breadth(&self) -> Option<f64> {
+        self.inner.moulded_breadth
+    }
+
     fn __repr__(&self) -> String {
         let gm_str = self
             .inner

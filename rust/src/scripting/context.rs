@@ -395,6 +395,21 @@ impl CriteriaContext {
         self.result.hydrostatics.bwl
     }
 
+    /// Get moulded breadth at amidships in meters (IS Code §2.13).
+    ///
+    /// Returns the maximum breadth of the ship measured at the midship section
+    /// (x = (AP + FP) / 2) to the moulded line of the frame. Returns `()` if
+    /// the moulded breadth was not computed (e.g. in unit-test contexts).
+    ///
+    /// This differs from `get_bwl()` which returns the waterline beam at the
+    /// current loading condition. Use this method for IS Code calculations.
+    pub fn get_moulded_breadth(&self) -> rhai::Dynamic {
+        match self.result.moulded_breadth {
+            Some(v) => rhai::Dynamic::from(v),
+            None => rhai::Dynamic::UNIT,
+        }
+    }
+
     /// Get vertical center of buoyancy in meters.
     pub fn get_vcb(&self) -> f64 {
         self.result.hydrostatics.vcb()
@@ -519,6 +534,7 @@ mod tests {
             wind_data: None,
             displacement: 1000.0,
             cog: [0.0, 0.0, 0.0],
+            moulded_breadth: None,
         };
 
         CriteriaContext::new(result, "Test".into(), "Load".into())

@@ -85,6 +85,12 @@ pub struct CompleteStabilityResult {
     pub displacement: f64,
     /// Center of gravity [LCG, TCG, VCG] in meters
     pub cog: [f64; 3],
+    /// Moulded breadth at amidships in meters (IS Code §2.13).
+    ///
+    /// Maximum breadth of the ship measured at the midship section (x = (AP+FP)/2)
+    /// to the moulded line of the frame. `None` when hull geometry is unavailable
+    /// (e.g. in unit-test contexts that construct this struct directly).
+    pub moulded_breadth: Option<f64>,
 }
 
 impl CompleteStabilityResult {
@@ -95,6 +101,7 @@ impl CompleteStabilityResult {
         wind_data: Option<WindHeelingData>,
         displacement: f64,
         cog: [f64; 3],
+        moulded_breadth: Option<f64>,
     ) -> Self {
         Self {
             hydrostatics,
@@ -102,6 +109,7 @@ impl CompleteStabilityResult {
             wind_data,
             displacement,
             cog,
+            moulded_breadth,
         }
     }
 
