@@ -573,6 +573,40 @@ mod tests {
     }
 
     #[test]
+    fn test_criterion_with_op() {
+        let engine = ScriptEngine::new();
+
+        // "<=" : actual (10) <= required (16) → PASS
+        let r: rhai::Map = engine
+            .engine
+            .eval(r#"criterion("Heel", "<= 16 deg", 16.0, 10.0, "deg", "<=")"#)
+            .unwrap();
+        assert_eq!(r["status"].clone().into_string().unwrap(), "PASS");
+        assert_eq!(r["op"].clone().into_string().unwrap(), "<=");
+
+        // "<=" : actual (20) <= required (16) → FAIL
+        let r: rhai::Map = engine
+            .engine
+            .eval(r#"criterion("Heel", "<= 16 deg", 16.0, 20.0, "deg", "<=")"#)
+            .unwrap();
+        assert_eq!(r["status"].clone().into_string().unwrap(), "FAIL");
+
+        // ">" : actual (5) > required (3) → PASS
+        let r: rhai::Map = engine
+            .engine
+            .eval(r#"criterion("GM", "> 0.30 m", 0.30, 0.50, "m", ">"  )"#)
+            .unwrap();
+        assert_eq!(r["status"].clone().into_string().unwrap(), "PASS");
+
+        // ">" : actual (0.1) > required (0.3) → FAIL
+        let r: rhai::Map = engine
+            .engine
+            .eval(r#"criterion("GM", "> 0.30 m", 0.30, 0.10, "m", ">"  )"#)
+            .unwrap();
+        assert_eq!(r["status"].clone().into_string().unwrap(), "FAIL");
+    }
+
+    #[test]
     fn test_criteria_context_methods() {
         use crate::hydrostatics::HydrostaticState;
         use crate::stability::CompleteStabilityResult;
