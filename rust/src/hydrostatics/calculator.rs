@@ -1581,6 +1581,125 @@ fn calculate_section_area(mesh: &parry3d_f64::shape::TriMesh, x_plane: f64) -> f
     total_area
 }
 
+/// Calculate the Y-extent (min_y, max_y) of a mesh at a given X cross-section.
+///
+/// Intersects all triangles with the plane `x = x_plane` and collects the Y
+/// coordinates of every intersection point. Returns the range
+/// `(y_min, y_max)`, or `(f64::INFINITY, f64::NEG_INFINITY)` if the plane
+/// does not intersect the mesh.
+///
+/// Used to compute the **moulded breadth at amidships** per IS Code §2.13.
+pub(crate) fn calculate_section_breadth_range(
+    mesh: &parry3d_f64::shape::TriMesh,
+    x_plane: f64,
+) -> (f64, f64) {
+    let vertices = mesh.vertices();
+    let indices = mesh.indices();
+    let tolerance = 1e-6;
+
+    let mut y_min = f64::INFINITY;
+    let mut y_max = f64::NEG_INFINITY;
+
+    let mut record = |y: f64| {
+        if y < y_min {
+            y_min = y;
+        }
+        if y > y_max {
+            y_max = y;
+        }
+    };
+
+    for tri in indices {
+        let v0 = vertices[tri[0] as usize];
+        let v1 = vertices[tri[1] as usize];
+        let v2 = vertices[tri[2] as usize];
+
+        let dists: [f64; 3] = [v0.x - x_plane, v1.x - x_plane, v2.x - x_plane];
+        let signs: [i32; 3] = dists.map(|d| {
+            if d.abs() < tolerance {
+                0
+            } else if d < 0.0 {
+                -1
+            } else {
+                1
+            }
+        });
+
+        // Interpolate Y (and Z, unused) at the plane crossing between vertices i and j
+        let interp_y = |i: usize, j: usize| -> f64 {
+            let p_i = vertices[tri[i] as usize];
+            let p_j = vertices[tri[j] as usize];
+            let d_i = dists[i];
+            let d_j = dists[j];
+            let t = d_i / (d_i - d_j);
+            p_i.y + (p_j.y - p_i.y) * t
+        };
+
+        match signs {
+            // All on same side — no intersection
+            [1, 1, 1] | [-1, -1, -1] => {}
+
+            // Single vertex touching plane, others same side — point only
+            [0, 1, 1] | [0, -1, -1] => record(v0.y),
+            [1, 0, 1] | [-1, 0, -1] => record(v1.y),
+            [1, 1, 0] | [-1, -1, 0] => record(v2.y),
+
+            // Edge on plane, other on one side
+            [0, 0, 1] | [0, 0, -1] => {
+                record(v0.y);
+                record(v1.y);
+            }
+            [1, 0, 0] | [-1, 0, 0] => {
+                record(v1.y);
+                record(v2.y);
+            }
+            [0, 1, 0] | [0, -1, 0] => {
+                record(v2.y);
+                record(v0.y);
+            }
+
+            // Full face on plane
+            [0, 0, 0] => {
+                record(v0.y);
+                record(v1.y);
+                record(v2.y);
+            }
+
+            // Standard crossing: one vertex alone on one side
+            [s0, s1, s2] if s0 == s1 && s2 != s0 => {
+                record(interp_y(1, 2));
+                record(interp_y(2, 0));
+            }
+            [s0, s1, s2] if s1 == s2 && s0 != s1 => {
+                record(interp_y(2, 0));
+                record(interp_y(0, 1));
+            }
+            [s0, s1, s2] if s2 == s0 && s1 != s2 => {
+                record(interp_y(0, 1));
+                record(interp_y(1, 2));
+            }
+
+            // Single vertex on plane, other two split
+            [0, -1, 1] | [0, 1, -1] => {
+                record(v0.y);
+                record(interp_y(1, 2));
+            }
+            [-1, 0, 1] | [1, 0, -1] => {
+                record(v1.y);
+                record(interp_y(2, 0));
+            }
+            [-1, 1, 0] | [1, -1, 0] => {
+                record(v2.y);
+                record(interp_y(0, 1));
+            }
+
+            _ => {}
+        }
+    }
+
+    (y_min, y_max)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
