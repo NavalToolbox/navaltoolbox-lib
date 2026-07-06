@@ -200,10 +200,10 @@ impl ScriptEngine {
     ) -> rhai::Map {
         let passes = match op {
             "<=" => actual <= required,
-            "<"  => actual <  required,
-            ">"  => actual >  required,
+            "<" => actual < required,
+            ">" => actual > required,
             "==" => (actual - required).abs() < f64::EPSILON,
-            _    => actual >= required, // default: ">="
+            _ => actual >= required, // default: ">="
         };
         let status = if passes { "PASS" } else { "FAIL" };
         // Margin is always actual − required (positive = actual is larger).
