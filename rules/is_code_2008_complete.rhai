@@ -93,7 +93,10 @@ fn get_s(t) {
 fn calculate_roll_angle(ctx) {
     // 1. Gather inputs
     let l = ctx.get_lwl();
-    let b = ctx.get_bwl();
+    // Moulded breadth B per IS Code §2.13: maximum breadth at amidships to the moulded
+    // line of the frame. Falls back to the waterline beam (BWL) if not available.
+    let b = ctx.get_moulded_breadth();
+    if b == () { b = ctx.get_bwl(); }
     let d = ctx.get_draft(); // Mean moulded draft
     let cb = ctx.get_cb();
     let gm = ctx.get_gm0(); 
