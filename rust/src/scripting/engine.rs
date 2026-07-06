@@ -149,6 +149,8 @@ impl ScriptEngine {
 
         // Register helper functions
         engine.register_fn("criterion", Self::create_criterion);
+        // Overload with explicit comparison operator: "<=", ">=", "<", ">", "=="
+        engine.register_fn("criterion", Self::create_criterion_with_op);
 
         Self { engine }
     }
@@ -156,6 +158,8 @@ impl ScriptEngine {
     /// Helper to create a criterion result map from Rust.
     ///
     /// Usage in Rhai: `criterion("Name", "Desc", required, actual, "unit")`
+    ///
+    /// The implicit comparison operator is `>=` (actual >= required → PASS).
     fn create_criterion(
         name: &str,
         description: &str,
@@ -163,8 +167,47 @@ impl ScriptEngine {
         actual: f64,
         unit: &str,
     ) -> rhai::Map {
+        Self::build_criterion_map(name, description, required, actual, unit, ">=")
+    }
+
+    /// Overload with an explicit comparison operator.
+    ///
+    /// Usage in Rhai: `criterion("Name", "Desc", required, actual, "unit", "op")`
+    ///
+    /// Supported operators: `"<="`, `">="`, `"<"`, `">"`, `"=="`
+    ///
+    /// The criterion PASSES when `actual <op> required` is true.
+    /// Example: `criterion("Heel", "Steady wind heel <= 16 deg", 16.0, phi0, "deg", "<=")`
+    fn create_criterion_with_op(
+        name: &str,
+        description: &str,
+        required: f64,
+        actual: f64,
+        unit: &str,
+        op: &str,
+    ) -> rhai::Map {
+        Self::build_criterion_map(name, description, required, actual, unit, op)
+    }
+
+    /// Internal builder shared by all `criterion` overloads.
+    fn build_criterion_map(
+        name: &str,
+        description: &str,
+        required: f64,
+        actual: f64,
+        unit: &str,
+        op: &str,
+    ) -> rhai::Map {
+        let passes = match op {
+            "<=" => actual <= required,
+            "<" => actual < required,
+            ">" => actual > required,
+            "==" => (actual - required).abs() < f64::EPSILON,
+            _ => actual >= required, // default: ">="
+        };
+        let status = if passes { "PASS" } else { "FAIL" };
+        // Margin is always actual − required (positive = actual is larger).
         let margin = actual - required;
-        let status = if actual >= required { "PASS" } else { "FAIL" };
 
         let mut map = rhai::Map::new();
         map.insert("name".into(), rhai::Dynamic::from(name.to_string()));
@@ -175,6 +218,7 @@ impl ScriptEngine {
         map.insert("required".into(), rhai::Dynamic::from(required));
         map.insert("actual".into(), rhai::Dynamic::from(actual));
         map.insert("unit".into(), rhai::Dynamic::from(unit.to_string()));
+        map.insert("op".into(), rhai::Dynamic::from(op.to_string()));
         map.insert("status".into(), rhai::Dynamic::from(status.to_string()));
         map.insert("margin".into(), rhai::Dynamic::from(margin));
         map
@@ -526,6 +570,40 @@ mod tests {
         assert_eq!(result["name"].clone().into_string().unwrap(), "Test");
         assert_eq!(result["status"].clone().into_string().unwrap(), "PASS");
         assert_eq!(result["margin"].as_float().unwrap(), 0.5);
+    }
+
+    #[test]
+    fn test_criterion_with_op() {
+        let engine = ScriptEngine::new();
+
+        // "<=" : actual (10) <= required (16) → PASS
+        let r: rhai::Map = engine
+            .engine
+            .eval(r#"criterion("Heel", "<= 16 deg", 16.0, 10.0, "deg", "<=")"#)
+            .unwrap();
+        assert_eq!(r["status"].clone().into_string().unwrap(), "PASS");
+        assert_eq!(r["op"].clone().into_string().unwrap(), "<=");
+
+        // "<=" : actual (20) <= required (16) → FAIL
+        let r: rhai::Map = engine
+            .engine
+            .eval(r#"criterion("Heel", "<= 16 deg", 16.0, 20.0, "deg", "<=")"#)
+            .unwrap();
+        assert_eq!(r["status"].clone().into_string().unwrap(), "FAIL");
+
+        // ">" : actual (5) > required (3) → PASS
+        let r: rhai::Map = engine
+            .engine
+            .eval(r#"criterion("GM", "> 0.30 m", 0.30, 0.50, "m", ">"  )"#)
+            .unwrap();
+        assert_eq!(r["status"].clone().into_string().unwrap(), "PASS");
+
+        // ">" : actual (0.1) > required (0.3) → FAIL
+        let r: rhai::Map = engine
+            .engine
+            .eval(r#"criterion("GM", "> 0.30 m", 0.30, 0.10, "m", ">"  )"#)
+            .unwrap();
+        assert_eq!(r["status"].clone().into_string().unwrap(), "FAIL");
     }
 
     #[test]

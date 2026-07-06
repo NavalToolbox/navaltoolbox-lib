@@ -1,4 +1,7 @@
+import os
+import sys
 import navaltoolbox as nv
+from navaltoolbox.visualization import plot_hydrostatic_condition
 
 # Water density (kg/m³)
 rho = 1025.0
@@ -7,38 +10,31 @@ rho = 1025.0
 length = 20.0
 breadth = 5.0
 depth = 2.0
-draft = 1.6  # draft = 1.5 -> submerged_centroid = (0, 0)
-
-# Displacement (kg) and center of gravity (m)
-displacement = length * breadth * draft * rho
-cg = (0.5*length, 0.0, draft)
+draft = 1.0
 
 # Vessel
 hull = nv.Hull.from_box(length, breadth, depth)
 vessel = nv.Vessel(hull)
 
-# Silhouette
-silhouette = nv.Silhouette.from_points([
-    (0.0, 0.0),
-    (length, 0.0),
-    (length, depth),
-    (0.0, depth),
-    (0.0, 0.0),
-], "Windage")
+# Displacement (kg) and center of gravity (m)
+displacement = length * breadth * draft * rho
+cg = (0.7*length, 0.0, draft)
 
-vessel.add_silhouette(silhouette)
+# Hydrostatic condition
+hydro_calc = nv.HydrostaticsCalculator(vessel, water_density=rho)
 
-# Complete stability
-stab_calc = nv.StabilityCalculator(vessel, water_density=rho)
+state = hydro_calc.from_displacement(displacement, cog=cg)
 
-result = stab_calc.complete_stability(
-    displacement_mass=displacement,
-    cog=cg,
-    heels=[0.0]
+fig_hydro = plot_hydrostatic_condition(
+    vessel,
+    draft=state.draft,  # I get the right result with state.draft_ap
+    trim=state.trim,
+    heel=state.heel,
+    enable_opacity_slider=False,
+    show_axes=False,
 )
 
-# Submerged centroid
-expected_submerged_centroid = (0.5 * length, 0.5 * draft)
-
-print(f"Expected submerged centroid   = {expected_submerged_centroid}")
-print(f"Calculated submerged centroid = {result.wind_data.submerged_centroid}")
+output_hydro = "dtmb_hydro.html"
+fig_hydro.write_html(output_hydro)
+if sys.platform == "darwin":  # macOS
+    os.system(f"open {output_hydro}")

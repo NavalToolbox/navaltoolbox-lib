@@ -56,12 +56,17 @@ Scripts are written in Rhai. You have access to the ``ctx`` object which provide
         let results = [];
         
         // 2. Define criteria
+        // The criterion() function optionally takes a 6th argument for the comparison operator.
+        // Supported operators: "<=", ">=", "<", ">", "=="
+        // If omitted, it defaults to ">=" (actual >= required).
+        
         results.push(criterion(
             "Area 0-30",
             "Minimum area under GZ curve up to 30 deg",
             0.055,      // Required
             area_30,    // Actual
             "m.rad"     // Unit
+            // Implicitly uses ">="
         ));
         
         results.push(criterion(
@@ -69,8 +74,12 @@ Scripts are written in Rhai. You have access to the ``ctx`` object which provide
             "Minimum GZ at 30 deg",
             0.20,
             gz_30,
-            "m"
+            "m",
+            ">="        // Explicit operator
         ));
+        
+        // Example for a maximum allowed value (e.g., wind heel angle)
+        // results.push(criterion("Equilibrium", "Steady wind heel <= 16 deg", 16.0, heel, "deg", "<="));
         
         // 3. Define Plot (Optional)
         let plot = #{
