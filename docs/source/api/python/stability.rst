@@ -101,6 +101,12 @@ CompleteStabilityResult
 
       Center of gravity (LCG, TCG, VCG).
 
+   .. py:attribute:: moulded_breadth
+      :type: float or None
+
+      Moulded breadth at amidships (IS Code §2.13) in meters, computed from the full hull geometry.
+      Returns None if hull geometry was unavailable.
+
    .. py:attribute:: gm0
       :type: float or None
 
