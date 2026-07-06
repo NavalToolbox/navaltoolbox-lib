@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.3] - 2026-07-06
+
+### Added
+- **stability**: Add moulded breadth calculation at amidships (IS Code §2.13) to `CompleteStabilityResult` and `CriteriaContext`.
+- **python**: Expose `moulded_breadth` property in `CompleteStabilityResult` Python bindings.
+- **rules**: Update `is_code_2008_complete.rhai` to use `get_moulded_breadth()` with fallback to `get_bwl()`.
+- **scripting**: Add support for explicit comparison operators (e.g. `<=`, `>=`, `<`, `>`, `==`) in `criterion()` verification helper.
+
+### Changed
+- **docs**: Update scripting documentation with comparison operators usage.
+
 ## [0.9.2] - 2026-06-29
 
 ### Fixed
