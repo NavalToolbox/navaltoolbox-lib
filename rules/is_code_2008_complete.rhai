@@ -219,7 +219,7 @@ if has_wind {
     
     if phi0 != () {
         // Check 3.2.2.1
-        results.push(criterion("3.2.2.1 Equilibrium", "Steady wind heel <= 16 deg", 16.0, phi0, "deg"));
+        results.push(criterion("3.2.2.1 Equilibrium", "Steady wind heel <= 16 deg", 16.0, phi0, "deg", "<="));
         
         // 3. lw2 = 1.5 * lw1
         let lw2 = 1.5 * lw1;

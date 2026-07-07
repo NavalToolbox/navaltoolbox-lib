@@ -203,12 +203,9 @@ fn check(ctx) {
                 "Equilibrium angle due to passenger crowding ≤ " + max_heel_due_to_lever.toFixed(1) + "°",
                 max_heel_due_to_lever,
                 angle_pass,
-                "°"
+                "°",
+                "<="
             ));
-            // Actual margin should be inverted here since angle_pass must be <= max
-            let r_len = results.len();
-            results[r_len - 1].status = if angle_pass <= max_heel_due_to_lever { "PASS" } else { "FAIL" };
-            results[r_len - 1].margin = max_heel_due_to_lever - angle_pass;
         } else {
             results.push(#{
                 name: "Passenger Crowding Heel",
@@ -226,12 +223,9 @@ fn check(ctx) {
                 "Equilibrium angle due to wind ≤ " + max_heel_due_to_lever.toFixed(1) + "°",
                 max_heel_due_to_lever,
                 angle_wind,
-                "°"
+                "°",
+                "<="
             ));
-            // Actual margin should be inverted
-            let r_len = results.len();
-            results[r_len - 1].status = if angle_wind <= max_heel_due_to_lever { "PASS" } else { "FAIL" };
-            results[r_len - 1].margin = max_heel_due_to_lever - angle_wind;
         } else {
             results.push(#{
                 name: "Wind Heeling Angle",

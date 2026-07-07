@@ -61,7 +61,8 @@ fn check(ctx) {
                 "Angle of heel due to passenger crowding",
                 MAX_HEEL_PASSENGER,
                 angle_pass,
-                "°"
+                "°",
+                "<="
             ));
         } else {
             results.push(#{
@@ -86,7 +87,8 @@ fn check(ctx) {
                 "Angle of heel due to turning",
                 MAX_HEEL_TURNING,
                 angle_turn,
-                "°"
+                "°",
+                "<="
             ));
         } else {
             results.push(#{
