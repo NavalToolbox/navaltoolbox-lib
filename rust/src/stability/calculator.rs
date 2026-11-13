@@ -74,6 +74,14 @@ impl<'a> StabilityCalculator<'a> {
         let z_min = bounds.4;
         let z_max = bounds.5;
 
+        // Pre-compute heel-specific draft search bounds (rotated AABB) for every angle.
+        // Using upright z_min/z_max as bisection bounds at large heels silently clamps the
+        // equilibrium draft to the mesh boundary, producing wrong GZ values.
+        let heel_bounds: Vec<(f64, f64)> = heels
+            .iter()
+            .map(|&h| Self::z_bounds_at_heel(&bounds, h.to_radians()))
+            .collect();
+
         // Calculate total mass and volume
         let ship_mass = displacement_mass;
         let ship_cog = cog;
@@ -142,7 +150,8 @@ impl<'a> StabilityCalculator<'a> {
         // Parallel processing
         let points: Vec<StabilityPoint> = heels
             .par_iter()
-            .map(|&heel| {
+            .zip(heel_bounds.par_iter())
+            .map(|(&heel, &(sz_min, sz_max))| {
                 // 1. Calculate Effective COG (using tanks from ORIGINAL vessel)
                 let mut total_moment_x = ship_mass * ship_cog[0];
                 let mut total_moment_y = ship_mass * ship_cog[1];
@@ -209,6 +218,10 @@ impl<'a> StabilityCalculator<'a> {
 
                 // 2. Find Equilibrium (using PROXY calculator)
                 // Note: We use proxy_calc which might use simplified mesh
+                // Use heel-specific rotated bounds (sz_min/sz_max) instead of the
+                // upright AABB so that the bisection search is never clamped to
+                // z_min/z_max when the equilibrium draft lies outside those bounds
+                // at large heel angles.
                 let (draft, trim, _approx_gz) = proxy_calc.find_equilibrium_at_heel(
                     target_volume,
                     effective_cog,
@@ -218,8 +231,8 @@ impl<'a> StabilityCalculator<'a> {
                     Some(upright_draft),
                     center_x,
                     center_y,
-                    z_min,
-                    z_max,
+                    sz_min,
+                    sz_max,
                 );
 
                 // 3. Calculate Exact GZ (using ORIGINAL/SELF calculator)
@@ -436,6 +449,27 @@ impl<'a> StabilityCalculator<'a> {
             .collect()
     }
 
+    /// Compute the [z_min, z_max] of the mesh AABB after rotation by `heel_rad` about
+    /// the X-axis. The rotated bounding box is derived from all four (y, z) corners so
+    /// the bisection search in `find_draft_for_volume` / `find_equilibrium_at_heel` is
+    /// never accidentally clamped to the upright AABB when the equilibrium draft falls
+    /// outside it at large heel angles.
+    fn z_bounds_at_heel(bounds: &(f64, f64, f64, f64, f64, f64), heel_rad: f64) -> (f64, f64) {
+        let (cos_h, sin_h) = (heel_rad.cos(), heel_rad.sin());
+        let (y0, y1, z0, z1) = (bounds.2, bounds.3, bounds.4, bounds.5);
+        // z_world = -sin(h)*y + cos(h)*z  for each corner of the AABB
+        let zs = [
+            -sin_h * y0 + cos_h * z0,
+            -sin_h * y0 + cos_h * z1,
+            -sin_h * y1 + cos_h * z0,
+            -sin_h * y1 + cos_h * z1,
+        ];
+        (
+            zs.iter().cloned().fold(f64::INFINITY, f64::min),
+            zs.iter().cloned().fold(f64::NEG_INFINITY, f64::max),
+        )
+    }
+
     /// Find draft for target volume at given heel and trim.
     ///
     /// Uses warm start: if initial_draft is provided, uses it as starting point
@@ -455,21 +489,23 @@ impl<'a> StabilityCalculator<'a> {
         let tolerance = target_volume * 1e-4;
         let max_iter = 50;
 
-        // Warm start: use initial_draft if provided, otherwise use midpoint
+        // Warm start: use initial_draft if provided, otherwise use midpoint.
+        // Clamp the warm-start hint into [z_min, z_max] first so that the
+        // margin window never produces an inverted interval (low > high) when
+        // the upright draft lies outside the rotated AABB bounds.
         let (mut low, mut high) = if let Some(init) = initial_draft {
-            // Start search around initial draft with a reasonable margin
+            let init_clamped = init.clamp(z_min, z_max);
             let margin = (z_max - z_min) * 0.2;
-            ((init - margin).max(z_min), (init + margin).min(z_max))
+            (
+                (init_clamped - margin).max(z_min),
+                (init_clamped + margin).min(z_max),
+            )
         } else {
             (z_min, z_max)
         };
 
         // Initial guess
-        let mut mid = if let Some(init) = initial_draft {
-            init.clamp(low, high)
-        } else {
-            (low + high) / 2.0
-        };
+        let mut mid = (low + high) / 2.0;
 
         for _ in 0..max_iter {
             let pivot = Point3::new(center_x, center_y, mid);
@@ -520,7 +556,33 @@ impl<'a> StabilityCalculator<'a> {
             mid = (low + high) / 2.0;
         }
 
-        (low + high) / 2.0
+        let result = (low + high) / 2.0;
+        // Check whether we actually met the volume tolerance; warn if not.
+        {
+            let pivot = Point3::new(center_x, center_y, result);
+            let mut vol = 0.0;
+            for hull in self.vessel.hulls() {
+                let transformed = transform_mesh(hull.mesh(), heel, trim, pivot);
+                if let (Some(mesh), aw) = clip_at_waterline(&transformed, result) {
+                    let mut v = mesh.mass_properties(1.0).mass();
+                    if let Some(t) = hull.thickness() {
+                        let ws = (crate::hydrostatics::calculate_mesh_area(&mesh) - aw).max(0.0);
+                        v += ws * t;
+                    }
+                    vol += v;
+                }
+            }
+            let rel_err = (vol - target_volume).abs() / target_volume.max(1e-9);
+            if rel_err > 1e-3 {
+                log::warn!(
+                    "find_draft_for_volume: volume tolerance unmet after {max_iter} iterations \
+                     (heel={heel:.1}°, trim={trim:.3}°). \
+                     Relative error: {rel_err:.2e}. \
+                     Target: {target_volume:.4} m³, Got: {vol:.4} m³."
+                );
+            }
+        }
+        result
     }
 
     /// Find equilibrium state at a specific heel angle.
@@ -554,13 +616,17 @@ impl<'a> StabilityCalculator<'a> {
         let mut best_gz = 0.0;
         let mut best_error = f64::INFINITY;
 
-        // Warm start bounds for draft search
+        // Warm start bounds for draft search.
+        // Clamp the warm-start hint into [z_min, z_max] before computing the
+        // margin window so we never produce an inverted interval (low > high)
+        // when the upright draft lies outside the rotated AABB bounds.
         let mut draft_low = z_min;
         let mut draft_high = z_max;
         if let Some(init) = initial_draft {
+            let init_clamped = init.clamp(z_min, z_max);
             let margin = (z_max - z_min) * 0.2;
-            draft_low = (init - margin).max(z_min);
-            draft_high = (init + margin).min(z_max);
+            draft_low = (init_clamped - margin).max(z_min);
+            draft_high = (init_clamped + margin).min(z_max);
         }
 
         for _trim_iter in 0..max_trim_iter {
@@ -643,6 +709,20 @@ impl<'a> StabilityCalculator<'a> {
                 continue;
             }
 
+            // Warn if volume tolerance was not met after all draft iterations.
+            {
+                let vol_err = (final_volume - target_volume).abs();
+                let rel_err = vol_err / target_volume.max(1e-9);
+                if rel_err > 1e-3 {
+                    log::warn!(
+                        "find_equilibrium_at_heel: volume tolerance unmet after {max_draft_iter} \
+                         draft iterations (heel={heel:.1}°, trim={trim:.3}°). \
+                         Relative error: {rel_err:.2e}. \
+                         Target: {target_volume:.4} m³, Got: {final_volume:.4} m³."
+                    );
+                }
+            }
+
             let lcb = final_moment[0] / final_volume;
             let tcb = final_moment[1] / final_volume;
 
@@ -664,10 +744,14 @@ impl<'a> StabilityCalculator<'a> {
                 best_trim = trim;
                 best_gz = gz;
 
-                // Update warm start bounds for next trim iteration
+                // Update warm start bounds for next trim iteration.
+                // Clamp final_draft into [z_min, z_max] first to prevent an
+                // inverted window when the converged draft drifts outside the
+                // rotated AABB due to trim adjustments.
                 let margin = (z_max - z_min) * 0.1;
-                draft_low = (final_draft - margin).max(z_min);
-                draft_high = (final_draft + margin).min(z_max);
+                let fd_clamped = final_draft.clamp(z_min, z_max);
+                draft_low = (fd_clamped - margin).max(z_min);
+                draft_high = (fd_clamped + margin).min(z_max);
             }
 
             if fixed_trim.is_some() || lcb_error < lcb_tolerance {
@@ -971,6 +1055,25 @@ mod tests {
             curve.points[0].value
         );
     }
+    #[test]
+    fn test_gz_large_heel_draft_not_clamped_to_upright_zmin() {
+        // Box hull 10×5×3, draft 0.5m → at 45° the equilibrium draft in rotated frame
+        // falls below upright z_min; gz must not be stuck at boundary value.
+        let hull = create_box_hull(10.0, 5.0, 3.0);
+        let vessel = Vessel::new(hull);
+        let calc = StabilityCalculator::new(&vessel, 1025.0);
+        let bounds = vessel.get_bounds();
+        let disp = 0.5 * 10.0 * 5.0 * 1025.0; // 0.5m draft
+        let curve = calc.gz_curve(disp, [5.0, 0.0, 0.0], &[45.0], None, None);
+        let pt = &curve.points[0];
+        // draft must NOT be stuck at z_min
+        assert!(
+            (pt.draft - bounds.4).abs() > 1e-3,
+            "draft stuck at z_min ({:.4}) at 45°; bisection bounds not updated for heel",
+            bounds.4
+        );
+    }
+
     #[test]
     fn test_fsc_gz_reduction() {
         use crate::tanks::Tank;
