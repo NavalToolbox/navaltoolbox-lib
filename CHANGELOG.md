@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.4] - 2026-11-13
+
+### Fixed
+- **stability**: Compute heel-specific draft search bounds (rotated AABB) for every heel angle in `StabilityCalculator` to avoid clamping equilibrium draft to upright mesh boundary at large heels.
+
+### Changed
+- **rules**: Update stability criteria in `is_code_2008_complete.rhai`, `is_code_2008_passenger.rhai`, and `hsc_2000_monohull_intact.rhai` to use explicit `<=` comparison operator where applicable.
+
 ## [0.9.3] - 2026-07-06
 
 ### Added
