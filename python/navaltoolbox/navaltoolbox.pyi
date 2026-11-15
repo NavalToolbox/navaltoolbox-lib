@@ -1349,6 +1349,7 @@ class StabilityCalculator:
         heels: list[float],
         tank_options: TankOptions | None = None,
         fixed_trim: float | None = None,
+        simplification_target: int | None = None,
     ) -> StabilityCurve:
         """Calculate the GZ curve for a given loading condition.
         
@@ -1358,6 +1359,9 @@ class StabilityCalculator:
             heels: List of heel angles in degrees
             tank_options: Optional tank configuration (mass/FSM inclusion)
             fixed_trim: Optional fixed trim in degrees. If None, calculates free trim
+            simplification_target: Optional target triangle count to simplify
+                the mesh for equilibrium search to reduce computation. If None, no simplification
+                is performed. If set, hulls are simplified to this target when triangle count exceeds it.
             
         Returns:
             StabilityCurve object
@@ -1414,6 +1418,7 @@ class StabilityCalculator:
         heels: list[float],
         tank_options: TankOptions | None = None,
         fixed_trim: float | None = None,
+        simplification_target: int | None = None,
     ) -> CompleteStabilityResult:
         """Calculate complete stability analysis for a loading condition.
         
@@ -1426,6 +1431,9 @@ class StabilityCalculator:
             heels: List of heel angles for GZ curve in degrees
             tank_options: Optional tank configuration (mass/FSM inclusion)
             fixed_trim: Optional fixed trim in degrees. If None, calculates free trim
+            simplification_target: Optional target triangle count to simplify
+                the mesh during GZ curve calculation to reduce computation. If None, no
+                simplification is performed. If set, hulls are simplified to this target when triangle count exceeds it.
             
         Returns:
             CompleteStabilityResult with hydrostatics, GZ curve, and wind data

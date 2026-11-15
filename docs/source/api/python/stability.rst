@@ -13,7 +13,7 @@ StabilityCalculator
    :param vessel: The vessel to calculate stability for
    :param water_density: Water density in kg/m³
 
-   .. method:: gz_curve(displacement_mass: float, cog: tuple[float, float, float], heels: list[float], tank_options: TankOptions | None = None, fixed_trim: float | None = None) -> StabilityCurve
+   .. method:: gz_curve(displacement_mass: float, cog: tuple[float, float, float], heels: list[float], tank_options: TankOptions | None = None, fixed_trim: float | None = None, simplification_target: int | None = None) -> StabilityCurve
 
       Calculate the GZ curve for a given loading condition.
 
@@ -22,6 +22,7 @@ StabilityCalculator
       :param heels: List of heel angles in degrees.
       :param tank_options: Optional :class:`~navaltoolbox.hydrostatics.TankOptions` to configure tank mass and free surface moment inclusion.
       :param fixed_trim: Optional fixed trim in degrees. If None, calculates free trim.
+      :param simplification_target: Optional target triangle count. If ``None``, no mesh simplification is performed. Otherwise, hulls are simplified to this target count when total triangles exceed it to reduce computation.
       :return: A :class:`StabilityCurve` object.
 
    .. method:: gz_curve_from_loading(loading: LoadingCondition, heels: list[float], fixed_trim: float | None = None) -> StabilityCurve
@@ -46,7 +47,7 @@ StabilityCalculator
       :param fixed_trim: Optional fixed trim in degrees. If None, calculates free trim.
       :returns: List of StabilityCurve objects
 
-   .. method:: complete_stability(displacement_mass: float, cog: tuple[float, float, float], heels: list[float], tank_options: TankOptions | None = None, fixed_trim: float | None = None) -> CompleteStabilityResult
+   .. method:: complete_stability(displacement_mass: float, cog: tuple[float, float, float], heels: list[float], tank_options: TankOptions | None = None, fixed_trim: float | None = None, simplification_target: int | None = None) -> CompleteStabilityResult
 
       Calculate complete stability analysis for a loading condition.
       
@@ -58,6 +59,7 @@ StabilityCalculator
       :param heels: List of heel angles in degrees.
       :param tank_options: Optional :class:`~navaltoolbox.hydrostatics.TankOptions` to configure tank mass and free surface moment inclusion.
       :param fixed_trim: Optional fixed trim in degrees. If None, calculates free trim.
+      :param simplification_target: Optional target triangle count. If ``None``, no mesh simplification is performed. Otherwise, hulls are simplified to this target count during GZ curve calculation when total triangles exceed it to reduce computation.
       :return: A :class:`CompleteStabilityResult` object containing all analysis data.
 
    .. method:: complete_stability_from_loading(loading: LoadingCondition, heels: list[float], fixed_trim: float | None = None) -> CompleteStabilityResult
