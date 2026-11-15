@@ -1979,7 +1979,7 @@ impl PyStabilityCalculator {
     }
 
     /// Calculate the GZ curve for a given loading condition.
-    #[pyo3(signature = (displacement_mass, cog, heels, tank_options=None, fixed_trim=None))]
+    #[pyo3(signature = (displacement_mass, cog, heels, tank_options=None, fixed_trim=None, simplification_target=None))]
     fn gz_curve(
         &self,
         py: Python<'_>,
@@ -1988,6 +1988,7 @@ impl PyStabilityCalculator {
         heels: Vec<f64>,
         tank_options: Option<PyTankOptions>,
         fixed_trim: Option<f64>,
+        simplification_target: Option<usize>,
     ) -> PyStabilityCurve {
         let vessel = self.vessel.borrow(py);
         let calc = RustStabCalc::new(&vessel.inner, self.water_density);
@@ -1997,6 +1998,7 @@ impl PyStabilityCalculator {
             &heels,
             tank_options.map(|t| t.inner),
             fixed_trim,
+            simplification_target,
         );
         PyStabilityCurve { inner: curve }
     }
@@ -2044,10 +2046,11 @@ impl PyStabilityCalculator {
     ///     heels: List of heel angles for GZ curve in degrees
     ///     tank_options: Optional TankOptions
     ///     fixed_trim: Optional fixed trim in degrees. If None, calculates free trim
+    ///     simplification_target: Optional target triangle count to simplify the mesh during GZ curve calculation
     ///
     /// Returns:
     ///     CompleteStabilityResult with hydrostatics, GZ curve, and wind data
-    #[pyo3(signature = (displacement_mass, cog, heels, tank_options=None, fixed_trim=None))]
+    #[pyo3(signature = (displacement_mass, cog, heels, tank_options=None, fixed_trim=None, simplification_target=None))]
     fn complete_stability(
         &self,
         py: Python<'_>,
@@ -2056,6 +2059,7 @@ impl PyStabilityCalculator {
         heels: Vec<f64>,
         tank_options: Option<PyTankOptions>,
         fixed_trim: Option<f64>,
+        simplification_target: Option<usize>,
     ) -> PyCompleteStabilityResult {
         let vessel = self.vessel.borrow(py);
         let calc = RustStabCalc::new(&vessel.inner, self.water_density);
@@ -2065,6 +2069,7 @@ impl PyStabilityCalculator {
             &heels,
             tank_options.map(|t| t.inner),
             fixed_trim,
+            simplification_target,
         );
         result.into()
     }

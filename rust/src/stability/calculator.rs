@@ -49,6 +49,9 @@ impl<'a> StabilityCalculator<'a> {
     /// * `displacement_mass` - Target displacement in kg
     /// * `cog` - Center of gravity (LCG, TCG, VCG)
     /// * `heels` - List of heel angles in degrees
+    /// * `simplification_target` - Optional target triangle count to simplify the mesh for
+    ///   equilibrium search to reduce computation. If `None`, no simplification is performed.
+    ///   If `Some(target)`, hulls are simplified to `target` triangles when total triangles exceed `target`.
     ///
     /// This function uses parallel processing (Rayon) for improved performance.
     pub fn gz_curve(
@@ -58,14 +61,11 @@ impl<'a> StabilityCalculator<'a> {
         heels: &[f64],
         tank_options: Option<crate::hydrostatics::TankOptions>,
         fixed_trim: Option<f64>,
+        simplification_target: Option<usize>,
     ) -> StabilityCurve {
         use crate::hull::Hull;
         use crate::vessel::Vessel;
         use rayon::prelude::*;
-
-        // Configuration
-        const SIMPLIFICATION_THRESHOLD: usize = 2000;
-        const TARGET_TRIANGLES: usize = 1000;
 
         // Pre-calculate constant geometric properties
         let bounds = self.vessel.get_bounds();
@@ -105,18 +105,24 @@ impl<'a> StabilityCalculator<'a> {
         let total_mass = ship_mass + total_fluid_mass;
         let target_volume = total_mass / self.water_density;
 
-        // Mesh Simplification Logic
-        let total_triangles: usize = self.vessel.hulls().iter().map(|h| h.num_triangles()).sum();
-
-        let simplified_vessel_storage = if total_triangles > SIMPLIFICATION_THRESHOLD {
-            let simplified_hulls: Vec<Hull> = self
-                .vessel
-                .hulls()
-                .iter()
-                .map(|h| h.to_simplified(TARGET_TRIANGLES))
-                .collect();
-            // Note: new_multi creates a vessel without tanks/openings, which is fine for equilibrium search
-            Vessel::new_multi(simplified_hulls).ok()
+        // Mesh Simplification Logic:
+        // If simplification_target is Some(target), simplify when total_triangles > target.
+        // If None, no simplification is performed.
+        let simplified_vessel_storage = if let Some(target) = simplification_target {
+            let total_triangles: usize =
+                self.vessel.hulls().iter().map(|h| h.num_triangles()).sum();
+            if total_triangles > target {
+                let simplified_hulls: Vec<Hull> = self
+                    .vessel
+                    .hulls()
+                    .iter()
+                    .map(|h| h.to_simplified(target))
+                    .collect();
+                // Note: new_multi creates a vessel without tanks/openings, which is fine for equilibrium search
+                Vessel::new_multi(simplified_hulls).ok()
+            } else {
+                None
+            }
         } else {
             None
         };
@@ -445,7 +451,7 @@ impl<'a> StabilityCalculator<'a> {
         let cog = [lcg, tcg, 0.0];
         displacements
             .iter()
-            .map(|&disp| self.gz_curve(disp, cog, heels, None, fixed_trim))
+            .map(|&disp| self.gz_curve(disp, cog, heels, None, fixed_trim, None))
             .collect()
     }
 
@@ -797,6 +803,8 @@ impl<'a> StabilityCalculator<'a> {
     /// * `displacement_mass` - Target displacement in kg (ship mass, tanks are added)
     /// * `cog` - Center of gravity (LCG, TCG, VCG) for the ship portion
     /// * `heels` - Heel angles for GZ curve calculation in degrees
+    /// * `simplification_target` - Optional target triangle count to simplify
+    ///   the mesh during GZ curve calculation to reduce computation.
     ///
     /// # Returns
     /// A `CompleteStabilityResult` containing:
@@ -810,6 +818,7 @@ impl<'a> StabilityCalculator<'a> {
         heels: &[f64],
         tank_options: Option<crate::hydrostatics::TankOptions>,
         fixed_trim: Option<f64>,
+        simplification_target: Option<usize>,
     ) -> CompleteStabilityResult {
         // Handle tank options
         let include_tank_mass = tank_options.map(|o| o.include_mass).unwrap_or(false);
@@ -875,7 +884,14 @@ impl<'a> StabilityCalculator<'a> {
             .unwrap_or_default();
 
         // Calculate GZ curve
-        let gz_curve = self.gz_curve(displacement_mass, cog, heels, tank_options, fixed_trim);
+        let gz_curve = self.gz_curve(
+            displacement_mass,
+            cog,
+            heels,
+            tank_options,
+            fixed_trim,
+            simplification_target,
+        );
 
         // Calculate wind heeling data if silhouettes exist
         let wind_data = if self.vessel.has_silhouettes() {
@@ -973,7 +989,7 @@ impl<'a> StabilityCalculator<'a> {
         loading.apply(self.vessel);
 
         let (total_disp, total_cog) = loading.resolve(self.vessel);
-        let curve = self.gz_curve(total_disp, total_cog, heels, None, fixed_trim);
+        let curve = self.gz_curve(total_disp, total_cog, heels, None, fixed_trim, None);
 
         LoadingCondition::restore_tank_fills(self.vessel, &saved_fills);
         curve
@@ -993,7 +1009,7 @@ impl<'a> StabilityCalculator<'a> {
         loading.apply(self.vessel);
 
         let (total_disp, total_cog) = loading.resolve(self.vessel);
-        let result = self.complete_stability(total_disp, total_cog, heels, None, fixed_trim);
+        let result = self.complete_stability(total_disp, total_cog, heels, None, fixed_trim, None);
 
         LoadingCondition::restore_tank_fills(self.vessel, &saved_fills);
         result
@@ -1046,7 +1062,7 @@ mod tests {
         let cog = [5.0, 0.0, 2.0]; // Center of box, low VCG
         let displacement = 500.0 * 1025.0; // 500 m³ at 5m draft
 
-        let curve = calc.gz_curve(displacement, cog, &[0.0], None, None);
+        let curve = calc.gz_curve(displacement, cog, &[0.0], None, None, None);
 
         // At zero heel for symmetric hull, GZ should be ~0
         assert!(
@@ -1064,7 +1080,7 @@ mod tests {
         let calc = StabilityCalculator::new(&vessel, 1025.0);
         let bounds = vessel.get_bounds();
         let disp = 0.5 * 10.0 * 5.0 * 1025.0; // 0.5m draft
-        let curve = calc.gz_curve(disp, [5.0, 0.0, 0.0], &[45.0], None, None);
+        let curve = calc.gz_curve(disp, [5.0, 0.0, 0.0], &[45.0], None, None, None);
         let pt = &curve.points[0];
         // draft must NOT be stuck at z_min
         assert!(
@@ -1112,7 +1128,7 @@ mod tests {
         // Calculate GZ with FSC (Wet)
         // Use TankOptions with Mass=True (default behavior before was implicit mass inclusion)
         let tank_opts = Some(crate::hydrostatics::TankOptions::all());
-        let curve_wet = calc.gz_curve(ship_mass, ship_cog, &[heel], tank_opts, None);
+        let curve_wet = calc.gz_curve(ship_mass, ship_cog, &[heel], tank_opts, None, None);
         let gz_wet = curve_wet.points[0].value;
 
         // Calculate Dry reference
@@ -1125,7 +1141,7 @@ mod tests {
 
         vessel.remove_tank(0);
         let calc_dry = StabilityCalculator::new(&vessel, 1025.0);
-        let curve_dry = calc_dry.gz_curve(total_mass, total_cog, &[heel], None, None);
+        let curve_dry = calc_dry.gz_curve(total_mass, total_cog, &[heel], None, None, None);
         let gz_dry = curve_dry.points[0].value;
 
         // Theoretical Reduction GG'
@@ -1144,5 +1160,26 @@ mod tests {
             gz_dry,
             gz_wet
         );
+    }
+
+    #[test]
+    fn test_gz_simplification_target() {
+        let hull = create_box_hull(10.0, 10.0, 10.0);
+        let vessel = Vessel::new(hull);
+        let calc = StabilityCalculator::new(&vessel, 1025.0);
+
+        let cog = [5.0, 0.0, 2.0];
+        let displacement = 500.0 * 1025.0;
+
+        // When simplification_target is None: no simplification
+        let curve_none = calc.gz_curve(displacement, cog, &[0.0, 10.0], None, None, None);
+
+        // When simplification_target is Some(target):
+        // Box hull has 12 triangles. If target = 6 (which acts as threshold & target):
+        let curve_simplified = calc.gz_curve(displacement, cog, &[0.0, 10.0], None, None, Some(6));
+
+        assert_eq!(curve_none.points.len(), 2);
+        assert_eq!(curve_simplified.points.len(), 2);
+        assert!((curve_none.points[0].value - curve_simplified.points[0].value).abs() < 0.05);
     }
 }

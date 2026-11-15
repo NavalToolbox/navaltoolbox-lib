@@ -110,7 +110,7 @@ mod box_barge_tests {
         // Formula valid for all these angles
         let test_angles = [5.0, 10.0, 20.0];
 
-        let curve = calc.gz_curve(displacement, cog, &test_angles, None, None);
+        let curve = calc.gz_curve(displacement, cog, &test_angles, None, None, None);
 
         for point in &curve.points {
             let phi_rad = point.heel.to_radians();
@@ -152,7 +152,7 @@ mod box_barge_tests {
         let kn_curve = &kn_curves[0];
 
         // 2. Calculate GZ curve (VCG=2.0)
-        let curve = calc.gz_curve(displacement, cog, &heels, None, None);
+        let curve = calc.gz_curve(displacement, cog, &heels, None, None, None);
 
         // Verify relation: GZ = KN - KG * sin(phi)
         // => KN = GZ + KG * sin(phi)
@@ -622,7 +622,7 @@ mod dtmb5415_tests {
         let cog = [LCG, TCG, VCG];
         let heels: Vec<f64> = (0..=60).step_by(10).map(|x| x as f64).collect();
 
-        let curve = calc.gz_curve(DISPLACEMENT, cog, &heels, None, None);
+        let curve = calc.gz_curve(DISPLACEMENT, cog, &heels, None, None, None);
 
         println!("\nDTMB5415 GZ Curve:");
         println!("Heel      Calc GZ    Ref GZ");
@@ -677,7 +677,7 @@ mod dtmb5415_tests {
         let cog = [LCG, TCG, VCG];
         let heels: Vec<f64> = (0..=65).step_by(5).map(|x| x as f64).collect();
 
-        let curve = calc.gz_curve(DISPLACEMENT, cog, &heels, None, None);
+        let curve = calc.gz_curve(DISPLACEMENT, cog, &heels, None, None, None);
 
         // Find max GZ
         let (max_heel, max_gz) = curve
@@ -724,7 +724,7 @@ mod dtmb5415_tests {
         let cog = [LCG, TCG, VCG];
         let heels: Vec<f64> = REFERENCE_DATA.iter().map(|(h, _, _, _)| *h).collect();
 
-        let curve = calc.gz_curve(DISPLACEMENT, cog, &heels, None, None);
+        let curve = calc.gz_curve(DISPLACEMENT, cog, &heels, None, None, None);
 
         // Check GZ values with 5cm tolerance (as in Python tests)
         // Note: larger tolerance needed due to mesh differences
@@ -793,7 +793,7 @@ mod complete_stability_tests {
         let cog = [0.0, 0.0, 2.0]; // Low VCG
         let heels: Vec<f64> = (0..=30).step_by(10).map(|x| x as f64).collect();
 
-        let result = calc.complete_stability(displacement, cog, &heels, None, None);
+        let result = calc.complete_stability(displacement, cog, &heels, None, None, None);
 
         // Check hydrostatics
         assert!(
@@ -850,7 +850,7 @@ mod complete_stability_tests {
         let cog = [0.0, 0.0, 2.0];
         let heels: Vec<f64> = vec![0.0, 15.0, 30.0];
 
-        let result = calc.complete_stability(displacement, cog, &heels, None, None);
+        let result = calc.complete_stability(displacement, cog, &heels, None, None, None);
 
         // Check wind data is available
         assert!(
@@ -890,7 +890,7 @@ mod complete_stability_tests {
         let heels: Vec<f64> = vec![0.0];
 
         // We run a first calculation to get the exact draft
-        let initial_result = calc.complete_stability(displacement, cog, &heels, None, None);
+        let initial_result = calc.complete_stability(displacement, cog, &heels, None, None, None);
         let draft = initial_result.hydrostatics.draft;
 
         // Add a windage-only silhouette starting at the draft (waterline) up to depth=10.0
@@ -905,7 +905,7 @@ mod complete_stability_tests {
         vessel.add_silhouette(silhouette);
 
         let calc_with_sil = StabilityCalculator::new(&vessel, 1025.0);
-        let result = calc_with_sil.complete_stability(displacement, cog, &heels, None, None);
+        let result = calc_with_sil.complete_stability(displacement, cog, &heels, None, None, None);
 
         assert!(
             result.has_wind_data(),
