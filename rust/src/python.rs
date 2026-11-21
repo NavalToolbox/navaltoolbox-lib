@@ -1539,7 +1539,7 @@ impl PyHydrostaticsCalculator {
     ) -> PyResult<PyHydrostaticState> {
         let calc = RustHydroCalc::new(&self.vessel, self.water_density);
 
-        let state = calc.from_draft(
+        calc.from_draft(
             draft,
             trim,
             heel,
@@ -1548,11 +1548,9 @@ impl PyHydrostaticsCalculator {
             tank_options.map(|t| t.inner),
             None,
             None,
-        );
-
-        state
-            .map(|s| s.into())
-            .ok_or_else(|| PyValueError::new_err("No submerged volume at this draft"))
+        )
+        .map(|s| s.into())
+        .map_err(|e| PyValueError::new_err(e))
     }
 
     /// Calculate hydrostatics from drafts at Aft and Forward Perpendiculars.
@@ -1582,21 +1580,16 @@ impl PyHydrostaticsCalculator {
     ) -> PyResult<PyHydrostaticState> {
         let calc = RustHydroCalc::new(&self.vessel, self.water_density);
 
-        // Calculate mean draft and trim
-        // This reproduces the logic from Rust implementation since we can't call from_drafts with options directly
-
-        let state = calc.from_drafts(
+        calc.from_drafts(
             draft_ap,
             draft_fp,
             heel,
             vcg,
             num_stations,
             tank_options.map(|t| t.inner),
-        );
-
-        state
-            .map(|s| s.into())
-            .ok_or_else(|| PyValueError::new_err("No submerged volume at these drafts"))
+        )
+        .map(|s| s.into())
+        .map_err(|e| PyValueError::new_err(e))
     }
 
     /// Calculate hydrostatics for a given displacement with optional constraints.

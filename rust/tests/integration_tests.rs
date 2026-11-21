@@ -587,10 +587,7 @@ mod dtmb5415_tests {
         // At draft 6.15m, volume should be ~8424 m³ (SIMMAN 2008)
         let state = calc.from_draft(6.15, 0.0, 0.0, Some(VCG), None, None, None, None);
 
-        assert!(
-            state.is_some(),
-            "Should compute hydrostatics at draft 6.15m"
-        );
+        assert!(state.is_ok(), "Should compute hydrostatics at draft 6.15m");
         let state = state.unwrap();
 
         println!(

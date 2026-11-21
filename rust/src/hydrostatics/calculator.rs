@@ -246,7 +246,7 @@ impl<'a> HydrostaticsCalculator<'a> {
         tank_options: Option<crate::hydrostatics::TankOptions>,
         lcg: Option<f64>,
         tcg: Option<f64>,
-    ) -> Option<HydrostaticState> {
+    ) -> Result<HydrostaticState, String> {
         // Use AP/FP (defaults to bounds min/max if not set)
         let ap = self.vessel.ap();
         let fp = self.vessel.fp();
@@ -306,7 +306,7 @@ impl<'a> HydrostaticsCalculator<'a> {
             let bounds = get_bounds(&transformed);
 
             // Clip at waterline
-            if let Some(clipped) = clip_at_waterline(&transformed, draft).0 {
+            if let Some(clipped) = clip_at_waterline(&transformed, draft)?.0 {
                 let mass_props = clipped.mass_properties(1.0);
                 let vol = mass_props.mass();
                 let cob = mass_props.local_com;
@@ -450,7 +450,7 @@ impl<'a> HydrostaticsCalculator<'a> {
         }
 
         if total_volume <= 1e-9 {
-            return None;
+            return Err("No submerged volume at this draft".to_string());
         }
 
         let lcb = total_moment[0] / total_volume;
@@ -617,7 +617,7 @@ impl<'a> HydrostaticsCalculator<'a> {
             None
         };
 
-        let mut state = Some(HydrostaticState {
+        let mut state = HydrostaticState {
             draft,
             trim,
             heel,
@@ -658,28 +658,26 @@ impl<'a> HydrostaticsCalculator<'a> {
             },
             sectional_areas: self.calculate_sectional_areas(draft, trim, heel, num_stations),
             freeboard: self.vessel.get_min_freeboard(heel, trim, draft),
-        });
+        };
 
         // Apply tank options if provided
-        if let Some(state) = &mut state {
-            if let Some(opts) = tank_options {
-                // state.displacement = state.vessel_displacement + state.tank_displacement; // Already correct by definition of vessel_displacement
+        if let Some(opts) = tank_options {
+            // state.displacement = state.vessel_displacement + state.tank_displacement; // Already correct by definition of vessel_displacement
 
-                if !opts.include_fsm {
-                    // Remove FSM correction from GM values
-                    if let Some(gmt) = state.gmt {
-                        state.gmt = Some(gmt + state.free_surface_correction_t);
-                    }
-                    if let Some(gml) = state.gml {
-                        state.gml = Some(gml + state.free_surface_correction_l);
-                    }
-                    state.free_surface_correction_t = 0.0;
-                    state.free_surface_correction_l = 0.0;
+            if !opts.include_fsm {
+                // Remove FSM correction from GM values
+                if let Some(gmt) = state.gmt {
+                    state.gmt = Some(gmt + state.free_surface_correction_t);
                 }
+                if let Some(gml) = state.gml {
+                    state.gml = Some(gml + state.free_surface_correction_l);
+                }
+                state.free_surface_correction_t = 0.0;
+                state.free_surface_correction_l = 0.0;
             }
         }
 
-        state
+        Ok(state)
     }
 
     /// Calculates hydrostatics from drafts at Aft and Forward Perpendiculars.
@@ -701,7 +699,7 @@ impl<'a> HydrostaticsCalculator<'a> {
         vcg: Option<f64>,
         num_stations: Option<usize>,
         tank_options: Option<crate::hydrostatics::TankOptions>,
-    ) -> Option<HydrostaticState> {
+    ) -> Result<HydrostaticState, String> {
         let ap = self.vessel.ap();
         let fp = self.vessel.fp();
         let lpp = fp - ap;
@@ -846,8 +844,7 @@ impl<'a> HydrostaticsCalculator<'a> {
                     tank_options,
                     cog.map(|c| c[0]),
                     cog.map(|c| c[1]),
-                )
-                .unwrap_or(state)
+                )?
             } else {
                 state
             };
@@ -884,8 +881,7 @@ impl<'a> HydrostaticsCalculator<'a> {
                         tank_options,
                         cog.map(|c| c[0]),
                         cog.map(|c| c[1]),
-                    )
-                    .unwrap_or(state)
+                    )?
                 } else {
                     state
                 };
@@ -969,7 +965,7 @@ impl<'a> HydrostaticsCalculator<'a> {
             for _ in 0..50 {
                 let mid = (low + high) / 2.0;
 
-                if let Some(state) = self.from_draft(
+                if let Ok(state) = self.from_draft(
                     mid,
                     *fixed_trim,
                     *fixed_heel,
@@ -999,16 +995,18 @@ impl<'a> HydrostaticsCalculator<'a> {
             // If we failed to find a valid draft even once, try best estimate
             if found_draft.is_none() {
                 let draft = (low + high) / 2.0;
-                found_draft = self.from_draft(
-                    draft,
-                    *fixed_trim,
-                    *fixed_heel,
-                    effective_vcg,
-                    None,
-                    None,
-                    cog.map(|c| c[0]),
-                    cog.map(|c| c[1]),
-                );
+                found_draft = self
+                    .from_draft(
+                        draft,
+                        *fixed_trim,
+                        *fixed_heel,
+                        effective_vcg,
+                        None,
+                        None,
+                        cog.map(|c| c[0]),
+                        cog.map(|c| c[1]),
+                    )
+                    .ok();
             }
 
             match found_draft {
@@ -1299,7 +1297,7 @@ impl<'a> HydrostaticsCalculator<'a> {
 
         for _ in 0..50 {
             let mid = (low + high) / 2.0;
-            if let Some(state) = self.from_draft(mid, trim, heel, vcg, None, None, lcg, tcg) {
+            if let Ok(state) = self.from_draft(mid, trim, heel, vcg, None, None, lcg, tcg) {
                 let diff = state.volume - target_vol;
                 if diff.abs() < tolerance {
                     return Some(state);
@@ -1314,6 +1312,7 @@ impl<'a> HydrostaticsCalculator<'a> {
             }
         }
         self.from_draft((low + high) / 2.0, trim, heel, vcg, None, None, lcg, tcg)
+            .ok()
     }
 
     /// Returns the water density.
@@ -1357,7 +1356,10 @@ impl<'a> HydrostaticsCalculator<'a> {
         let mut clipped_meshes = Vec::new();
         for hull in self.vessel.hulls() {
             let transformed = transform_mesh(hull.mesh(), heel, trim, pivot);
-            if let Some(clipped) = clip_at_waterline(&transformed, draft).0 {
+            if let Some(clipped) = clip_at_waterline(&transformed, draft)
+                .ok()
+                .and_then(|(m, _)| m)
+            {
                 clipped_meshes.push(clipped);
             }
         }
@@ -1799,7 +1801,10 @@ mod tests {
 
         // Clipped slice at X=5.0, Draft=5.0
         // Expect 10 (width) * 5 (draft) = 50 m²
-        if let Some(clipped) = crate::mesh::clip_at_waterline(mesh, 5.0).0 {
+        if let Some(clipped) = crate::mesh::clip_at_waterline(mesh, 5.0)
+            .ok()
+            .and_then(|(m, _)| m)
+        {
             println!("Clipped Vertices: {:?}", clipped.vertices());
             println!("Clipped Indices: {:?}", clipped.indices());
 
