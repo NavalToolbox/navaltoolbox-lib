@@ -1965,22 +1965,56 @@ mod tests {
         // Box hull 10x10x10, centered at y=0
         // Right-hand system: Y+ = port, positive heel = port UP (starboard down)
         // Weight on port (TcG > 0) → port goes DOWN → NEGATIVE heel
-        let hull = create_box_hull(10.0, 10.0, 10.0);
-        let vessel = Vessel::new(hull);
-        let calc = HydrostaticsCalculator::new(&vessel, 1025.0);
-        let target_disp = 512500.0; // 5m draft condition
+        let length = 10.0_f64;
+        let beam = 10.0_f64;
+        let depth = 10.0_f64;
+        let rho = 1025.0_f64;
 
-        // COG offset to port (TcG = +1.0m)
-        let cog = [5.0, 1.0, 5.0]; // LcG, TcG, VcG
+        let hull = create_box_hull(length, beam, depth);
+        let vessel = Vessel::new(hull);
+        let calc = HydrostaticsCalculator::new(&vessel, rho);
+
+        // Draft 5 m → volume 500 m3
+        let target_disp = 500.0 * rho;
+        let volume = target_disp / rho;
+        let draft = volume / (length * beam); // 5.0 m
+
+        // VCG low enough to keep the vessel stable (GM > 0)
+        let tcg = 0.2_f64;
+        let vcg = 3.0_f64; // KB=2.5, BM=1.667, KM=4.167, GM=+1.167 m
+        let cog = [length / 2.0, tcg, vcg];
 
         let state = calc
             .from_displacement(target_disp, None, Some(cog), None, None, None, None)
             .expect("Calculation failed");
 
-        // Port weight → port down → negative heel (right-hand convention)
+        // Negative heel expected (port down)
         assert!(
             state.heel < -0.1,
             "Heel should be negative for port TcG, got {}",
+            state.heel
+        );
+
+        // Theoretical wall-sided angle (exact formula for a box)
+        // tan(φ) · (GM + BM/2 · tan²φ) = TCG
+        let kb = 0.5 * draft;
+        let bm = beam * beam / (12.0 * draft);
+        let gm = kb + bm - vcg;
+        assert!(gm > 0.0, "GM must be positive for a stable box, got {}", gm);
+
+        let mut t = 0.0_f64;
+        for _ in 0..50 {
+            t = tcg / (gm + bm / 2.0 * t * t);
+        }
+        let expected_heel_deg = -t.atan().to_degrees(); // negative, port down
+
+        // state.heel is in degrees
+        let tolerance = 0.1;
+        assert!(
+            (state.heel - expected_heel_deg).abs() < tolerance,
+            "Expected heel {:.4}° (GM = {:.4} m), got {:.4}°",
+            expected_heel_deg,
+            gm,
             state.heel
         );
     }
@@ -2054,15 +2088,11 @@ mod tests {
         let cob_ship_point = pivot + inv_rotation * (cob_global - pivot);
         let cob_ship = nalgebra::Vector3::new(cob_ship_point.x, cob_ship_point.y, cob_ship_point.z);
 
-        // Also compute for debug: COG in global
-        // p_global = pivot + Rot * (p_ship - pivot)
-        // Not strictly needed for the test assertion but useful debug
-        // let cog_ship_point = pivot + (cog_ship - nalgebra::Vector3::new(pivot.x, pivot.y, pivot.z));
-        // let _cog_global = pivot + rotation * (cog_ship_point - pivot);
+        let cog_point = Point3::new(cog[0], cog[1], cog[2]);
+        let g_earth = pivot + rotation * (cog_point - pivot);
 
-        // At equilibrium, horizontal components in ship frame should match closely
-        let diff_x = (cog_ship.x - cob_ship.x).abs();
-        let diff_y = (cog_ship.y - cob_ship.y).abs();
+        let diff_x = (g_earth.x - cob_global.x).abs();
+        let diff_y = (g_earth.y - cob_global.y).abs();
 
         assert!(
             diff_x < 0.1,
