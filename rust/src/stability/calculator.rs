@@ -311,7 +311,10 @@ impl<'a> StabilityCalculator<'a> {
 
         for (hull_idx, hull) in self.vessel.hulls().iter().enumerate() {
             let transformed = transform_mesh(hull.mesh(), heel, trim, pivot);
-            let (clipped_opt, aw) = clip_at_waterline(&transformed, draft);
+            let (clipped_opt, aw) = match clip_at_waterline(&transformed, draft) {
+                Ok(result) => result,
+                Err(_) => (None, 0.0),
+            };
 
             if let Some(mesh) = clipped_opt {
                 let mass_props = mesh.mass_properties(1.0);
@@ -521,7 +524,7 @@ impl<'a> StabilityCalculator<'a> {
 
             for hull in self.vessel.hulls() {
                 let transformed = transform_mesh(hull.mesh(), heel, trim, pivot);
-                if let (Some(mesh), aw) = clip_at_waterline(&transformed, mid) {
+                if let Ok((Some(mesh), aw)) = clip_at_waterline(&transformed, mid) {
                     let mut vol = mesh.mass_properties(1.0).mass();
 
                     if let Some(t) = hull.thickness() {
@@ -569,7 +572,7 @@ impl<'a> StabilityCalculator<'a> {
             let mut vol = 0.0;
             for hull in self.vessel.hulls() {
                 let transformed = transform_mesh(hull.mesh(), heel, trim, pivot);
-                if let (Some(mesh), aw) = clip_at_waterline(&transformed, result) {
+                if let Ok((Some(mesh), aw)) = clip_at_waterline(&transformed, result) {
                     let mut v = mesh.mass_properties(1.0).mass();
                     if let Some(t) = hull.thickness() {
                         let ws = (crate::hydrostatics::calculate_mesh_area(&mesh) - aw).max(0.0);
@@ -658,7 +661,7 @@ impl<'a> StabilityCalculator<'a> {
 
                 for hull in self.vessel.hulls() {
                     let transformed = transform_mesh(hull.mesh(), heel, trim, pivot);
-                    if let (Some(mesh), aw) = clip_at_waterline(&transformed, mid) {
+                    if let Ok((Some(mesh), aw)) = clip_at_waterline(&transformed, mid) {
                         let mass_props = mesh.mass_properties(1.0);
                         let mut vol = mass_props.mass();
                         let com = mass_props.local_com;

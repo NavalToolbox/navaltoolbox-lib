@@ -87,7 +87,7 @@ fn intersect_segment_plane_canonical(
 
 /// Clips a mesh at the given Z (draft) plane, returning a closed (watertight) mesh and the waterplane area.
 /// Keeps volume below `draft`.
-pub fn clip_at_waterline(mesh: &TriMesh, draft: f64) -> (Option<TriMesh>, f64) {
+pub fn clip_at_waterline(mesh: &TriMesh, draft: f64) -> Result<(Option<TriMesh>, f64), String> {
     clip_by_axis_aligned_plane(mesh, Axis::Z, draft, true)
 }
 
@@ -98,7 +98,7 @@ pub fn clip_by_axis_aligned_plane(
     axis: Axis,
     value: f64,
     keep_lower: bool,
-) -> (Option<TriMesh>, f64) {
+) -> Result<(Option<TriMesh>, f64), String> {
     let vertices = mesh.vertices();
     let indices = mesh.indices();
 
@@ -210,7 +210,7 @@ pub fn clip_by_axis_aligned_plane(
     }
 
     if new_indices.is_empty() {
-        return (None, 0.0);
+        return Ok((None, 0.0));
     }
 
     // --- CAP GENERATION ---
@@ -263,6 +263,25 @@ pub fn clip_by_axis_aligned_plane(
             } else {
                 break;
             }
+        }
+
+        if !closed {
+            return Err(format!(
+                "Waterline clipping error at plane {}={:.6}: \
+                 a cut loop of {} segment(s) did not close. \
+                 This indicates a mesh defect (gap or T-junction) \
+                 that was not caught at load time, or a numerical \
+                 precision issue at the cut plane. \
+                 Segments collected before the break: {}.",
+                match axis {
+                    Axis::X => "x",
+                    Axis::Y => "y",
+                    Axis::Z => "z",
+                },
+                value,
+                cut_segments.len(),
+                loop_pts_3d.len()
+            ));
         }
 
         if closed && loop_pts_2d.len() >= 3 {
@@ -351,7 +370,7 @@ pub fn clip_by_axis_aligned_plane(
         }
     }
 
-    (TriMesh::new(new_vertices, new_indices).ok(), total_cap_area)
+    Ok((TriMesh::new(new_vertices, new_indices).ok(), total_cap_area))
 }
 
 #[cfg(test)]
@@ -392,7 +411,7 @@ mod tests {
     #[test]
     fn test_clip_cube_at_half_z() {
         let cube = create_unit_cube();
-        let (output, area) = clip_by_axis_aligned_plane(&cube, Axis::Z, 0.5, true);
+        let (output, area) = clip_by_axis_aligned_plane(&cube, Axis::Z, 0.5, true).unwrap();
         if let Some(clipped) = output {
             let mass_props = clipped.mass_properties(1.0);
             let volume = mass_props.mass();
@@ -407,7 +426,7 @@ mod tests {
     #[test]
     fn test_clip_cube_at_half_x() {
         let cube = create_unit_cube();
-        let (output, _area) = clip_by_axis_aligned_plane(&cube, Axis::X, 0.5, true);
+        let (output, _area) = clip_by_axis_aligned_plane(&cube, Axis::X, 0.5, true).unwrap();
         if let Some(clipped) = output {
             let mass_props = clipped.mass_properties(1.0);
             let volume = mass_props.mass();
@@ -415,5 +434,52 @@ mod tests {
         } else {
             panic!("Clipping failed");
         }
+    }
+
+    #[test]
+    fn test_clip_mesh_with_gap_at_waterline() {
+        let vertices = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(0.0, 0.0, 1.0),
+            Point3::new(1.0, 0.0, 1.0),
+            Point3::new(1.0, 1.0, 1.0),
+            Point3::new(0.0, 1.0, 1.0),
+        ];
+
+        let mut indices = vec![
+            [0, 2, 1],
+            [0, 3, 2], // Bottom
+            [4, 5, 6],
+            [4, 6, 7], // Top
+            [0, 1, 5],
+            [0, 5, 4], // Front
+            [2, 3, 7],
+            [2, 7, 6], // Back
+            [0, 4, 7],
+            [0, 7, 3], // Left
+            [1, 2, 6],
+            [1, 6, 5], // Right
+        ];
+        // Remove one triangle spanning across z = 0.5 to introduce a gap at the waterline
+        indices.pop();
+
+        let mesh = TriMesh::new(vertices, indices).expect("Failed to create test cube with gap");
+        let result = clip_by_axis_aligned_plane(&mesh, Axis::Z, 0.5, true);
+        assert!(
+            result.is_err(),
+            "Expected error for mesh with waterline gap"
+        );
+        let err = result.unwrap_err();
+        assert!(
+            err.contains("Waterline clipping error at plane z=0.500000"),
+            "Error was: {}",
+            err
+        );
+        assert!(err.contains("a cut loop of"));
+        assert!(err.contains("did not close"));
+        assert!(err.contains("Segments collected before the break:"));
     }
 }
