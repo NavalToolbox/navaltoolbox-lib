@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-21
+
+### Added
+- **stability**: Add `simplification_target` parameter to `gz_curve` and `complete_stability` (and Python bindings) to allow decimating meshes for faster computation.
+
+### Fixed
+- **hydrostatics**: Compare COG (center of gravity) and COB (center of buoyancy) in the Earth frame rather than ship frame in equilibrium solver (`solve_equilibrium_newton`, `bisect_angle`).
+- **mesh**: Reject non-manifold meshes (edge pairing) and inside-out meshes (negative signed volume) at load time.
+- **clipper**: Return an error when the waterline loop does not close instead of failing silently.
+
 ## [0.9.4] - 2026-11-13
 
 ### Fixed
