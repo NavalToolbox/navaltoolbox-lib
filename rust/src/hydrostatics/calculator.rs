@@ -1034,19 +1034,17 @@ impl<'a> HydrostaticsCalculator<'a> {
                     let rot_x = Rotation3::from_axis_angle(&Vector3::x_axis(), heel_rad);
                     let rot_y = Rotation3::from_axis_angle(&Vector3::y_axis(), trim_rad);
                     let rotation = rot_y * rot_x;
-                    let inv_rotation = rotation.inverse();
-
                     let cob_global = Point3::new(state.lcb(), state.tcb(), state.vcb());
-                    let cob_ship = pivot + inv_rotation * (cob_global - pivot);
-                    let cob_ship_vec = Vector3::new(cob_ship.x, cob_ship.y, cob_ship.z);
+                    let cog_point = Point3::new(cog_ship.x, cog_ship.y, cog_ship.z);
+                    let g_earth = pivot + rotation * (cog_point - pivot);
 
-                    // Difference in ship frame
-                    let diff_ship = cog_ship - cob_ship_vec;
+                    // Difference in earth frame
+                    let diff_earth = g_earth - cob_global;
                     let mut converged = true;
 
                     if solve_heel {
                         let gmt = state.gmt.unwrap_or(1.0).max(0.1);
-                        let d_heel = -(diff_ship.y / gmt).to_degrees();
+                        let d_heel = -(diff_earth.y / gmt).to_degrees();
 
                         if d_heel.abs() > 0.001 {
                             // Adaptive damping
@@ -1059,7 +1057,7 @@ impl<'a> HydrostaticsCalculator<'a> {
 
                     if solve_trim {
                         let gml = state.gml.unwrap_or(100.0).max(1.0);
-                        let d_trim = (diff_ship.x / gml).to_degrees();
+                        let d_trim = (diff_earth.x / gml).to_degrees();
 
                         if d_trim.abs() > 0.001 {
                             // Adaptive damping
@@ -1107,10 +1105,9 @@ impl<'a> HydrostaticsCalculator<'a> {
                 * Rotation3::from_axis_angle(&Vector3::x_axis(), heel_rad);
 
             let cob_global = Point3::new(state.lcb(), state.tcb(), state.vcb());
-            let cob_ship = pivot + rot.inverse() * (cob_global - pivot);
-            let cob_ship_vec = Vector3::new(cob_ship.x, cob_ship.y, cob_ship.z);
-
-            let diff = cog_ship - cob_ship_vec;
+            let cog_point = Point3::new(cog_ship.x, cog_ship.y, cog_ship.z);
+            let g_earth = pivot + rot * (cog_point - pivot);
+            let diff = g_earth - cob_global;
             // If error is large (> 0.1m), signal failure to trigger fallback
             if diff.x.abs() > 0.1 || diff.y.abs() > 0.1 {
                 return Ok(None);
@@ -1135,8 +1132,6 @@ impl<'a> HydrostaticsCalculator<'a> {
     ) -> Option<HydrostaticState> {
         let max_iter = 10;
         let cog_val = cog.unwrap();
-        let target_lcg = cog_val[0];
-        let target_tcg = cog_val[1];
         let effective_vcg = Some(cog_val[2]);
 
         for _ in 0..max_iter {
@@ -1148,9 +1143,8 @@ impl<'a> HydrostaticsCalculator<'a> {
                     displacement_mass,
                     *fixed_trim,
                     *fixed_heel,
-                    target_tcg,
+                    cog_val,
                     true, // is_heel
-                    effective_vcg,
                 );
                 if (new_heel - *fixed_heel).abs() > 0.01 {
                     *fixed_heel = new_heel;
@@ -1164,9 +1158,8 @@ impl<'a> HydrostaticsCalculator<'a> {
                     displacement_mass,
                     *fixed_trim,
                     *fixed_heel,
-                    target_lcg,
+                    cog_val,
                     false, // is_heel (so it's trim)
-                    effective_vcg,
                 );
                 if (new_trim - *fixed_trim).abs() > 0.01 {
                     *fixed_trim = new_trim;
@@ -1196,9 +1189,8 @@ impl<'a> HydrostaticsCalculator<'a> {
         disp: f64,
         current_trim: f64,
         current_heel: f64,
-        target_val: f64,
+        cog: [f64; 3],
         is_heel: bool,
-        vcg: Option<f64>,
     ) -> (f64, f64) {
         let (min, max) = if is_heel {
             (-89.0, 89.0)
@@ -1223,8 +1215,14 @@ impl<'a> HydrostaticsCalculator<'a> {
                 (mid, current_heel)
             };
 
-            if let Some(state) = self.find_draft_for_displacement(disp, t, h, vcg, None, None) {
-                // Transform COB to ship frame to compare with target TCG/LCG
+            if let Some(state) = self.find_draft_for_displacement(
+                disp,
+                t,
+                h,
+                Some(cog[2]),
+                Some(cog[0]),
+                Some(cog[1]),
+            ) {
                 // Reconstruct pivot (needed for correct transform)
                 let ap = self.vessel.ap();
                 let fp = self.vessel.fp();
@@ -1239,25 +1237,25 @@ impl<'a> HydrostaticsCalculator<'a> {
                     * Rotation3::from_axis_angle(&Vector3::x_axis(), h_rad);
 
                 let cob_global = Point3::new(state.lcb(), state.tcb(), state.vcb());
-                let cob_ship = pivot + rot.inverse() * (cob_global - pivot);
-
-                let val = if is_heel { cob_ship.y } else { cob_ship.x };
-                let diff = val - target_val; // B_pos - G_pos
-                final_diff = diff;
+                let cog_point = Point3::new(cog[0], cog[1], cog[2]);
+                let g_earth = pivot + rot * (cog_point - pivot);
 
                 if is_heel {
-                    // If diff < 0 (B_y < G_y), B is stbd of G. Need to heel port down (negative).
+                    let diff = g_earth.y - cob_global.y;
+                    final_diff = diff;
+                    // If diff > 0 (G_y > B_y), G is to port of B. Need to heel port down (negative).
                     // So we need smaller heel (towards min).
-                    if diff < 0.0 {
+                    if diff > 0.0 {
                         b_max = mid;
                     } else {
                         b_min = mid;
                     }
                 } else {
-                    // Trim: if diff < 0 (B_x < G_x), B is aft of G.
-                    // Need B to move fwd. Positive trim (bow down) moves B fwd.
+                    let diff = g_earth.x - cob_global.x;
+                    final_diff = diff;
+                    // If diff > 0 (G_x > B_x), G is forward of B. Need to trim bow down (positive).
                     // So we need larger trim (towards max).
-                    if diff < 0.0 {
+                    if diff > 0.0 {
                         b_min = mid;
                     } else {
                         b_max = mid;
@@ -1965,22 +1963,56 @@ mod tests {
         // Box hull 10x10x10, centered at y=0
         // Right-hand system: Y+ = port, positive heel = port UP (starboard down)
         // Weight on port (TcG > 0) → port goes DOWN → NEGATIVE heel
-        let hull = create_box_hull(10.0, 10.0, 10.0);
-        let vessel = Vessel::new(hull);
-        let calc = HydrostaticsCalculator::new(&vessel, 1025.0);
-        let target_disp = 512500.0; // 5m draft condition
+        let length = 10.0_f64;
+        let beam = 10.0_f64;
+        let depth = 10.0_f64;
+        let rho = 1025.0_f64;
 
-        // COG offset to port (TcG = +1.0m)
-        let cog = [5.0, 1.0, 5.0]; // LcG, TcG, VcG
+        let hull = create_box_hull(length, beam, depth);
+        let vessel = Vessel::new(hull);
+        let calc = HydrostaticsCalculator::new(&vessel, rho);
+
+        // Draft 5 m → volume 500 m3
+        let target_disp = 500.0 * rho;
+        let volume = target_disp / rho;
+        let draft = volume / (length * beam); // 5.0 m
+
+        // VCG low enough to keep the vessel stable (GM > 0)
+        let tcg = 0.2_f64;
+        let vcg = 3.0_f64; // KB=2.5, BM=1.667, KM=4.167, GM=+1.167 m
+        let cog = [length / 2.0, tcg, vcg];
 
         let state = calc
             .from_displacement(target_disp, None, Some(cog), None, None, None, None)
             .expect("Calculation failed");
 
-        // Port weight → port down → negative heel (right-hand convention)
+        // Negative heel expected (port down)
         assert!(
             state.heel < -0.1,
             "Heel should be negative for port TcG, got {}",
+            state.heel
+        );
+
+        // Theoretical wall-sided angle (exact formula for a box)
+        // tan(φ) · (GM + BM/2 · tan²φ) = TCG
+        let kb = 0.5 * draft;
+        let bm = beam * beam / (12.0 * draft);
+        let gm = kb + bm - vcg;
+        assert!(gm > 0.0, "GM must be positive for a stable box, got {}", gm);
+
+        let mut t = 0.0_f64;
+        for _ in 0..50 {
+            t = tcg / (gm + bm / 2.0 * t * t);
+        }
+        let expected_heel_deg = -t.atan().to_degrees(); // negative, port down
+
+        // state.heel is in degrees
+        let tolerance = 0.1;
+        assert!(
+            (state.heel - expected_heel_deg).abs() < tolerance,
+            "Expected heel {:.4}° (GM = {:.4} m), got {:.4}°",
+            expected_heel_deg,
+            gm,
             state.heel
         );
     }
@@ -2054,15 +2086,11 @@ mod tests {
         let cob_ship_point = pivot + inv_rotation * (cob_global - pivot);
         let cob_ship = nalgebra::Vector3::new(cob_ship_point.x, cob_ship_point.y, cob_ship_point.z);
 
-        // Also compute for debug: COG in global
-        // p_global = pivot + Rot * (p_ship - pivot)
-        // Not strictly needed for the test assertion but useful debug
-        // let cog_ship_point = pivot + (cog_ship - nalgebra::Vector3::new(pivot.x, pivot.y, pivot.z));
-        // let _cog_global = pivot + rotation * (cog_ship_point - pivot);
+        let cog_point = Point3::new(cog[0], cog[1], cog[2]);
+        let g_earth = pivot + rotation * (cog_point - pivot);
 
-        // At equilibrium, horizontal components in ship frame should match closely
-        let diff_x = (cog_ship.x - cob_ship.x).abs();
-        let diff_y = (cog_ship.y - cob_ship.y).abs();
+        let diff_x = (g_earth.x - cob_global.x).abs();
+        let diff_y = (g_earth.y - cob_global.y).abs();
 
         assert!(
             diff_x < 0.1,
